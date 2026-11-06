@@ -56,6 +56,12 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          token_digest BLOB NOT NULL UNIQUE CHECK (length(token_digest) = 32),
          created_at INTEGER NOT NULL
      ) STRICT;",
+    // 3: the ban list. A ban deletes the account; the digest of its email
+    // address stays, so that the address cannot register again.
+    "CREATE TABLE banned_emails (
+         email_digest BLOB PRIMARY KEY CHECK (length(email_digest) = 32),
+         banned_at INTEGER NOT NULL
+     ) STRICT;",
 ];
 
 /// Applies the migrations the database lacks.

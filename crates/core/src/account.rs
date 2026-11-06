@@ -5,7 +5,7 @@ mod email;
 mod password;
 
 pub use code::{AccountCode, AccountCodeError};
-pub use email::{Email, EmailError};
+pub use email::{Email, EmailDigest, EmailError};
 pub use password::{
     MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS, NewPassword, PasswordAttempt, PasswordError,
 };

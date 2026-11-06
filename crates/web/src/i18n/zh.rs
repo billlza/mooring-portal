@@ -179,7 +179,7 @@ pub(super) const STRINGS: Strings = Strings {
         password_control: "密码不能包含换行等控制字符。",
         password_is_email: "密码不能与邮箱相同。",
         confirm_mismatch: "两次输入的密码不一致。",
-        email_taken: "这个邮箱已经注册过了。",
+        email_taken: "这个邮箱不能再注册。已经有账号的话，请直接登录。",
         registration_full: "注册名额已满，请联系运营者。",
         login_failed: "邮箱或密码不正确。",
         too_many_attempts: "尝试次数过多，请 {} 分钟后再试。",

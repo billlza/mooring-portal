@@ -7,7 +7,7 @@ use portal_core::profile::ProfileError;
 use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
 use portal_store::{
-    BindError, DeleteError, ImportError, ProfileImportError, StoreError, UnbindError,
+    BanError, BindError, DeleteError, ImportError, ProfileImportError, StoreError, UnbindError,
 };
 use portal_web::{OriginError, StartupError};
 
@@ -32,6 +32,12 @@ pub enum CommandError {
     /// A deletion was refused.
     #[error(transparent)]
     Delete(#[from] DeleteError),
+    /// A ban was refused.
+    #[error(transparent)]
+    Ban(#[from] BanError),
+    /// `unban` named an address that is not banned, most likely mistyped.
+    #[error("that email address is not banned; nothing changed")]
+    NotBanned,
     /// An input file could not be read.
     #[error("cannot read {path}: {source}")]
     Read {

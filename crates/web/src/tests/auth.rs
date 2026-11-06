@@ -80,7 +80,7 @@ async fn registration_errors_are_shown_on_the_form() {
             PASSWORD,
             PASSWORD,
             StatusCode::CONFLICT,
-            "这个邮箱已经注册过了。",
+            "这个邮箱不能再注册。已经有账号的话，请直接登录。",
         ),
     ] {
         let reply = browser
@@ -231,6 +231,59 @@ async fn failed_logins_do_not_say_whether_the_account_exists() {
     assert_eq!(
         bodies[0], bodies[1],
         "an existing and a missing account read the same"
+    );
+}
+
+#[tokio::test]
+async fn a_banned_address_is_signed_out_and_refused_as_a_taken_one() {
+    let app = TestApp::new();
+    let (mut banned, code) = app.signed_up("lilei@qq.com").await;
+    app.signed_up("hanmeimei@qq.com").await;
+    let now = portal_core::time::UnixTime::from_secs(super::support::NOW).unwrap();
+    app.store(move |store| store.ban(&code, now)).await.unwrap();
+    // The banned browser's session is gone, and so is the login.
+    assert_eq!(
+        banned.get(&app, "/account").await.location(),
+        "/login?next=account"
+    );
+    let mut browser = Browser::new([203, 0, 113, 6]);
+    browser.get(&app, "/login").await;
+    let login = browser
+        .post(
+            &app,
+            "/login",
+            &[("email", "lilei@qq.com"), ("password", PASSWORD)],
+        )
+        .await;
+    assert_eq!(login.status, StatusCode::UNAUTHORIZED);
+    assert!(login.body.contains("邮箱或密码不正确。"));
+    // Registering the address again reads exactly as for a taken address.
+    browser.get(&app, "/register").await;
+    let mut bodies = Vec::new();
+    for address in ["LiLei@QQ.com", "hanmeimei@qq.com"] {
+        let reply = browser
+            .post(
+                &app,
+                "/register",
+                &[
+                    ("email", address),
+                    ("password", PASSWORD),
+                    ("confirm", PASSWORD),
+                ],
+            )
+            .await;
+        assert_eq!(reply.status, StatusCode::CONFLICT, "{address}");
+        assert!(
+            reply
+                .body
+                .contains("这个邮箱不能再注册。已经有账号的话，请直接登录。"),
+            "{address}"
+        );
+        bodies.push(reply.body.replace(address, "EMAIL"));
+    }
+    assert_eq!(
+        bodies[0], bodies[1],
+        "a banned and a taken address read alike"
     );
 }
 

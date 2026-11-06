@@ -245,7 +245,11 @@ pub(crate) async fn register(
             response.headers_mut().append(SET_COOKIE, rotated_cookie()?);
             Ok(response)
         }
-        Err(RegisterError::EmailTaken) => refuse(t.auth.email_taken, StatusCode::CONFLICT),
+        // A banned address is answered as a taken one: telling them apart
+        // would tell anyone who types an address that its owner was banned.
+        Err(RegisterError::EmailTaken | RegisterError::Banned) => {
+            refuse(t.auth.email_taken, StatusCode::CONFLICT)
+        }
         Err(RegisterError::Full { .. }) => refuse(t.auth.registration_full, StatusCode::FORBIDDEN),
         Err(RegisterError::Store(error)) => Err(AppError::internal(error)),
     }

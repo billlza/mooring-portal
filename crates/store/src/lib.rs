@@ -2,7 +2,8 @@
 //!
 //! One file holds the accounts, their sessions, the bindings of accounts to
 //! Mooring users, the latest snapshot record and CFM profile of each bound
-//! user, and the accounts' subscription links. The
+//! user, the accounts' subscription links, and the ban list (digests of
+//! banned accounts' email addresses). The
 //! server and the operator's commands open the same file: SQLite's write
 //! lock serialises them (WAL journal, five-second busy timeout), and every
 //! operation that reads before it writes runs in an immediate transaction,
@@ -16,6 +17,7 @@
 compile_error!("the portal store supports Unix hosts only (it sets file modes)");
 
 mod accounts;
+mod bans;
 mod bindings;
 mod error;
 mod file;
@@ -32,6 +34,7 @@ use std::time::Duration;
 use rusqlite::{Connection, OpenFlags};
 
 pub use accounts::{Account, AccountSummary, Credentials, DeleteError, NewAccount, RegisterError};
+pub use bans::{Ban, BanError};
 pub use bindings::{BindError, Binding, BoundAccount, UnbindError};
 pub use error::{StoreError, UnknownAccount};
 pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};

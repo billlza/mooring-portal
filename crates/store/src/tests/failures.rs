@@ -5,7 +5,7 @@ use portal_core::account::AccountCode;
 
 use super::*;
 use crate::{
-    BindError, DeleteError, ImportError, LinkError, LinkedProfile, ProfileImportError,
+    BanError, BindError, DeleteError, ImportError, LinkError, LinkedProfile, ProfileImportError,
     RegisterError, RevokeError, StoreError, UnbindError,
 };
 
@@ -18,7 +18,7 @@ fn broken() -> (Store, Account) {
         .execute_batch(
             "DROP TABLE subscription_links; DROP TABLE cfm_profiles; DROP TABLE profile_bundle; \
              DROP TABLE subscription_records; DROP TABLE bindings; DROP TABLE sessions; \
-             DROP TABLE accounts;",
+             DROP TABLE accounts; DROP TABLE banned_emails;",
         )
         .unwrap();
     (store, account)
@@ -71,6 +71,11 @@ fn writes_fail_loudly() {
         store.delete_account(&account.code),
         Err(DeleteError::Store(StoreError::Sqlite(_)))
     ));
+    assert!(matches!(
+        store.ban(&account.code, at(NOW)),
+        Err(BanError::Store(StoreError::Sqlite(_)))
+    ));
+    sqlite(store.unban(&email("a@qq.com")));
     assert!(matches!(
         store.import(&snapshot(NOW, &[("pilotusera", Some(1))]), at(NOW)),
         Err(ImportError::Store(StoreError::Sqlite(_)))

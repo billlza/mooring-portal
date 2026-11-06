@@ -289,3 +289,43 @@ fn a_failing_import_report_line_after_the_first_is_an_error() {
         "mooring-portal: cannot write the output: pipe closed\n"
     );
 }
+
+#[test]
+fn ban_deletes_the_account_and_unban_lets_its_address_register_again() {
+    let fixture = Fixture::new();
+    let alice = fixture.account("alice@qq.com", 1).to_string();
+    let bob = fixture.account("bob@163.com", 2).to_string();
+    fixture.run(&["bind", "--account", &alice, "--user", "pilotusera"]);
+    let banned = fixture.run(&["ban", "--account", &alice]);
+    assert_eq!(banned.code, ExitCode::SUCCESS, "{}", banned.err);
+    assert_eq!(
+        banned.out,
+        "banned account 0000-0000-0001: deleted it with its sessions, binding, subscription \
+         record, CFM profile and subscription link; its email address cannot register again\n\
+         it was bound to Mooring user pilotusera: revoke that user in Mooring too, since the \
+         nodes serve it until then\n"
+    );
+    let unbound = fixture.run(&["ban", "--account", &bob]);
+    assert_eq!(
+        unbound.out,
+        "banned account 0000-0000-0002: deleted it with its sessions, binding, subscription \
+         record, CFM profile and subscription link; its email address cannot register again\n"
+    );
+    assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
+    let again = fixture.run(&["ban", "--account", &alice]);
+    assert_eq!(again.code, ExitCode::FAILURE);
+    assert_eq!(
+        again.err,
+        "mooring-portal: no account has the code 0000-0000-0001\n"
+    );
+    let unbanned = fixture.run(&["unban", "--email", "Alice@QQ.com"]);
+    assert_eq!(unbanned.code, ExitCode::SUCCESS, "{}", unbanned.err);
+    assert_eq!(unbanned.out, "the email address can register again\n");
+    let missing = fixture.run(&["unban", "--email", "alice@qq.com"]);
+    assert_eq!(missing.code, ExitCode::FAILURE);
+    assert_eq!(
+        missing.err,
+        "mooring-portal: that email address is not banned; nothing changed\n"
+    );
+    assert!(missing.out.is_empty());
+}

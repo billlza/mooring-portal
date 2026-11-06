@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{Read as _, Write};
 use std::path::Path;
 
-use portal_core::account::AccountCode;
+use portal_core::account::{AccountCode, Email};
 use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
 use portal_core::snapshot::{MAX_DOCUMENT_BYTES, MooringUserId, Snapshot};
 use portal_core::time::Clock;
@@ -196,6 +196,47 @@ pub(crate) fn delete_account(
         "deleted account {account} with its sessions, binding, subscription record, CFM \
          profile and subscription link"
     )?;
+    Ok(())
+}
+
+/// Bans an account.
+pub(crate) fn ban(
+    store: &mut Store,
+    clock: &dyn Clock,
+    account: &AccountCode,
+    out: &mut dyn Write,
+) -> Result<(), CommandError> {
+    let ban = store.ban(account, clock.now()?)?;
+    writeln!(
+        out,
+        "banned account {account}: deleted it with its sessions, binding, subscription record, \
+         CFM profile and subscription link{}; its email address cannot register again",
+        if ban.link_ended {
+            " (the link has ended for good)"
+        } else {
+            ""
+        }
+    )?;
+    if let Some(user) = &ban.user {
+        writeln!(
+            out,
+            "it was bound to Mooring user {user}: revoke that user in Mooring too, since the \
+             nodes serve it until then"
+        )?;
+    }
+    Ok(())
+}
+
+/// Lets a banned address register again.
+pub(crate) fn unban(
+    store: &mut Store,
+    email: &Email,
+    out: &mut dyn Write,
+) -> Result<(), CommandError> {
+    if !store.unban(email)? {
+        return Err(CommandError::NotBanned);
+    }
+    writeln!(out, "the email address can register again")?;
     Ok(())
 }
 

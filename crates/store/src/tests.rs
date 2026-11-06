@@ -1,6 +1,7 @@
 //! Tests of the store against in-memory and on-disk databases.
 
 mod accounts;
+mod bans;
 mod bindings;
 mod failures;
 mod file;

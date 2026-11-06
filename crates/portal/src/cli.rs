@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
-use portal_core::account::{AccountCode, AccountCodeError};
+use portal_core::account::{AccountCode, AccountCodeError, Email, EmailError};
 use portal_core::snapshot::{MooringUserId, MooringUserIdError};
 
 /// The Mooring portal: its server, and the operator's commands on its
@@ -66,6 +66,20 @@ pub(crate) enum Command {
         #[arg(long, value_name = "CODE", value_parser = account_code)]
         account: AccountCode,
     },
+    /// Ban an account caught abusing the service: delete it as
+    /// `delete-account` does, and keep its email address from registering
+    /// again. Revoke its Mooring user in Mooring as well.
+    Ban {
+        /// The account's code.
+        #[arg(long, value_name = "CODE", value_parser = account_code)]
+        account: AccountCode,
+    },
+    /// Let a banned email address register again.
+    Unban {
+        /// The address, as it was registered (case does not matter).
+        #[arg(long, value_name = "ADDRESS", value_parser = email_address)]
+        email: Email,
+    },
 }
 
 /// How the server runs.
@@ -93,4 +107,8 @@ fn account_code(text: &str) -> Result<AccountCode, AccountCodeError> {
 
 fn mooring_user(text: &str) -> Result<MooringUserId, MooringUserIdError> {
     MooringUserId::parse(text)
+}
+
+fn email_address(text: &str) -> Result<Email, EmailError> {
+    Email::parse(text)
 }

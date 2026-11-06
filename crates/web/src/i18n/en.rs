@@ -185,7 +185,7 @@ pub(super) const STRINGS: Strings = Strings {
         password_control: "The password may not contain line breaks or other control characters.",
         password_is_email: "The password may not be your email address.",
         confirm_mismatch: "The two passwords differ.",
-        email_taken: "This email address is already registered.",
+        email_taken: "This email address cannot be registered again. If you already have an account, log in.",
         registration_full: "Registration is full. Contact the operator.",
         login_failed: "Wrong email or password.",
         too_many_attempts: "Too many attempts. Try again in {} minutes.",

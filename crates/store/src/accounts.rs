@@ -63,6 +63,9 @@ pub enum RegisterError {
     /// Another account has the email.
     #[error("an account with this email address already exists")]
     EmailTaken,
+    /// The address belonged to a banned account.
+    #[error("this email address is banned from registering")]
+    Banned,
     /// The portal holds as many accounts as it is configured to.
     #[error("registration is closed: the portal holds its limit of {limit} accounts")]
     Full {
@@ -87,6 +90,14 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let banned: bool = tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM banned_emails WHERE email_digest = ?1)",
+            [account.email.digest().as_bytes()],
+            |row| row.get(0),
+        )?;
+        if banned {
+            return Err(RegisterError::Banned);
+        }
         let taken: bool = tx.query_row(
             "SELECT EXISTS (SELECT 1 FROM accounts WHERE email = ?1)",
             [account.email.as_str()],
