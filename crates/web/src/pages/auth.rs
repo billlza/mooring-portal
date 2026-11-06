@@ -222,9 +222,10 @@ pub(crate) async fn register(
     let Some(ticket) = state.hashing().ticket()? else {
         return refuse(t.auth.busy, StatusCode::SERVICE_UNAVAILABLE);
     };
-    // Hash before looking the email up, so a taken email answers as slowly
-    // as a new one.
+    // Hash before looking the email up, so a taken or banned email answers
+    // as slowly as a new one.
     let password_hash = ticket.hash(password).await?;
+    let email = ticket.digest_email(email).await?;
     let account = NewAccount {
         code: AccountCode::generate().map_err(AppError::internal)?,
         email,

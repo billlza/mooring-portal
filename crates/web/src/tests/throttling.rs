@@ -1,5 +1,6 @@
-//! The limits and the hashing queue hold under load, and every login
-//! costs one hash whether or not its account exists.
+//! The limits and the hashing queue hold under load, every login costs one
+//! hash whether or not its account exists, and every sign-up two, whether
+//! its address is new, taken or banned.
 
 use axum::http::StatusCode;
 use axum::http::header::SET_COOKIE;
@@ -74,6 +75,39 @@ async fn every_login_hashes_once_whether_or_not_the_account_exists() {
             .await;
         assert_eq!(reply.status, StatusCode::UNAUTHORIZED, "{email}");
         assert_eq!(app.state.hashing().finished(), before + 1, "{email}");
+    }
+}
+
+#[tokio::test]
+async fn every_sign_up_hashes_twice_whether_its_address_is_new_taken_or_banned() {
+    let app = TestApp::new();
+    let (_, code) = app.signed_up("banned@qq.com").await;
+    app.signed_up("taken@qq.com").await;
+    let now = portal_core::time::UnixTime::from_secs(super::support::NOW).unwrap();
+    app.store(move |store| store.ban(&code, now)).await.unwrap();
+    for (last, email, status) in [
+        (61, "new@qq.com", StatusCode::SEE_OTHER),
+        (62, "taken@qq.com", StatusCode::CONFLICT),
+        (63, "banned@qq.com", StatusCode::CONFLICT),
+    ] {
+        let mut browser = Browser::new([203, 0, 113, last]);
+        browser.get(&app, "/register").await;
+        let before = app.state.hashing().finished();
+        let reply = browser
+            .post(
+                &app,
+                "/register",
+                &[
+                    ("email", email),
+                    ("password", PASSWORD),
+                    ("confirm", PASSWORD),
+                ],
+            )
+            .await;
+        assert_eq!(reply.status, status, "{email}");
+        // The password's hash and the address's ban digest, both in the
+        // bounded pool, before the database says which case this is.
+        assert_eq!(app.state.hashing().finished(), before + 2, "{email}");
     }
 }
 

@@ -48,7 +48,7 @@ fn writes_fail_loudly() {
     let (mut store, account) = broken();
     let new = NewAccount {
         code: AccountCode::from_bits(2),
-        email: email("b@qq.com"),
+        email: digested("b@qq.com"),
         password_hash: hash("x"),
         created_at: at(NOW),
     };
@@ -75,7 +75,7 @@ fn writes_fail_loudly() {
         store.ban(&account.code, at(NOW)),
         Err(BanError::Store(StoreError::Sqlite(_)))
     ));
-    sqlite(store.unban(&email("a@qq.com")));
+    sqlite(store.unban(&ban_digest("a@qq.com")));
     assert!(matches!(
         store.import(&snapshot(NOW, &[("pilotusera", Some(1))]), at(NOW)),
         Err(ImportError::Store(StoreError::Sqlite(_)))
@@ -107,7 +107,7 @@ fn a_failure_part_way_through_leaves_nothing_behind() {
         .unwrap();
     let new = NewAccount {
         code: AccountCode::from_bits(1),
-        email: email("a@qq.com"),
+        email: digested("a@qq.com"),
         password_hash: hash("x"),
         created_at: at(NOW),
     };

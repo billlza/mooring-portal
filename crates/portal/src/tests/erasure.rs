@@ -8,7 +8,7 @@ use std::sync::mpsc;
 use std::thread;
 
 use portal_core::account::Email;
-use portal_core::auth::TokenDigest;
+use portal_core::auth::{BanDigest, TokenDigest};
 use portal_core::time::UnixTime;
 use portal_store::Store;
 
@@ -191,7 +191,7 @@ fn a_newer_snapshot_leaves_nothing_of_the_record_it_replaces() {
 #[test]
 fn unbanning_leaves_no_digest_of_the_address() {
     let (fixture, server) = two_users();
-    let digest = Email::parse(ALICE.email).unwrap().digest();
+    let digest = BanDigest::of(&Email::parse(ALICE.email).unwrap()).unwrap();
     let banned = fixture.run(&["ban", "--account", ALICE.code]);
     assert_eq!(banned.code, ExitCode::SUCCESS, "{}", banned.err);
     assert!(fixture.files_hold(digest.as_bytes()));

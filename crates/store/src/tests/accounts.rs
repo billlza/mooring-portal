@@ -32,7 +32,7 @@ fn an_email_registers_once() {
     let again = store.register(
         NewAccount {
             code: AccountCode::from_bits(2),
-            email: email("LiLei@QQ.com"),
+            email: digested("LiLei@QQ.com"),
             password_hash: hash("second"),
             created_at: at(NOW),
         },
@@ -48,7 +48,7 @@ fn registration_stops_at_the_account_limit() {
     register(&mut store, "a@qq.com", 1);
     let new = |bits| NewAccount {
         code: AccountCode::from_bits(bits),
-        email: email(&format!("user{bits}@qq.com")),
+        email: digested(&format!("user{bits}@qq.com")),
         password_hash: hash("x"),
         created_at: at(NOW),
     };

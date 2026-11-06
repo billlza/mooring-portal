@@ -6,7 +6,7 @@ fn try_register(store: &mut Store, address: &str, bits: u64) -> Result<Account, 
     store.register(
         NewAccount {
             code: AccountCode::from_bits(bits),
-            email: email(address),
+            email: digested(address),
             password_hash: hash("first"),
             created_at: at(NOW + bits),
         },
@@ -71,8 +71,8 @@ fn a_ban_deletes_the_account_and_keeps_its_address_from_registering_again() {
     try_register(&mut store, "lilei@qq.com", 4).unwrap();
     assert!(store.credentials(&email("han@qq.com")).unwrap().is_some());
     // Unbanned, the address can register again.
-    assert!(store.unban(&email("LI.LEI@qq.com")).unwrap());
-    assert!(!store.unban(&email("li.lei@qq.com")).unwrap());
+    assert!(store.unban(&ban_digest("LI.LEI@qq.com")).unwrap());
+    assert!(!store.unban(&ban_digest("li.lei@qq.com")).unwrap());
     try_register(&mut store, "li.lei@qq.com", 5).unwrap();
 }
 
@@ -110,7 +110,7 @@ fn a_ban_that_fails_late_changes_nothing() {
     store.conn.execute_batch("DROP TRIGGER refuse;").unwrap();
     assert!(store.credentials(&email("a@qq.com")).unwrap().is_some());
     assert!(
-        !store.unban(&email("a@qq.com")).unwrap(),
+        !store.unban(&ban_digest("a@qq.com")).unwrap(),
         "the address was not banned"
     );
 }

@@ -14,7 +14,7 @@ mod sharing;
 mod subscriptions;
 
 use portal_core::account::{AccountCode, Email};
-use portal_core::auth::{StoredPasswordHash, TokenDigest};
+use portal_core::auth::{BanDigest, DigestedEmail, StoredPasswordHash, TokenDigest};
 use portal_core::profile::{CfmProfile, ProfileBundle, WithheldReason};
 use portal_core::snapshot::{BillingCycle, MooringUserId, Snapshot, UserRecord, UserStatus};
 use portal_core::time::{CalendarDate, UnixTime};
@@ -49,6 +49,16 @@ fn email(text: &str) -> Email {
     Email::parse(text).unwrap()
 }
 
+/// The ban list's digest of `text`.
+fn ban_digest(text: &str) -> BanDigest {
+    BanDigest::of(&email(text)).unwrap()
+}
+
+/// `text` with the ban list's digest of it, as registration takes it.
+fn digested(text: &str) -> DigestedEmail {
+    DigestedEmail::new(email(text)).unwrap()
+}
+
 fn user(text: &str) -> MooringUserId {
     MooringUserId::parse(text).unwrap()
 }
@@ -63,7 +73,7 @@ fn register(store: &mut Store, address: &str, bits: u64) -> Account {
         .register(
             NewAccount {
                 code: AccountCode::from_bits(bits),
-                email: email(address),
+                email: digested(address),
                 password_hash: hash("first"),
                 created_at: at(NOW + bits),
             },

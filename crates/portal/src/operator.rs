@@ -5,6 +5,7 @@ use std::io::{self, Read as _, Write};
 use std::path::Path;
 
 use portal_core::account::{AccountCode, Email};
+use portal_core::auth::BanDigest;
 use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
 use portal_core::snapshot::{MAX_DOCUMENT_BYTES, MooringUserId, Snapshot};
 use portal_core::time::Clock;
@@ -243,7 +244,7 @@ pub(crate) fn unban(
     email: &Email,
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
-    if !store.unban(email)? {
+    if !store.unban(&BanDigest::of(email)?)? {
         return Err(CommandError::NotBanned);
     }
     erase_then_report(store, out, |out| {

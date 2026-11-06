@@ -1,5 +1,5 @@
-//! Password hashing off the async runtime, with bounded concurrency and a
-//! bounded queue.
+//! Password hashing, and the ban list's digests of new addresses, off the
+//! async runtime, with bounded concurrency and a bounded queue.
 //!
 //! Each Argon2id hash holds about 19 MiB for tens of milliseconds, so at
 //! most [`CONCURRENT_HASHES`] run at once. A request that will hash first
@@ -12,8 +12,10 @@ use std::sync::Arc;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use portal_core::account::{NewPassword, PasswordAttempt};
-use portal_core::auth::{HashError, PasswordHasher, StoredPasswordHash, Verification};
+use portal_core::account::{Email, NewPassword, PasswordAttempt};
+use portal_core::auth::{
+    DigestedEmail, HashError, PasswordHasher, StoredPasswordHash, Verification,
+};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 
 use crate::error::AppError;
@@ -21,8 +23,9 @@ use crate::error::AppError;
 /// How many hashes run at once.
 const CONCURRENT_HASHES: usize = 2;
 /// How many requests may hold a ticket at once, hashing or waiting to: at
-/// the recommended cost, sixteen waiting for two places wait well under a
-/// second.
+/// the recommended cost, sixteen logins waiting for two places wait well
+/// under a second, and sixteen sign-ups, which hash twice, about a second
+/// at most.
 const TICKETS: usize = CONCURRENT_HASHES + 16;
 
 /// Hashes and verifies passwords on blocking threads.
@@ -114,6 +117,14 @@ impl Hashing {
 }
 
 impl HashTicket {
+    /// `email` with the ban list's digest of it, as slow as a password
+    /// hash.
+    pub(crate) async fn digest_email(&self, email: Email) -> Result<DigestedEmail, AppError> {
+        self.hashing
+            .blocking(move |_| DigestedEmail::new(email))
+            .await
+    }
+
     /// Hashes a new password.
     pub(crate) async fn hash(&self, password: NewPassword) -> Result<StoredPasswordHash, AppError> {
         self.hashing
@@ -141,7 +152,6 @@ impl HashTicket {
 
 #[cfg(test)]
 mod tests {
-    use portal_core::account::Email;
     use portal_core::auth::HashCost;
 
     use super::*;

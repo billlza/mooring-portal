@@ -56,8 +56,9 @@ futures-util = { version = "0.3.34", default-features = false }
 tempfile = "3.27.0"
 tower = { version = "0.5.3", default-features = false, features = ["util"] }
 
-# Argon2 is very slow unoptimised; tests use cheap parameters, but the dev
-# server hashes with the production ones.
+# Argon2 is very slow unoptimised. Tests hash passwords with cheap
+# parameters, but the ban list's digests, which every sign-up computes,
+# always use the full cost, as the dev server does for everything.
 [profile.dev.package.argon2]
 opt-level = 3
 [profile.dev.package.blake2]

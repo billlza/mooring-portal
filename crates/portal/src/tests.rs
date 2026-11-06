@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use portal_core::account::{AccountCode, Email};
-use portal_core::auth::{StoredPasswordHash, TokenDigest};
+use portal_core::auth::{DigestedEmail, StoredPasswordHash, TokenDigest};
 use portal_core::time::{ManualClock, UnixTime};
 use portal_store::{Account, NewAccount, NewSession, OpenMode, Store};
 
@@ -86,7 +86,7 @@ impl Fixture {
             .register(
                 NewAccount {
                     code: AccountCode::from_bits(bits),
-                    email: Email::parse(email).unwrap(),
+                    email: DigestedEmail::new(Email::parse(email).unwrap()).unwrap(),
                     password_hash: StoredPasswordHash::from_stored("$argon2id$x".to_owned()),
                     created_at: UnixTime::from_secs(NOW).unwrap(),
                 },

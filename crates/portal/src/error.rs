@@ -3,6 +3,7 @@
 use std::io;
 use std::path::PathBuf;
 
+use portal_core::auth::HashError;
 use portal_core::profile::ProfileError;
 use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
@@ -35,6 +36,9 @@ pub enum CommandError {
     /// A ban was refused.
     #[error(transparent)]
     Ban(#[from] BanError),
+    /// The address could not be hashed for the ban list.
+    #[error(transparent)]
+    Hash(#[from] HashError),
     /// `unban` named an address that is not banned, most likely mistyped.
     #[error("that email address is not banned; nothing changed")]
     NotBanned,

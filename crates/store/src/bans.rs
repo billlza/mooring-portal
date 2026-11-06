@@ -4,13 +4,14 @@
 //!
 //! A ban deletes the account with everything it holds, so its owner can no
 //! longer log in and its subscription link ends for good, and it keeps the
-//! digest of the account's email address, so that the address cannot
-//! register again. Only the address the portal already knows is used, so
+//! Argon2id digest of the account's email address, so that the address
+//! cannot register again. Only the address the portal already knows is used, so
 //! a banned person who registers with another address gets through; what
 //! keeps them from being served is that only the operator binds accounts
 //! to Mooring users.
 
-use portal_core::account::{AccountCode, Email};
+use portal_core::account::AccountCode;
+use portal_core::auth::{BanDigest, HashError};
 use portal_core::snapshot::MooringUserId;
 use portal_core::time::UnixTime;
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
@@ -36,6 +37,9 @@ pub enum BanError {
     /// The database failed.
     #[error(transparent)]
     Store(#[from] StoreError),
+    /// The address could not be hashed for the list.
+    #[error(transparent)]
+    Hash(#[from] HashError),
 }
 
 impl From<rusqlite::Error> for BanError {
@@ -68,20 +72,24 @@ impl Store {
         };
         let email = email_from_sql(&email)?;
         let user = user.map(|user| user_from_sql(&user)).transpose()?;
+        // Slow, and inside the write lock; an operator's command waits for
+        // it once, and the server's writes wait as long.
+        let digest = BanDigest::of(&email)?;
         tx.execute(
             "INSERT INTO banned_emails (email_digest, banned_at) VALUES (?1, ?2)",
-            params![email.digest().as_bytes(), time_to_sql(now)],
+            params![digest.as_bytes(), time_to_sql(now)],
         )?;
         tx.execute("DELETE FROM accounts WHERE id = ?1", [id])?;
         tx.commit()?;
         Ok(Ban { user, link_ended })
     }
 
-    /// Lets `email` register again; whether it was banned.
-    pub fn unban(&mut self, email: &Email) -> Result<bool, StoreError> {
+    /// Lets the address whose ban digest is `digest` register again;
+    /// whether it was banned.
+    pub fn unban(&mut self, digest: &BanDigest) -> Result<bool, StoreError> {
         let removed = self.conn.execute(
             "DELETE FROM banned_emails WHERE email_digest = ?1",
-            [email.digest().as_bytes()],
+            [digest.as_bytes()],
         )?;
         Ok(removed > 0)
     }

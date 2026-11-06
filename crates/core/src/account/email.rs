@@ -2,8 +2,6 @@
 
 use std::fmt;
 
-use blake2::{Blake2s256, Digest as _};
-
 /// The longest address accepted, in bytes (RFC 5321's path limit less the
 /// angle brackets).
 const MAX_LEN: usize = 254;
@@ -97,44 +95,6 @@ impl Email {
     }
 }
 
-/// What the ban list keeps of a banned address: its BLAKE2s-256 digest, of
-/// the address as [`Email::parse`] normalises it.
-///
-/// The list must outlive the account it came from, and a ban implies an
-/// accusation, so the list does not keep the addresses themselves: a
-/// leaked copy of the database lists no banned address. Anyone who holds
-/// a candidate address can still test it, so this hides the list, not a
-/// given address.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct EmailDigest([u8; 32]);
-
-impl EmailDigest {
-    /// The digest's bytes.
-    #[must_use]
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-
-impl fmt::Debug for EmailDigest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("EmailDigest(..)")
-    }
-}
-
-impl Email {
-    /// The digest the ban list keeps of this address. Two addresses share
-    /// it only when they normalise alike: surrounding white space and
-    /// letter case are ignored, nothing else. Dots and `+` suffixes in the
-    /// local part are kept, and no two domains are taken for one, because
-    /// those rules hold for some mail services only, and elsewhere they
-    /// would make two people one.
-    #[must_use]
-    pub fn digest(&self) -> EmailDigest {
-        EmailDigest(Blake2s256::digest(self.0.as_bytes()).into())
-    }
-}
-
 impl fmt::Debug for Email {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Email").field(&self.masked()).finish()
@@ -173,27 +133,6 @@ fn is_label(label: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_ban_digest_ignores_only_case_and_white_space() {
-        let digest = |text: &str| Email::parse(text).unwrap().digest();
-        let banned = digest("Li.Lei+Portal@QQ.com");
-        assert_eq!(banned, digest("  li.lei+portal@qq.COM \n"));
-        assert_eq!(
-            banned.as_bytes(),
-            &<[u8; 32]>::from(Blake2s256::digest(b"li.lei+portal@qq.com"))
-        );
-        // Other people's addresses, under rules some services apply.
-        for other in [
-            "lilei+portal@qq.com",
-            "li.lei@qq.com",
-            "li.lei+other@qq.com",
-            "li.lei+portal@foxmail.com",
-        ] {
-            assert_ne!(banned, digest(other), "{other}");
-        }
-        assert_eq!(format!("{banned:?}"), "EmailDigest(..)");
-    }
 
     #[test]
     fn addresses_are_trimmed_and_lowercased() {

@@ -1,7 +1,7 @@
 //! Accounts: registration, credentials, listing and deletion.
 
 use portal_core::account::{AccountCode, Email};
-use portal_core::auth::StoredPasswordHash;
+use portal_core::auth::{DigestedEmail, StoredPasswordHash};
 use portal_core::time::UnixTime;
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
@@ -14,8 +14,10 @@ use crate::{AccountId, Store, StoreError, UnknownAccount};
 pub struct NewAccount {
     /// A fresh random code.
     pub code: AccountCode,
-    /// The login email.
-    pub email: Email,
+    /// The login email, with the ban list's digest of it, computed off the
+    /// database's thread because it is slow; registration is refused when
+    /// the list holds the digest.
+    pub email: DigestedEmail,
     /// The Argon2id hash of the chosen password.
     pub password_hash: StoredPasswordHash,
     /// When the account is created.
@@ -92,7 +94,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let banned: bool = tx.query_row(
             "SELECT EXISTS (SELECT 1 FROM banned_emails WHERE email_digest = ?1)",
-            [account.email.digest().as_bytes()],
+            [account.email.ban_digest().as_bytes()],
             |row| row.get(0),
         )?;
         if banned {
@@ -100,7 +102,7 @@ impl Store {
         }
         let taken: bool = tx.query_row(
             "SELECT EXISTS (SELECT 1 FROM accounts WHERE email = ?1)",
-            [account.email.as_str()],
+            [account.email.email().as_str()],
             |row| row.get(0),
         )?;
         if taken {
@@ -115,7 +117,7 @@ impl Store {
              VALUES (?1, ?2, ?3, ?4, ?4)",
             params![
                 account.code.to_string(),
-                account.email.as_str(),
+                account.email.email().as_str(),
                 account.password_hash.as_str(),
                 time_to_sql(account.created_at),
             ],
@@ -125,7 +127,7 @@ impl Store {
         Ok(Account {
             id,
             code: account.code,
-            email: account.email,
+            email: account.email.into_email(),
             created_at: account.created_at,
         })
     }

@@ -53,6 +53,9 @@ pub enum HashError {
     /// against.
     #[error("the stored password hash is unusable: {0}")]
     StoredHash(PhcError),
+    /// Hashing an address for the ban list failed.
+    #[error("hashing an address for the ban list failed: {0}")]
+    BanDigest(argon2::Error),
 }
 
 /// A password hash as stored: an Argon2id PHC string carrying its own
