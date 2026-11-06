@@ -238,7 +238,8 @@ pub(crate) async fn register(
         .await?
     {
         Ok(account) => {
-            tracing::info!(account = %account.code, "registered an account");
+            // Which account it was stays out: the log outlives a deletion.
+            tracing::info!("registered an account");
             let session_cookie = session::start(&state, account.id).await?;
             let mut response = see_other("/account?notice=welcome");
             response.headers_mut().append(SET_COOKIE, session_cookie);

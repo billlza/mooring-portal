@@ -1,5 +1,5 @@
-//! What the portal logs: never a password, an email address, a token or a
-//! cookie, and nothing a request chose.
+//! What the portal logs: never a password, an email address, an account's
+//! code, a token or a cookie, and nothing a request chose.
 
 use std::cell::RefCell;
 use std::io;
@@ -59,7 +59,9 @@ async fn logs_hold_no_secret_and_nothing_a_request_chose() {
     // The test runtime runs every handler on this thread.
     capture_logs();
     let app = TestApp::new();
-    let (mut browser, _) = app.signed_up("lilei@qq.com").await;
+    let (mut browser, code) = app.signed_up("lilei@qq.com").await;
+    // The log outlives a deleted account, so it names none.
+    let code = code.to_string();
     let session = browser.cookies["__Host-session"].clone();
     let csrf = browser.cookies["__Host-csrf"].clone();
     let new_password = "a whole new passphrase";
@@ -118,6 +120,7 @@ async fn logs_hold_no_secret_and_nothing_a_request_chose() {
         "wrong password here",
         "lilei@qq.com",
         "lilei",
+        code.as_str(),
         session.as_str(),
         csrf.as_str(),
         stranger.cookies["__Host-csrf"].as_str(),

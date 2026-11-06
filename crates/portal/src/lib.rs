@@ -85,6 +85,7 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
             with_store(&mut |store| operator::ban(store, clock, &account, out))
         }
         Command::Unban { email } => with_store(&mut |store| operator::unban(store, &email, out)),
+        Command::EraseDeleted => with_store(&mut |store| operator::erase_deleted(store, out)),
     }
 }
 

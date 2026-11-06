@@ -500,6 +500,7 @@ dependencies = [
  "portal-core",
  "portal-store",
  "portal-web",
+ "rusqlite",
  "tempfile",
  "thiserror",
  "tokio",

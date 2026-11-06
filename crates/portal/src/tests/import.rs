@@ -21,7 +21,8 @@ fn the_pilot_snapshot_stores_bound_users_and_reports_the_rest() {
         outcome.out,
         "snapshot generated at 2026-11-05T12:00:00Z: stored 1 record(s): pilotusera\n\
          not kept: 6 user(s) no account is bound to\n\
-         warning: account 0000-0000-0002 is bound to Mooring user pilotuserz, which this snapshot does not list\n"
+         warning: account 0000-0000-0002 is bound to Mooring user pilotuserz, which this snapshot does not list\n\
+         erased the deleted rows from the database files\n"
     );
 }
 
@@ -34,7 +35,8 @@ fn a_snapshot_with_no_bound_user_stores_nothing() {
     assert_eq!(
         outcome.out,
         "snapshot generated at 2026-11-05T12:00:00Z: stored 0 record(s)\n\
-         not kept: 2 user(s) no account is bound to\n"
+         not kept: 2 user(s) no account is bound to\n\
+         erased the deleted rows from the database files\n"
     );
 }
 

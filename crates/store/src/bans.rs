@@ -47,7 +47,8 @@ impl From<rusqlite::Error> for BanError {
 impl Store {
     /// Bans the account with `code`: deletes it with its sessions,
     /// binding, subscription record, CFM profile and subscription link, and
-    /// keeps its email address from registering again.
+    /// keeps its email address from registering again. Copies of the rows
+    /// stay in the database files until [`Store::erase_deleted`].
     pub fn ban(&mut self, code: &AccountCode, now: UnixTime) -> Result<Ban, BanError> {
         let tx = self
             .conn

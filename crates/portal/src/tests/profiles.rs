@@ -34,7 +34,7 @@ fn the_pilot_bundle_stores_bound_users_profiles_and_reports_the_rest() {
         format!(
             "profile bundle generated at 2026-11-06T09:00:00Z: stored 1 profile(s): pilotusera\n\
              withheld by Mooring (suspended): account 0000-0000-0002 (Mooring user pilotuserc) \
-             has no profile now\n{UNBOUND_PILOTUSERB}"
+             has no profile now\n{UNBOUND_PILOTUSERB}erased the deleted rows from the database files\n"
         )
     );
     // The same bundle again is accepted and changes nothing.
@@ -172,7 +172,8 @@ fn a_bundle_that_withholds_a_linked_user_says_what_became_of_its_link() {
         "profile bundle generated at 2026-11-06T09:00:30Z: stored 0 profile(s)\n\
          withheld by Mooring (suspended): account 0000-0000-0001 (Mooring user pilotusera) has \
          no profile now, and its subscription link is paused until Mooring delivers to the \
-         user again\n"
+         user again\n\
+         erased the deleted rows from the database files\n"
     );
     assert_eq!(
         fixture.store().linked_profile(&link).unwrap(),
@@ -199,7 +200,7 @@ fn a_bundle_that_withholds_a_linked_user_says_what_became_of_its_link() {
             "profile bundle generated at 2026-11-06T09:01:00Z: stored 0 profile(s)\n\
              withheld by Mooring (revoked): account 0000-0000-0001 (Mooring user pilotusera) \
              has no profile now, and its subscription link has ended for good\n\
-             {UNBOUND_PILOTUSERB}"
+             {UNBOUND_PILOTUSERB}erased the deleted rows from the database files\n"
         )
     );
     assert_eq!(
@@ -222,7 +223,7 @@ fn a_bundle_that_leaves_a_bound_account_out_is_refused_and_keeps_every_link() {
         format!(
             "profile bundle generated at 2026-11-06T09:00:00Z: stored 1 profile(s): pilotusera\n\
              {UNBOUND_PILOTUSERB}warning: no account is bound to pilotuserc, whom the bundle \
-             withholds; leave these users out of the next export\n"
+             withholds; leave these users out of the next export\nerased the deleted rows from the database files\n"
         )
     );
     let link = TokenDigest::from_bytes([7; 32]);

@@ -1,7 +1,7 @@
 //! The operator's commands on the portal database.
 
 use std::fs::File;
-use std::io::{Read as _, Write};
+use std::io::{self, Read as _, Write};
 use std::path::Path;
 
 use portal_core::account::{AccountCode, Email};
@@ -58,12 +58,13 @@ pub(crate) fn unbind(
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
     let user = store.unbind(account)?;
-    writeln!(
-        out,
-        "unbound account {account} from Mooring user {user}; its subscription record, CFM \
-         profile and subscription link were deleted"
-    )?;
-    Ok(())
+    erase_then_report(store, out, |out| {
+        writeln!(
+            out,
+            "unbound account {account} from Mooring user {user}; its subscription record, CFM \
+             profile and subscription link were deleted"
+        )
+    })
 }
 
 /// Imports a snapshot file.
@@ -79,30 +80,33 @@ pub(crate) fn import(
         source,
     })?;
     let report = store.import(&snapshot, clock.now()?)?;
-    let stored: Vec<&str> = report.stored.iter().map(MooringUserId::as_str).collect();
-    writeln!(
-        out,
-        "snapshot generated at {}: stored {} record(s){}{}",
-        snapshot.generated_at(),
-        stored.len(),
-        if stored.is_empty() { "" } else { ": " },
-        stored.join(", ")
-    )?;
-    if report.unbound > 0 {
+    erase_then_report(store, out, |out| {
+        let stored: Vec<&str> = report.stored.iter().map(MooringUserId::as_str).collect();
         writeln!(
             out,
-            "not kept: {} user(s) no account is bound to",
-            report.unbound
+            "snapshot generated at {}: stored {} record(s){}{}",
+            snapshot.generated_at(),
+            stored.len(),
+            if stored.is_empty() { "" } else { ": " },
+            stored.join(", ")
         )?;
-    }
-    for missing in &report.missing {
-        writeln!(
-            out,
-            "warning: account {} is bound to Mooring user {}, which this snapshot does not list",
-            missing.account, missing.user
-        )?;
-    }
-    Ok(())
+        if report.unbound > 0 {
+            writeln!(
+                out,
+                "not kept: {} user(s) no account is bound to",
+                report.unbound
+            )?;
+        }
+        for missing in &report.missing {
+            writeln!(
+                out,
+                "warning: account {} is bound to Mooring user {}, which this snapshot does not \
+                 list",
+                missing.account, missing.user
+            )?;
+        }
+        Ok(())
+    })
 }
 
 /// Imports a CFM profile bundle file.
@@ -118,48 +122,51 @@ pub(crate) fn import_profiles(
         source,
     })?;
     let report = store.import_profiles(&bundle, clock.now()?)?;
-    let stored: Vec<&str> = report.stored.iter().map(MooringUserId::as_str).collect();
-    writeln!(
-        out,
-        "profile bundle generated at {}: stored {} profile(s){}{}",
-        bundle.generated_at(),
-        stored.len(),
-        if stored.is_empty() { "" } else { ": " },
-        stored.join(", ")
-    )?;
-    for withheld in &report.withheld {
+    erase_then_report(store, out, |out| {
+        let stored: Vec<&str> = report.stored.iter().map(MooringUserId::as_str).collect();
         writeln!(
             out,
-            "withheld by Mooring ({}): account {} has no profile now{}",
-            withheld.reason,
-            withheld.account,
-            match withheld.link {
-                WithheldLink::NoLink => "",
-                WithheldLink::Paused => {
-                    ", and its subscription link is paused until Mooring delivers to the user again"
+            "profile bundle generated at {}: stored {} profile(s){}{}",
+            bundle.generated_at(),
+            stored.len(),
+            if stored.is_empty() { "" } else { ": " },
+            stored.join(", ")
+        )?;
+        for withheld in &report.withheld {
+            writeln!(
+                out,
+                "withheld by Mooring ({}): account {} has no profile now{}",
+                withheld.reason,
+                withheld.account,
+                match withheld.link {
+                    WithheldLink::NoLink => "",
+                    WithheldLink::Paused => {
+                        ", and its subscription link is paused until Mooring delivers to the \
+                         user again"
+                    }
+                    WithheldLink::Ended => ", and its subscription link has ended for good",
                 }
-                WithheldLink::Ended => ", and its subscription link has ended for good",
-            }
-        )?;
-    }
-    if !report.unbound_profiles.is_empty() {
-        writeln!(
-            out,
-            "warning: no account is bound to {}: their profiles were not kept, but their \
-             credentials passed through this host. Delete the bundle file now, and leave these \
-             users out of the next export",
-            ids(&report.unbound_profiles)
-        )?;
-    }
-    if !report.unbound_withheld.is_empty() {
-        writeln!(
-            out,
-            "warning: no account is bound to {}, whom the bundle withholds; leave these users out \
-             of the next export",
-            ids(&report.unbound_withheld)
-        )?;
-    }
-    Ok(())
+            )?;
+        }
+        if !report.unbound_profiles.is_empty() {
+            writeln!(
+                out,
+                "warning: no account is bound to {}: their profiles were not kept, but their \
+                 credentials passed through this host. Delete the bundle file now, and leave \
+                 these users out of the next export",
+                ids(&report.unbound_profiles)
+            )?;
+        }
+        if !report.unbound_withheld.is_empty() {
+            writeln!(
+                out,
+                "warning: no account is bound to {}, whom the bundle withholds; leave these \
+                 users out of the next export",
+                ids(&report.unbound_withheld)
+            )?;
+        }
+        Ok(())
+    })
 }
 
 /// Prints, on one line in id order, `--user <id>` for every bound account's
@@ -191,12 +198,13 @@ pub(crate) fn delete_account(
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
     store.delete_account(account)?;
-    writeln!(
-        out,
-        "deleted account {account} with its sessions, binding, subscription record, CFM \
-         profile and subscription link"
-    )?;
-    Ok(())
+    erase_then_report(store, out, |out| {
+        writeln!(
+            out,
+            "deleted account {account} with its sessions, binding, subscription record, CFM \
+             profile and subscription link"
+        )
+    })
 }
 
 /// Bans an account.
@@ -207,24 +215,26 @@ pub(crate) fn ban(
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
     let ban = store.ban(account, clock.now()?)?;
-    writeln!(
-        out,
-        "banned account {account}: deleted it with its sessions, binding, subscription record, \
-         CFM profile and subscription link{}; its email address cannot register again",
-        if ban.link_ended {
-            " (the link has ended for good)"
-        } else {
-            ""
-        }
-    )?;
-    if let Some(user) = &ban.user {
+    erase_then_report(store, out, |out| {
         writeln!(
             out,
-            "it was bound to Mooring user {user}: revoke that user in Mooring too, since the \
-             nodes serve it until then"
+            "banned account {account}: deleted it with its sessions, binding, subscription \
+             record, CFM profile and subscription link{}; its email address cannot register again",
+            if ban.link_ended {
+                " (the link has ended for good)"
+            } else {
+                ""
+            }
         )?;
-    }
-    Ok(())
+        if let Some(user) = &ban.user {
+            writeln!(
+                out,
+                "it was bound to Mooring user {user}: revoke that user in Mooring too, since \
+                 the nodes serve it until then"
+            )?;
+        }
+        Ok(())
+    })
 }
 
 /// Lets a banned address register again.
@@ -236,8 +246,9 @@ pub(crate) fn unban(
     if !store.unban(email)? {
         return Err(CommandError::NotBanned);
     }
-    writeln!(out, "the email address can register again")?;
-    Ok(())
+    erase_then_report(store, out, |out| {
+        writeln!(out, "the email address can register again")
+    })
 }
 
 /// One byte more than a snapshot may have: reading that many tells an
@@ -261,4 +272,27 @@ fn read_bounded(file: &Path, limit: u64) -> Result<Vec<u8>, CommandError> {
         .read_to_end(&mut document)
         .map_err(read_error)?;
     Ok(document)
+}
+
+/// Erases the copies of deleted rows that the database files still hold.
+pub(crate) fn erase_deleted(store: &mut Store, out: &mut dyn Write) -> Result<(), CommandError> {
+    erase_then_report(store, out, |_| Ok(()))
+}
+
+/// Ends a command that deleted or overwrote rows. Erases their copies
+/// before anything is written, so that output that fails cannot skip the
+/// erasure; then writes `report`, and says the copies are gone. What the
+/// command did stays done either way. A failed erasure is the error even
+/// when the output failed too: it is the one the operator must act on.
+fn erase_then_report(
+    store: &mut Store,
+    out: &mut dyn Write,
+    report: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+) -> Result<(), CommandError> {
+    let erased = store.erase_deleted();
+    let reported = report(out);
+    erased?;
+    reported?;
+    writeln!(out, "erased the deleted rows from the database files")?;
+    Ok(())
 }

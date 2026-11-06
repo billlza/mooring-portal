@@ -1,6 +1,7 @@
 //! Tests of the command line against database files.
 
 mod commands;
+mod erasure;
 mod import;
 mod profiles;
 mod usage;
@@ -94,6 +95,18 @@ impl Fixture {
             .unwrap()
     }
 
+    /// Whether the database or its write-ahead log holds `trace`.
+    fn files_hold(&self, trace: &[u8]) -> bool {
+        ["portal.db", "portal.db-wal"].into_iter().any(|name| {
+            match std::fs::read(self.dir.path().join(name)) {
+                Ok(bytes) => bytes.windows(trace.len()).any(|window| window == trace),
+                // The last connection to close removes the log.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                Err(error) => panic!("cannot read {name}: {error}"),
+            }
+        })
+    }
+
     /// Runs `mooring-portal --db <file> <args…>`.
     fn run(&self, args: &[&str]) -> Outcome {
         let db = self.db();
@@ -126,4 +139,21 @@ fn profile_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../contract/fixtures/cfm-profiles-v2")
         .join(name)
+}
+
+/// Output that accepts `budget` bytes, then fails.
+struct FailAfter(usize);
+
+impl std::io::Write for FailAfter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > self.0 {
+            return Err(std::io::Error::other("pipe closed"));
+        }
+        self.0 -= bytes.len();
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }

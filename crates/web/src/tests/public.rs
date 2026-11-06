@@ -94,6 +94,34 @@ async fn the_download_page_offers_only_the_published_release() {
 }
 
 #[tokio::test]
+async fn no_page_calls_the_service_free_and_the_plans_say_how_it_is_paid() {
+    let app = TestApp::new();
+    let mut browser = Browser::new([203, 0, 113, 1]);
+    browser.get(&app, "/").await;
+    for (lang, free, paid, expired) in [
+        ("zh", ["免费", "不接受任何付款"], "只接受银行卡", "满三个月"),
+        (
+            "en",
+            ["free", "accepts no payments"],
+            "only bank cards",
+            "three months",
+        ),
+    ] {
+        browser
+            .post(&app, "/lang", &[("to", lang), ("back", "home")])
+            .await;
+        for path in PAGES {
+            let body = browser.get(&app, path).await.body;
+            for word in free {
+                assert!(!body.contains(word), "{lang} {path}: {word}");
+            }
+        }
+        let plans = browser.get(&app, "/plans").await.body;
+        assert!(plans.contains(paid) && plans.contains(expired), "{lang}");
+    }
+}
+
+#[tokio::test]
 async fn a_new_browser_gets_a_csrf_cookie_once() {
     let app = TestApp::new();
     let mut browser = Browser::new([203, 0, 113, 1]);

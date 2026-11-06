@@ -35,6 +35,20 @@ fn a_new_database_is_owner_only_with_its_journal() {
         .pragma_query_value(None, "foreign_keys", |row| row.get(0))
         .unwrap();
     assert!(foreign_keys);
+    // Each connection zeroes what it deletes, the free pages included:
+    // 1 is "on", where 2 ("fast") would leave free pages as they were.
+    let secure_delete: i64 = store
+        .conn
+        .pragma_query_value(None, "secure_delete", |row| row.get(0))
+        .unwrap();
+    assert_eq!(secure_delete, 1);
+    // Temporary databases, such as the copy VACUUM builds, stay in memory:
+    // 2 is "memory".
+    let temp_store: i64 = store
+        .conn
+        .pragma_query_value(None, "temp_store", |row| row.get(0))
+        .unwrap();
+    assert_eq!(temp_store, 2);
 }
 
 #[test]

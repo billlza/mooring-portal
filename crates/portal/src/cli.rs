@@ -80,6 +80,10 @@ pub(crate) enum Command {
         #[arg(long, value_name = "ADDRESS", value_parser = email_address)]
         email: Email,
     },
+    /// Erase the copies of deleted rows that the database files may still
+    /// hold. Every command that deletes or overwrites rows does it itself;
+    /// run this when one of them says it could not.
+    EraseDeleted,
 }
 
 /// How the server runs.

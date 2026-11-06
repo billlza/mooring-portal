@@ -192,8 +192,9 @@ impl Store {
         Ok(accounts)
     }
 
-    /// Deletes the account with `code`, with its sessions, binding and
-    /// subscription record.
+    /// Deletes the account with `code`, with its sessions, binding,
+    /// subscription record, CFM profile and subscription link. Copies of
+    /// the rows stay in the database files until [`Store::erase_deleted`].
     pub fn delete_account(&mut self, code: &AccountCode) -> Result<(), DeleteError> {
         let deleted = self
             .conn

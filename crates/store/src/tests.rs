@@ -3,6 +3,7 @@
 mod accounts;
 mod bans;
 mod bindings;
+mod erasure;
 mod failures;
 mod file;
 mod links;

@@ -60,6 +60,14 @@ pub enum StoreError {
         /// Why it is invalid.
         detail: String,
     },
+    /// Another connection kept reading or writing for the whole busy
+    /// timeout, so the copies of deleted rows could not all be erased.
+    #[error(
+        "another connection kept the database busy for {} seconds, so copies of deleted rows \
+         may still be in its files; run erase-deleted once the database is idle",
+        crate::BUSY_TIMEOUT.as_secs()
+    )]
+    EraseBusy,
 }
 
 /// No account has the code the operator gave.

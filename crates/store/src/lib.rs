@@ -9,6 +9,10 @@
 //! operation that reads before it writes runs in an immediate transaction,
 //! so its checks still hold when it writes.
 //!
+//! Every connection zeroes most of what it deletes (secure deletion);
+//! [`Store::erase_deleted`] removes every copy that is left, in the
+//! database file and in SQLite's write-ahead log.
+//!
 //! Values are checked again when read back: a row that no longer parses as
 //! its domain type is reported as [`StoreError::Corrupt`], never replaced
 //! by a default.
@@ -93,11 +97,50 @@ impl Store {
         Self::migrated(Connection::open_in_memory()?)
     }
 
-    /// Turns on foreign keys and brings the schema up to date.
+    /// Turns on foreign keys, secure deletion and in-memory temporary
+    /// storage, and brings the schema up to date.
     fn migrated(mut conn: Connection) -> Result<Self, StoreError> {
         conn.pragma_update(None, "foreign_keys", true)?;
+        // Zero what this connection deletes, in the pages it changes and in
+        // the pages it frees ("fast" would leave the freed pages as they
+        // were). This covers most deletions as they happen; only
+        // [`Store::erase_deleted`] covers them all.
+        conn.pragma_update(None, "secure_delete", true)?;
+        // Keep temporary databases, such as the copy `VACUUM` builds, in
+        // memory rather than in files the host's temporary directory keeps.
+        conn.pragma_update(None, "temp_store", "memory")?;
         schema::migrate(&mut conn)?;
         Ok(Self { conn })
+    }
+
+    /// Erases every copy of deleted rows that the database files still
+    /// hold, waiting for other connections' reads and writes as long as for
+    /// any lock.
+    ///
+    /// Secure deletion is not enough. A page that SQLite rebuilds while it
+    /// rebalances the tree keeps, in the space it no longer uses, the bytes
+    /// of cells that moved, and deleting such a row later zeroes only the
+    /// cell where it lives; and the write-ahead log keeps the earlier
+    /// versions of every page it changed, in place for as long as the
+    /// server runs. So this rebuilds the database from its live rows
+    /// (`VACUUM`), then copies the whole log into the database file and
+    /// truncates the log to nothing. Account ids are kept: they are integer
+    /// primary keys. Session rowids, which only break ties between sessions
+    /// started in the same second, keep their order.
+    pub fn erase_deleted(&mut self) -> Result<(), StoreError> {
+        self.conn
+            .execute_batch("VACUUM")
+            .map_err(|error| match error.sqlite_error_code() {
+                Some(rusqlite::ErrorCode::DatabaseBusy) => StoreError::EraseBusy,
+                _ => StoreError::Sqlite(error),
+            })?;
+        let busy: i64 = self
+            .conn
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| row.get(0))?;
+        if busy != 0 {
+            return Err(StoreError::EraseBusy);
+        }
+        Ok(())
     }
 }
 

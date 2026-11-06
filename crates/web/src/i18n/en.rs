@@ -15,7 +15,7 @@ pub(super) const STRINGS: Strings = Strings {
         sign_in: "Log in / Sign up",
         my_account: "My account",
         help: "Help",
-        footer_note: "A small, free service for a few trusted people. Not for sale.",
+        footer_note: "A small service for a few trusted people, not sold to the public.",
         beijing_time: "Beijing time",
     },
     nav: Nav {
@@ -36,7 +36,7 @@ pub(super) const STRINGS: Strings = Strings {
         intro_title: "What this service is",
         intro_body: "The operator shares their own UK mobile line with a few friends they trust: \
                      traffic is relayed through London and leaves through a UK mobile network. \
-                     It is free and not for sale, and with few people on it, the line stays uncrowded.",
+                     It is not sold to the public, and with few people on it, the line stays uncrowded.",
         features: [
             Item {
                 title: "Small and steady",
@@ -102,8 +102,8 @@ pub(super) const STRINGS: Strings = Strings {
     },
     plans: Plans {
         title: "How it works",
-        lead: "This service is free and open only to a few friends the operator trusts: it is not sold, \
-               costs nothing, and takes no contributions or gifts.",
+        lead: "This service is open only to a few friends the operator trusts, and is not sold to the \
+               public.",
         how_title: "Getting access",
         how_steps: [
             "Sign up on this site.",
@@ -118,7 +118,7 @@ pub(super) const STRINGS: Strings = Strings {
             },
             Item {
                 title: "Expiry",
-                body: "The operator may set an expiry date for you. After it, your service pauses until the operator resumes it.",
+                body: "The operator may set an expiry date for you. After it, your service pauses until the operator resumes it. If your service is still not renewed three months after it expired, the operator revokes your Mooring user and deletes your account on this site.",
             },
             Item {
                 title: "Where the figures come from",
@@ -130,7 +130,7 @@ pub(super) const STRINGS: Strings = Strings {
             },
             Item {
                 title: "Payment",
-                body: "This site accepts no payments of any kind.",
+                body: "Payment is not open yet. When it opens, only bank cards will be accepted, not Alipay or WeChat Pay: you pay on Stripe's page, and this site never handles card numbers.",
             },
         ],
     },

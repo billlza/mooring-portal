@@ -15,7 +15,7 @@ pub(super) const STRINGS: Strings = Strings {
         sign_in: "登录 / 注册",
         my_account: "我的账户",
         help: "帮助",
-        footer_note: "少数受信任用户的小规模服务，免费，不对外销售。",
+        footer_note: "少数受信任用户的小规模服务，不对外销售。",
         beijing_time: "北京时间",
     },
     nav: Nav {
@@ -31,7 +31,7 @@ pub(super) const STRINGS: Strings = Strings {
         learn_more: "了解服务",
         intro_title: "这是一项什么样的服务",
         intro_body: "运营者用自己在英国的移动线路，为少数信任的朋友提供一条上网通道：流量经伦敦中转，\
-                     最后从英国的移动网络出去。它免费，不对外销售；用的人少，线路就不挤。",
+                     最后从英国的移动网络出去。它不对外销售；用的人少，线路就不挤。",
         features: [
             Item {
                 title: "小而稳",
@@ -97,7 +97,7 @@ pub(super) const STRINGS: Strings = Strings {
     },
     plans: Plans {
         title: "订阅说明",
-        lead: "本服务免费，只对运营者信任的少数朋友开放：不出售，不收费，也不接受分摊费用或礼物。",
+        lead: "本服务只对运营者信任的少数朋友开放，不对外销售。",
         how_title: "开通方式",
         how_steps: [
             "在本站注册账号。",
@@ -112,7 +112,7 @@ pub(super) const STRINGS: Strings = Strings {
             },
             Item {
                 title: "到期",
-                body: "运营者可能为你设置到期日。到期后，服务暂停，直到运营者恢复。",
+                body: "运营者可能为你设置到期日。到期后，服务暂停，直到运营者恢复。到期满三个月仍没有续期的，运营者会作废你的 Mooring 用户，并删除你在本站的账号。",
             },
             Item {
                 title: "数据从哪里来",
@@ -124,7 +124,7 @@ pub(super) const STRINGS: Strings = Strings {
             },
             Item {
                 title: "付款",
-                body: "本站不接受任何付款。",
+                body: "付款还没有开通。开通后只接受银行卡，不接受支付宝和微信支付：你在 Stripe 的页面上付款，本站不经手卡号。",
             },
         ],
     },

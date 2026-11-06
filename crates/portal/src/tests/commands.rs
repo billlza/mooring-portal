@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use portal_core::account::Email;
 use portal_store::Subscription;
 
-use super::{Fixture, contract_fixture, run_line};
+use super::{FailAfter, Fixture, contract_fixture, run_line};
 
 #[test]
 fn accounts_are_listed_with_their_bindings() {
@@ -104,13 +104,15 @@ fn unbinding_and_deleting_report_what_went() {
     assert_eq!(unbound.code, ExitCode::SUCCESS);
     assert_eq!(
         unbound.out,
-        "unbound account 0000-0000-0001 from Mooring user pilotusera; its subscription record, CFM profile and subscription link were deleted\n"
+        "unbound account 0000-0000-0001 from Mooring user pilotusera; its subscription record, CFM profile and subscription link were deleted\n\
+         erased the deleted rows from the database files\n"
     );
     let deleted = fixture.run(&["delete-account", "--account", &alice]);
     assert_eq!(deleted.code, ExitCode::SUCCESS);
     assert_eq!(
         deleted.out,
-        "deleted account 0000-0000-0001 with its sessions, binding, subscription record, CFM profile and subscription link\n"
+        "deleted account 0000-0000-0001 with its sessions, binding, subscription record, CFM profile and subscription link\n\
+         erased the deleted rows from the database files\n"
     );
     assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
 }
@@ -190,23 +192,6 @@ fn an_unusable_database_is_reported() {
     assert!(outcome.err.contains("has mode 644"), "{}", outcome.err);
 }
 
-/// Output that accepts `budget` bytes, then fails.
-struct FailAfter(usize);
-
-impl std::io::Write for FailAfter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if bytes.len() > self.0 {
-            return Err(std::io::Error::other("pipe closed"));
-        }
-        self.0 -= bytes.len();
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 #[test]
 fn every_failing_line_of_output_is_an_error() {
     let fixture = Fixture::new();
@@ -247,7 +232,17 @@ fn every_failing_line_of_output_is_an_error() {
     for budget in [0, 90] {
         assert_eq!(run(&["import", pilot], budget).1, lost, "{budget}");
     }
-    assert_eq!(run(&["delete-account", "--account", &alice], 0).1, lost);
+    // The deletion's line, then the erasure's.
+    let bob = fixture.account("bob@163.com", 2).to_string();
+    let deletion = "deleted account 0000-0000-0002 with its sessions, binding, subscription \
+                    record, CFM profile and subscription link\n";
+    for (account, budget) in [(&alice, 0), (&bob, deletion.len())] {
+        assert_eq!(
+            run(&["delete-account", "--account", account], budget).1,
+            lost,
+            "{budget}"
+        );
+    }
     assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
     let help = crate::run(
         ["mooring-portal", "--help"],
@@ -303,13 +298,15 @@ fn ban_deletes_the_account_and_unban_lets_its_address_register_again() {
         "banned account 0000-0000-0001: deleted it with its sessions, binding, subscription \
          record, CFM profile and subscription link; its email address cannot register again\n\
          it was bound to Mooring user pilotusera: revoke that user in Mooring too, since the \
-         nodes serve it until then\n"
+         nodes serve it until then\n\
+         erased the deleted rows from the database files\n"
     );
     let unbound = fixture.run(&["ban", "--account", &bob]);
     assert_eq!(
         unbound.out,
         "banned account 0000-0000-0002: deleted it with its sessions, binding, subscription \
-         record, CFM profile and subscription link; its email address cannot register again\n"
+         record, CFM profile and subscription link; its email address cannot register again\n\
+         erased the deleted rows from the database files\n"
     );
     assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
     let again = fixture.run(&["ban", "--account", &alice]);
@@ -320,7 +317,10 @@ fn ban_deletes_the_account_and_unban_lets_its_address_register_again() {
     );
     let unbanned = fixture.run(&["unban", "--email", "Alice@QQ.com"]);
     assert_eq!(unbanned.code, ExitCode::SUCCESS, "{}", unbanned.err);
-    assert_eq!(unbanned.out, "the email address can register again\n");
+    assert_eq!(
+        unbanned.out,
+        "the email address can register again\nerased the deleted rows from the database files\n"
+    );
     let missing = fixture.run(&["unban", "--email", "alice@qq.com"]);
     assert_eq!(missing.code, ExitCode::FAILURE);
     assert_eq!(
@@ -328,4 +328,50 @@ fn ban_deletes_the_account_and_unban_lets_its_address_register_again() {
         "mooring-portal: that email address is not banned; nothing changed\n"
     );
     assert!(missing.out.is_empty());
+}
+
+#[test]
+fn a_ban_report_line_that_cannot_be_written_is_an_error() {
+    let fixture = Fixture::new();
+    let db = fixture.db();
+    let banned = "banned account 0000-0000-0001: deleted it with its sessions, binding, \
+                  subscription record, CFM profile and subscription link; its email address \
+                  cannot register again\n"
+        .len();
+    let bound = "it was bound to Mooring user pilotusera: revoke that user in Mooring too, \
+                 since the nodes serve it until then\n"
+        .len();
+    // The first line, the reminder to revoke, then the erasure's line.
+    for (bits, user, budget) in [
+        (1, "pilotusera", 0),
+        (2, "pilotuserb", banned),
+        (3, "pilotuserc", banned + bound),
+    ] {
+        let account = fixture
+            .account(&format!("user{bits}@qq.com"), bits)
+            .to_string();
+        fixture.run(&["bind", "--account", &account, "--user", user]);
+        let mut err = Vec::new();
+        let code = crate::run(
+            [
+                "mooring-portal",
+                "--db",
+                db.to_str().unwrap(),
+                "ban",
+                "--account",
+                &account,
+            ],
+            &fixture.clock,
+            &mut FailAfter(budget),
+            &mut err,
+        );
+        assert_eq!(code, ExitCode::FAILURE, "{budget}");
+        assert_eq!(
+            String::from_utf8(err).unwrap(),
+            "mooring-portal: cannot write the output: pipe closed\n",
+            "{budget}"
+        );
+    }
+    // Each ban took effect; only its report was lost.
+    assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
 }
