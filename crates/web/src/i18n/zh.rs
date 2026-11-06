@@ -261,7 +261,7 @@ pub(super) const STRINGS: Strings = Strings {
     cfm: CfmText {
         title: "在 CFM 中使用",
         intro: "只支持 CFM 0.5.x。导入后请在 CFM 里打开“中国大陆直连”。",
-        waiting: "运营者还没有为你上传 CFM 配置。上传后，可以在这里生成订阅链接或下载配置文件。",
+        waiting: "目前没有你的 CFM 配置。运营者上传后，可以在这里生成订阅链接或下载配置文件。",
         generated: "配置生成于 {}",
         update_hint: "运营者更新配置后，在 CFM 里对这份配置点「更新」即可取得新配置；CFM 不会自动更新。",
         link_title: "订阅链接",
@@ -271,7 +271,7 @@ pub(super) const STRINGS: Strings = Strings {
         link_rotate: "重新生成",
         link_revoke: "停用链接",
         link_revoked: "订阅链接已停用。",
-        link_unavailable: "运营者还没有为你上传 CFM 配置，暂时不能生成订阅链接。",
+        link_unavailable: "目前没有你的 CFM 配置，暂时不能生成订阅链接。",
         file_title: "配置文件",
         file_body: "也可以下载配置文件，在 CFM 里用「导入文件」导入，导入后删除下载的文件。",
         download: "下载配置文件（JSON）",

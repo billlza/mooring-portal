@@ -34,8 +34,8 @@ use rusqlite::{Connection, OpenFlags};
 pub use accounts::{Account, AccountSummary, Credentials, DeleteError, NewAccount, RegisterError};
 pub use bindings::{BindError, Binding, UnbindError};
 pub use error::{StoreError, UnknownAccount};
-pub use links::{LinkError, LinkedProfile};
-pub use profiles::{ProfileImportError, ProfileImportReport, StoredProfile};
+pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
+pub use profiles::{ProfileImportError, ProfileImportReport, StoredProfile, Unlisted};
 pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};
 

@@ -3,8 +3,10 @@
 //! A bundle is the complete set of profiles Mooring may deliver, so an
 //! import replaces every stored profile with the bundle's profiles of bound
 //! users: a user Mooring stops listing (revoked, say, or not yet agreed to
-//! the current user agreement) stops being served. A bundle from the
-//! future, or older than the last one imported, is refused whole.
+//! the current user agreement) stops being served, and the account's
+//! subscription link ends with the profile, so that listing the user again
+//! does not bring an old link back. A bundle from the future, or older than
+//! the last one imported, is refused whole.
 
 use std::collections::BTreeSet;
 
@@ -26,9 +28,21 @@ pub struct ProfileImportReport {
     /// How many users of the bundle no account is bound to; their profiles
     /// were not kept.
     pub unbound: usize,
-    /// Bound accounts whose Mooring user the bundle does not list, with that
-    /// user: they now have no profile, and their links serve nothing.
-    pub missing: Vec<(AccountCode, MooringUserId)>,
+    /// Bound accounts whose Mooring user the bundle does not list, in user
+    /// id order.
+    pub missing: Vec<Unlisted>,
+}
+
+/// A bound account whose Mooring user a bundle does not list: it has no
+/// profile now, and no subscription link.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Unlisted {
+    /// The account.
+    pub account: AccountCode,
+    /// Its Mooring user.
+    pub user: MooringUserId,
+    /// It had a link, which the import ended.
+    pub link_revoked: bool,
 }
 
 /// Why a bundle was not imported.
@@ -137,22 +151,29 @@ impl Store {
             [time_to_sql(bundle.generated_at())],
         )?;
         let listed: BTreeSet<&MooringUserId> = bundle.profiles().map(|(user, _)| user).collect();
-        let mut statement = tx.prepare(
-            "SELECT a.code, b.mooring_user FROM bindings b JOIN accounts a ON a.id = b.account_id
-             ORDER BY b.mooring_user",
-        )?;
-        let rows = statement.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?;
+        let bound: Vec<(i64, String, String)> = tx
+            .prepare(
+                "SELECT b.account_id, a.code, b.mooring_user FROM bindings b
+                 JOIN accounts a ON a.id = b.account_id ORDER BY b.mooring_user",
+            )?
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+            .collect::<Result<_, _>>()?;
         let mut missing = Vec::new();
-        for row in rows {
-            let (code, user) = row?;
+        for (account, code, user) in bound {
             let user = user_from_sql(&user)?;
-            if !listed.contains(&user) {
-                missing.push((code_from_sql(&code)?, user));
+            if listed.contains(&user) {
+                continue;
             }
+            let links = tx.execute(
+                "DELETE FROM subscription_links WHERE account_id = ?1",
+                [account],
+            )?;
+            missing.push(Unlisted {
+                account: code_from_sql(&code)?,
+                user,
+                link_revoked: links > 0,
+            });
         }
-        drop(statement);
         tx.commit()?;
         Ok(ProfileImportReport {
             stored,

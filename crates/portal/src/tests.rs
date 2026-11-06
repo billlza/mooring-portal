@@ -9,9 +9,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use portal_core::account::{AccountCode, Email};
-use portal_core::auth::StoredPasswordHash;
+use portal_core::auth::{StoredPasswordHash, TokenDigest};
 use portal_core::time::{ManualClock, UnixTime};
-use portal_store::{NewAccount, OpenMode, Store};
+use portal_store::{Account, NewAccount, NewSession, OpenMode, Store};
 
 /// 2026-11-05T12:00:00Z.
 const NOW: u64 = 1_793_880_000;
@@ -59,20 +59,39 @@ impl Fixture {
 
     /// Registers `email` with the code `bits`.
     fn account(&self, email: &str, bits: u64) -> AccountCode {
+        self.register(&mut self.store(), email, bits).code
+    }
+
+    /// Registers `email` with the code `bits` and signs it in for thirty
+    /// days from [`NOW`]; the session token's digest.
+    fn signed_in(&self, email: &str, bits: u64) -> (AccountCode, TokenDigest) {
         let mut store = self.store();
-        let code = AccountCode::from_bits(bits);
+        let account = self.register(&mut store, email, bits);
+        let digest = TokenDigest::from_bytes([u8::try_from(bits).unwrap(); 32]);
+        let now = UnixTime::from_secs(NOW).unwrap();
+        store
+            .start_session(&NewSession {
+                digest,
+                account: account.id,
+                created_at: now,
+                expires_at: now.checked_add_secs(30 * 24 * 3600).unwrap(),
+            })
+            .unwrap();
+        (account.code, digest)
+    }
+
+    fn register(&self, store: &mut Store, email: &str, bits: u64) -> Account {
         store
             .register(
                 NewAccount {
-                    code,
+                    code: AccountCode::from_bits(bits),
                     email: Email::parse(email).unwrap(),
                     password_hash: StoredPasswordHash::from_stored("$argon2id$x".to_owned()),
                     created_at: UnixTime::from_secs(NOW).unwrap(),
                 },
                 100,
             )
-            .unwrap();
-        code
+            .unwrap()
     }
 
     /// Runs `mooring-portal --db <file> <args…>`.

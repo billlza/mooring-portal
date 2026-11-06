@@ -2,7 +2,8 @@
 
 use std::process::ExitCode;
 
-use portal_core::profile::MAX_BUNDLE_BYTES;
+use portal_core::auth::TokenDigest;
+use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
 use portal_core::time::UnixTime;
 
 use super::{Fixture, profile_fixture};
@@ -127,5 +128,48 @@ fn bundles_from_the_future_or_older_than_the_last_are_refused() {
         ),
         "{}",
         outcome.err
+    );
+}
+
+#[test]
+fn a_bundle_that_leaves_a_linked_user_out_says_the_link_was_turned_off() {
+    let fixture = Fixture::new();
+    fixture.clock.set(UnixTime::from_secs(GENERATED).unwrap());
+    let (alice, session) = fixture.signed_in("alice@qq.com", 1);
+    let alice = alice.to_string();
+    fixture.run(&["bind", "--account", &alice, "--user", "pilotusera"]);
+    let pilot = profile_fixture("valid/pilot.json");
+    fixture.run(&["import-profiles", pilot.to_str().unwrap()]);
+    let link = TokenDigest::from_bytes([7; 32]);
+    let now = UnixTime::from_secs(GENERATED).unwrap();
+    fixture
+        .store()
+        .replace_subscription_link(&session, &link, now)
+        .unwrap();
+    // A later bundle with only pilotuserb.
+    let later = format!(
+        "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 1, \"generated_at\": {}, \
+         \"profiles\": [{{\"user\": \"pilotuserb\", \"document\": {{\"outbounds\": \
+         [{{\"type\": \"vless\", \"tag\": \"lon1-reality\"}}]}}}}]}}",
+        GENERATED + 60
+    );
+    assert!(ProfileBundle::parse(later.as_bytes()).is_ok());
+    let file = fixture.file("later.json", later.as_bytes());
+    fixture
+        .clock
+        .set(UnixTime::from_secs(GENERATED + 60).unwrap());
+    let outcome = fixture.run(&["import-profiles", file.to_str().unwrap()]);
+    assert_eq!(outcome.code, ExitCode::SUCCESS, "{}", outcome.err);
+    assert_eq!(
+        outcome.out,
+        "profile bundle generated at 2026-11-06T09:01:00Z: stored 0 profile(s)\n\
+         not kept: 1 profile(s) of users no account is bound to\n\
+         warning: account 0000-0000-0001 is bound to Mooring user pilotusera, which this bundle \
+         does not list; the account has no profile now, and its subscription link was turned \
+         off\n"
+    );
+    assert_eq!(
+        fixture.store().linked_profile(&link).unwrap(),
+        portal_store::LinkedProfile::Unknown
     );
 }

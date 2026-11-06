@@ -11,7 +11,7 @@ use portal_core::account::AccountCode;
 use portal_core::auth::SecretToken;
 
 use super::support::{Browser, ORIGIN_URL, PASSWORD, Reply, TestApp, cfm_document};
-use crate::security::limits::LINK_FETCHES_PER_NETWORK;
+use crate::security::limits::{FETCHES_PER_LINK, LINK_FETCHES_PER_NETWORK};
 
 /// Where CFM fetches from in these tests, unless a test says otherwise.
 const CFM: [u8; 4] = [203, 0, 113, 80];
@@ -27,6 +27,8 @@ async fn bound(app: &TestApp, email: &str, user: &str) -> (Browser, AccountCode)
 async fn make_link(app: &TestApp, browser: &mut Browser) -> String {
     let page = browser.post(app, "/subscription/link", &[]).await;
     assert_eq!(page.status, StatusCode::OK, "{}", page.body);
+    // Switching the language would lose the link, so the page offers none.
+    assert!(!page.body.contains("action=\"/lang\""));
     let start = page
         .body
         .find(&format!("value=\"{ORIGIN_URL}/sub/"))
@@ -36,11 +38,20 @@ async fn make_link(app: &TestApp, browser: &mut Browser) -> String {
     url.strip_prefix(ORIGIN_URL).unwrap().to_owned()
 }
 
-/// CFM fetching `path`: no cookie, from `address`.
+/// CFM fetching `path`: no cookie, from `address`. Whatever the outcome,
+/// the reply sets no cookie, is not cached, and is either the document or
+/// plain text: an HTML page would send the address on as the referrer.
 async fn fetch(app: &TestApp, path: &str, address: [u8; 4]) -> Reply {
     let reply = Browser::new(address).get(app, path).await;
     assert!(reply.headers.get(SET_COOKIE).is_none(), "{path}");
     assert_eq!(reply.headers[CACHE_CONTROL], "no-store", "{path}");
+    if reply.status != StatusCode::OK {
+        assert_eq!(
+            reply.headers[CONTENT_TYPE], "text/plain; charset=utf-8",
+            "{path}"
+        );
+        assert!(!reply.body.contains('<'), "{path}: {}", reply.body);
+    }
     reply
 }
 
@@ -67,7 +78,7 @@ async fn only_a_bound_account_has_a_cfm_panel_and_it_waits_for_a_profile() {
     app.bind(code, "pilotusera").await;
     let page = browser.get(&app, "/subscription").await;
     assert!(page.body.contains("在 CFM 中使用"));
-    assert!(page.body.contains("运营者还没有为你上传 CFM 配置。"));
+    assert!(page.body.contains("目前没有你的 CFM 配置。"));
     assert!(!page.body.contains("action=\"/subscription/link\""));
     assert!(!page.body.contains("/subscription/profile.json"));
     // Nothing to fetch, so neither a link nor a download.
@@ -75,7 +86,10 @@ async fn only_a_bound_account_has_a_cfm_panel_and_it_waits_for_a_profile() {
     assert_eq!(refused.status, StatusCode::SEE_OTHER);
     assert_eq!(refused.location(), "/subscription?notice=link_unavailable");
     let page = browser.get(&app, refused.location()).await;
-    assert!(page.body.contains("暂时不能生成订阅链接"));
+    assert!(
+        page.body
+            .contains("目前没有你的 CFM 配置，暂时不能生成订阅链接。")
+    );
     let download = browser.get(&app, "/subscription/profile.json").await;
     assert_eq!(download.status, StatusCode::NOT_FOUND);
 }
@@ -104,6 +118,7 @@ async fn a_link_is_shown_once_and_fetches_the_profile() {
     is_document_of(&fetch(&app, &path, CFM).await, "pilotusera");
     // The subscription page says when it was made, but never shows it.
     let page = browser.get(&app, "/subscription").await;
+    assert!(page.body.contains("action=\"/lang\""));
     assert!(page.body.contains("当前链接生成于 2026-11-05 20:00"));
     assert!(page.body.contains("重新生成"));
     assert!(page.body.contains("停用链接"));
@@ -187,7 +202,7 @@ async fn changing_the_password_turns_the_link_off() {
 }
 
 #[tokio::test]
-async fn unbinding_turns_the_link_off_and_a_later_bundle_can_empty_it() {
+async fn unbinding_or_a_bundle_that_leaves_the_user_out_ends_the_link_for_good() {
     let app = TestApp::new();
     let (mut lilei, lilei_code) = bound(&app, "lilei@qq.com", "pilotusera").await;
     let (mut hanmeimei, _) = bound(&app, "hanmeimei@qq.com", "pilotuserb").await;
@@ -201,36 +216,60 @@ async fn unbinding_turns_the_link_off_and_a_later_bundle_can_empty_it() {
         fetch(&app, &lilei_link, CFM).await.status,
         StatusCode::NOT_FOUND
     );
-    // A bundle that leaves pilotuserb out leaves its link with nothing to
-    // serve, and the panel offers no new link, only turning it off.
+    // A bundle that leaves pilotuserb out ends its link with its profile.
     app.import_profiles(&["pilotusera"]).await;
     assert_eq!(
         fetch(&app, &hanmeimei_link, CFM).await.status,
         StatusCode::NOT_FOUND
     );
     let page = hanmeimei.get(&app, "/subscription").await;
-    assert!(page.body.contains("运营者还没有为你上传 CFM 配置。"));
-    assert!(page.body.contains("停用链接"));
+    assert!(page.body.contains("目前没有你的 CFM 配置。"));
+    assert!(!page.body.contains("停用链接"));
     assert!(!page.body.contains("action=\"/subscription/link\""));
+    // Listed again, the user has a profile but not the old link.
+    app.import_profiles(&["pilotusera", "pilotuserb"]).await;
+    assert_eq!(
+        fetch(&app, &hanmeimei_link, CFM).await.status,
+        StatusCode::NOT_FOUND
+    );
+    let page = hanmeimei.get(&app, "/subscription").await;
+    assert!(page.body.contains("还没有订阅链接"));
+    assert!(page.body.contains("action=\"/subscription/link\""));
 }
 
 #[tokio::test]
 async fn unknown_and_malformed_links_are_not_found() {
     let app = TestApp::new();
+    let (mut browser, _) = bound(&app, "lilei@qq.com", "pilotusera").await;
+    app.import_profiles(&["pilotusera"]).await;
+    let live = make_link(&app, &mut browser).await;
     let unknown = format!("/sub/{}", SecretToken::generate().unwrap().encode());
+    let trailing = format!("{live}/");
+    let deeper = format!("{live}/more");
     for path in [
         unknown.as_str(),
+        trailing.as_str(),
+        deeper.as_str(),
         "/sub/abc",
         "/sub/ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789",
         "/sub/%ff%fe",
-        "/sub/",
     ] {
-        assert_eq!(
-            fetch(&app, path, CFM).await.status,
-            StatusCode::NOT_FOUND,
-            "{path}"
-        );
+        let reply = fetch(&app, path, CFM).await;
+        assert_eq!(reply.status, StatusCode::NOT_FOUND, "{path}");
+        assert!(reply.body.contains("找不到"), "{path}");
     }
+    // A HEAD request is a fetch without the document.
+    let head = app
+        .send(
+            Browser::new(CFM)
+                .request("HEAD", &live)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(head.status, StatusCode::OK);
+    assert_eq!(head.headers[CONTENT_TYPE], "application/json");
+    assert!(head.body.is_empty());
 }
 
 #[tokio::test]
@@ -278,4 +317,21 @@ async fn link_management_needs_a_session_and_a_same_site_form() {
     assert_eq!(app.send(forged).await.status, StatusCode::FORBIDDEN);
     let page = browser.get(&app, "/subscription").await;
     assert!(page.body.contains("还没有订阅链接"));
+}
+
+#[tokio::test]
+async fn one_link_cannot_use_up_the_fetches_of_another_from_the_same_exit() {
+    let app = TestApp::new();
+    let (mut lilei, _) = bound(&app, "lilei@qq.com", "pilotusera").await;
+    let (mut hanmeimei, _) = bound(&app, "hanmeimei@qq.com", "pilotuserb").await;
+    app.import_profiles(&["pilotusera", "pilotuserb"]).await;
+    let lilei_link = make_link(&app, &mut lilei).await;
+    let hanmeimei_link = make_link(&app, &mut hanmeimei).await;
+    // Both fetch through their tunnels, from the operator's one exit.
+    for _ in 0..FETCHES_PER_LINK.limit {
+        is_document_of(&fetch(&app, &lilei_link, CFM).await, "pilotusera");
+    }
+    let limited = fetch(&app, &lilei_link, CFM).await;
+    assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+    is_document_of(&fetch(&app, &hanmeimei_link, CFM).await, "pilotuserb");
 }

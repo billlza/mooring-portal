@@ -581,6 +581,7 @@ version = "0.1.0"
 dependencies = [
  "askama",
  "axum",
+ "futures-util",
  "portal-core",
  "portal-store",
  "rusqlite",

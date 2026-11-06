@@ -59,8 +59,10 @@ pub fn router(state: AppState) -> Router {
     let files = Router::new()
         .route("/assets/{file}", get(assets::serve))
         .route("/robots.txt", get(assets::robots));
-    // What CFM fetches carries no cookie and gets none back.
-    let links = Router::new().route("/sub/{token}", get(cfm::fetch));
+    // What CFM fetches carries no cookie and gets none back. Every address
+    // under /sub/ is answered there, in plain text when it fails, so that
+    // no error page sends a token on as the referrer.
+    let links = Router::new().route("/sub/{*token}", get(cfm::fetch));
     pages
         .merge(files)
         .merge(links)

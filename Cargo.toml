@@ -50,7 +50,9 @@ tokio = { version = "1.54.1", default-features = false, features = ["macros", "n
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "std"] }
 
-# Tests only.
+# Tests only. futures-util is already in the graph through axum; the web
+# tests use it to hold a request's body back.
+futures-util = { version = "0.3.34", default-features = false }
 tempfile = "3.27.0"
 tower = { version = "0.5.3", default-features = false, features = ["util"] }
 

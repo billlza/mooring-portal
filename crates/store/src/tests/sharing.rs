@@ -1,9 +1,7 @@
 //! The server and the operator's commands open the same file, possibly at
 //! the same moment.
 
-use std::fs::OpenOptions;
-use std::os::unix::fs::OpenOptionsExt as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
@@ -16,18 +14,6 @@ use crate::{OpenMode, StoreError};
 /// How long the other connection keeps its lock: long enough for the
 /// opener to be waiting for it, well within the busy timeout.
 const HOLD: Duration = Duration::from_millis(300);
-
-/// An empty owner-only file, as a first `serve` creates it.
-fn new_file(dir: &tempfile::TempDir) -> PathBuf {
-    let path = dir.path().join("portal.db");
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&path)
-        .unwrap();
-    path
-}
 
 fn open_in_thread(path: &Path) -> thread::JoinHandle<Result<Store, StoreError>> {
     let path = path.to_owned();

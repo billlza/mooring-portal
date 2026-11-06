@@ -47,25 +47,17 @@ pub(crate) async fn subscription(
     };
     let id = account.id;
     let now = state.now()?;
-    let (subscription, profile, link) = state
+    let (subscription, delivery) = state
         .database()
         .run(move |store| -> Result<_, StoreError> {
-            Ok((
-                store.subscription(id)?,
-                store.cfm_profile(id)?,
-                store.subscription_link_created(id)?,
-            ))
+            Ok((store.subscription(id)?, store.cfm_delivery(id)?))
         })
         .await?
         .map_err(AppError::internal)?;
     let t = ctx.t();
     let cfm = match subscription {
         Subscription::Unbound => None,
-        Subscription::Bound { .. } => Some(CfmPanel::of(
-            profile.map(|stored| stored.generated_at),
-            link,
-            t,
-        )),
+        Subscription::Bound { .. } => Some(CfmPanel::of(delivery, t)),
     };
     render(&SubscriptionPage {
         notice: query.notice.map(|notice| match notice {

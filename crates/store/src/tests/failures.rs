@@ -5,8 +5,8 @@ use portal_core::account::AccountCode;
 
 use super::*;
 use crate::{
-    BindError, DeleteError, ImportError, LinkError, ProfileImportError, RegisterError, StoreError,
-    UnbindError,
+    BindError, DeleteError, ImportError, LinkError, ProfileImportError, RegisterError, RevokeError,
+    StoreError, UnbindError,
 };
 
 /// A store whose tables are gone after `account` registered.
@@ -38,6 +38,7 @@ fn reads_fail_loudly() {
     sqlite(store.binding(account.id));
     sqlite(store.subscription(account.id));
     sqlite(store.cfm_profile(account.id));
+    sqlite(store.cfm_delivery(account.id));
     sqlite(store.subscription_link_created(account.id));
     sqlite(store.linked_profile(&digest(1)));
 }
@@ -79,10 +80,13 @@ fn writes_fail_loudly() {
         Err(ProfileImportError::Store(StoreError::Sqlite(_)))
     ));
     assert!(matches!(
-        store.replace_subscription_link(account.id, &digest(1), at(NOW)),
+        store.replace_subscription_link(&digest(1), &digest(2), at(NOW)),
         Err(LinkError::Store(StoreError::Sqlite(_)))
     ));
-    sqlite(store.revoke_subscription_link(account.id));
+    assert!(matches!(
+        store.revoke_subscription_link(&digest(1), at(NOW)),
+        Err(RevokeError::Store(StoreError::Sqlite(_)))
+    ));
 }
 
 #[test]
@@ -124,7 +128,7 @@ fn a_password_change_that_fails_late_changes_nothing() {
         .import_profiles(&bundle(NOW, &["pilotusera"]), at(NOW))
         .unwrap();
     store
-        .replace_subscription_link(account.id, &digest(5), at(NOW))
+        .replace_subscription_link(&digest(1), &digest(5), at(NOW))
         .unwrap();
     // The update of the hash and the deletion of the sessions and the link
     // run before the new session's insertion fails.

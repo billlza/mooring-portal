@@ -82,9 +82,18 @@ pub(crate) struct Chrome {
     pub(crate) page: Page,
     pub(crate) css: String,
     pub(crate) mark: String,
+    /// Whether the header offers the language switch.
+    pub(crate) language_switch: bool,
 }
 
 impl Chrome {
+    /// Without the language switch: for a page that cannot be shown again,
+    /// which switching would leave.
+    pub(crate) const fn without_language_switch(mut self) -> Self {
+        self.language_switch = false;
+        self
+    }
+
     /// `aria-current` for the navigation link to `key`.
     pub(crate) fn current(&self, key: &str) -> &'static str {
         if self.page.key() == key {
@@ -152,6 +161,7 @@ impl PageContext {
             page,
             css: self.paths.css.clone(),
             mark: self.paths.mark.clone(),
+            language_switch: true,
         }
     }
 

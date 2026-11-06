@@ -61,9 +61,19 @@ pub(crate) fn chain(error: &dyn StdError) -> String {
     text
 }
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let (status, zh, en) = match &self {
+impl AppError {
+    /// The failure as plain text, for an address a browser must not render
+    /// as a page: a subscription link's address holds its token, which a
+    /// page's stylesheet and links would send on as the referrer.
+    pub(crate) fn plain(self) -> Response {
+        let (status, zh, en) = self.report();
+        (status, format!("{zh}\n{en}\n")).into_response()
+    }
+
+    /// The status and the text in both languages, logging the failure as
+    /// its kind requires.
+    fn report(&self) -> (StatusCode, &'static str, &'static str) {
+        match self {
             Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 "找不到这个页面。",
@@ -95,7 +105,13 @@ impl IntoResponse for AppError {
                      operator if it keeps happening.",
                 )
             }
-        };
+        }
+    }
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, zh, en) = self.report();
         (status, Html(error_page(status, zh, en))).into_response()
     }
 }
@@ -146,6 +162,20 @@ mod tests {
         ] {
             assert_eq!(error.into_response().status(), status);
         }
+    }
+
+    #[test]
+    fn plain_failures_carry_the_same_status_and_text_and_nothing_else() {
+        let response = AppError::NotFound.plain();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers()[axum::http::header::CONTENT_TYPE],
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(
+            AppError::internal_message("boom").plain().status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
     }
 
     #[test]

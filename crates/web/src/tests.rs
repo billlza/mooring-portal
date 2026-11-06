@@ -4,6 +4,7 @@
 mod auth;
 mod authz;
 mod cfm;
+mod cfm_races;
 mod csrf;
 mod failures;
 mod logs;

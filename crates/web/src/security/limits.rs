@@ -2,7 +2,8 @@
 //!
 //! A network may attempt [`LOGIN_PER_NETWORK`] logins and
 //! [`REGISTRATIONS_PER_NETWORK`] registrations per window, and fetch
-//! subscription links [`LINK_FETCHES_PER_NETWORK`] times, and an email may
+//! subscription links [`LINK_FETCHES_PER_NETWORK`] times; each live link
+//! may be fetched [`FETCHES_PER_LINK`] times; and an email may
 //! have its password checked [`PASSWORD_CHECKS_PER_EMAIL`] times per window,
 //! whether or not an account has it, so the limit itself reveals nothing. A
 //! correct password clears the email's count, so in effect the limit is on
@@ -14,6 +15,7 @@
 use std::sync::{Mutex, MutexGuard};
 
 use portal_core::account::Email;
+use portal_core::auth::TokenDigest;
 use portal_core::rate_limit::{Decision, RateLimiter, RatePolicy};
 use portal_core::time::UnixTime;
 
@@ -37,10 +39,18 @@ pub(crate) const REGISTRATIONS_PER_NETWORK: RatePolicy = RatePolicy {
     window_secs: 60 * 60,
 };
 /// Subscription link fetches per client network, whether or not the link
-/// exists. CFM fetches only when its user imports or updates a profile, and
-/// a link's token cannot be guessed, so this bounds only the load a client
-/// can put on the database.
+/// exists, counted before the token is read. A link's token cannot be
+/// guessed, so this bounds only the load a client can put on the database.
+/// It is generous because connected CFM users all fetch through their own
+/// tunnel, from the one address of the operator's exit.
 pub(crate) const LINK_FETCHES_PER_NETWORK: RatePolicy = RatePolicy {
+    limit: 600,
+    window_secs: 60 * 60,
+};
+/// Fetches of one live link. CFM fetches only when its user imports or
+/// updates a profile; the limit keeps one user, or whoever has a leaked
+/// link, from using up the shared network allowance.
+pub(crate) const FETCHES_PER_LINK: RatePolicy = RatePolicy {
     limit: 60,
     window_secs: 60 * 60,
 };
@@ -84,6 +94,7 @@ pub(crate) struct Limits {
     password_checks: Mutex<RateLimiter<String>>,
     registrations: Mutex<RateLimiter<Network>>,
     link_fetches: Mutex<RateLimiter<Network>>,
+    fetches_per_link: Mutex<RateLimiter<TokenDigest>>,
 }
 
 impl Limits {
@@ -93,6 +104,7 @@ impl Limits {
             password_checks: Mutex::new(RateLimiter::new(PASSWORD_CHECKS_PER_EMAIL, TRACKED_KEYS)),
             registrations: Mutex::new(RateLimiter::new(REGISTRATIONS_PER_NETWORK, TRACKED_KEYS)),
             link_fetches: Mutex::new(RateLimiter::new(LINK_FETCHES_PER_NETWORK, TRACKED_KEYS)),
+            fetches_per_link: Mutex::new(RateLimiter::new(FETCHES_PER_LINK, TRACKED_KEYS)),
         }
     }
 
@@ -121,10 +133,26 @@ impl Limits {
     }
 
     /// Counts a subscription link fetch from `network`.
-    pub(crate) fn link_fetch(&self, network: Network, now: UnixTime) -> Result<Throttle, AppError> {
+    pub(crate) fn link_fetch_from(
+        &self,
+        network: Network,
+        now: UnixTime,
+    ) -> Result<Throttle, AppError> {
         Ok(match lock(&self.link_fetches)?.acquire(network, now) {
             Ok(decision) => Throttle::of(decision),
             Err(_) => Throttle::saturated(LINK_FETCHES_PER_NETWORK),
+        })
+    }
+
+    /// Counts a fetch of the live link whose token has `link`.
+    pub(crate) fn link_fetch_of(
+        &self,
+        link: TokenDigest,
+        now: UnixTime,
+    ) -> Result<Throttle, AppError> {
+        Ok(match lock(&self.fetches_per_link)?.acquire(link, now) {
+            Ok(decision) => Throttle::of(decision),
+            Err(_) => Throttle::saturated(FETCHES_PER_LINK),
         })
     }
 
@@ -228,25 +256,45 @@ mod tests {
     }
 
     #[test]
-    fn link_fetches_are_limited_per_network() {
+    fn link_fetches_are_limited_per_network_and_per_link() {
         let limits = Limits::new();
         let home = Network::V4([203, 0, 113, 1]);
         for _ in 0..LINK_FETCHES_PER_NETWORK.limit {
-            assert_eq!(limits.link_fetch(home, at(0)).unwrap(), Throttle::Allowed);
+            assert_eq!(
+                limits.link_fetch_from(home, at(0)).unwrap(),
+                Throttle::Allowed
+            );
         }
         assert_eq!(
-            limits.link_fetch(home, at(0)).unwrap(),
+            limits.link_fetch_from(home, at(0)).unwrap(),
             Throttle::Wait { minutes: 60 }
         );
         assert_eq!(
             limits
-                .link_fetch(Network::V4([203, 0, 113, 2]), at(0))
+                .link_fetch_from(Network::V4([203, 0, 113, 2]), at(0))
                 .unwrap(),
             Throttle::Allowed
         );
         // Fetching counts nothing against logins.
         assert_eq!(
             limits.login_attempt(home, at(0)).unwrap(),
+            Throttle::Allowed
+        );
+        let link = TokenDigest::from_bytes([1; 32]);
+        for _ in 0..FETCHES_PER_LINK.limit {
+            assert_eq!(
+                limits.link_fetch_of(link, at(0)).unwrap(),
+                Throttle::Allowed
+            );
+        }
+        assert_eq!(
+            limits.link_fetch_of(link, at(0)).unwrap(),
+            Throttle::Wait { minutes: 60 }
+        );
+        assert_eq!(
+            limits
+                .link_fetch_of(TokenDigest::from_bytes([2; 32]), at(0))
+                .unwrap(),
             Throttle::Allowed
         );
     }
@@ -265,7 +313,18 @@ mod tests {
                 limits.registration_attempt(network, now).unwrap(),
                 Throttle::Allowed
             );
-            assert_eq!(limits.link_fetch(network, now).unwrap(), Throttle::Allowed);
+            assert_eq!(
+                limits.link_fetch_from(network, now).unwrap(),
+                Throttle::Allowed
+            );
+            let mut link = [0_u8; 32];
+            link[..4].copy_from_slice(&index.to_be_bytes());
+            assert_eq!(
+                limits
+                    .link_fetch_of(TokenDigest::from_bytes(link), now)
+                    .unwrap(),
+                Throttle::Allowed
+            );
             let email = Email::parse(&format!("user{index}@qq.com")).unwrap();
             assert_eq!(
                 limits.password_attempt(&email, now).unwrap(),
@@ -282,7 +341,13 @@ mod tests {
             Throttle::Wait { minutes: 60 }
         );
         assert_eq!(
-            limits.link_fetch(stranger, now).unwrap(),
+            limits.link_fetch_from(stranger, now).unwrap(),
+            Throttle::Wait { minutes: 60 }
+        );
+        assert_eq!(
+            limits
+                .link_fetch_of(TokenDigest::from_bytes([255; 32]), now)
+                .unwrap(),
             Throttle::Wait { minutes: 60 }
         );
         let email = Email::parse("stranger@qq.com").unwrap();

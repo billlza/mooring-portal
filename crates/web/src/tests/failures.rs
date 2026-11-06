@@ -111,6 +111,7 @@ async fn getting_the_cfm_profile_reports_a_broken_database() {
     }
     let fetched = Browser::new([203, 0, 113, 42]).get(&app, &link).await;
     assert_eq!(fetched.status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(fetched.body.starts_with("服务器出错了"), "{}", fetched.body);
     assert!(!fetched.body.contains("secret-of"));
     for path in ["/subscription/link", "/subscription/link/revoke"] {
         let reply = browser.post(&app, path, &[]).await;

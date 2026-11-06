@@ -7,7 +7,7 @@ use serde::de::IgnoredAny;
 use serde_json::value::RawValue;
 
 use super::document::CfmProfile;
-use super::error::ProfileError;
+use super::error::{FoundFormat, Malformation, ProfileError};
 use super::{FORMAT, MAX_BUNDLE_BYTES, VERSION};
 use crate::snapshot::MooringUserId;
 use crate::time::UnixTime;
@@ -79,10 +79,10 @@ impl ProfileBundle {
         if bundle.len() > MAX_BUNDLE_BYTES {
             return Err(ProfileError::TooLarge { size: bundle.len() });
         }
-        let header: Header = serde_json::from_slice(bundle).map_err(ProfileError::Json)?;
+        let header: Header = serde_json::from_slice(bundle).map_err(malformed)?;
         if header.format != FORMAT {
             return Err(ProfileError::WrongFormat {
-                found: header.format,
+                found: FoundFormat::of(&header.format),
             });
         }
         if header.version != VERSION {
@@ -90,7 +90,7 @@ impl ProfileBundle {
                 found: header.version,
             });
         }
-        let repr: BundleRepr<'_> = serde_json::from_slice(bundle).map_err(ProfileError::Json)?;
+        let repr: BundleRepr<'_> = serde_json::from_slice(bundle).map_err(malformed)?;
         let mut profiles = Vec::with_capacity(repr.profiles.len());
         for entry in repr.profiles {
             match CfmProfile::parse(entry.document.get()) {
@@ -115,5 +115,14 @@ impl ProfileBundle {
     /// The profiles, in user id order.
     pub fn profiles(&self) -> impl Iterator<Item = (&MooringUserId, &CfmProfile)> {
         self.profiles.iter()
+    }
+}
+
+/// A decoding failure, without the decoder's message.
+fn malformed(error: serde_json::Error) -> ProfileError {
+    ProfileError::Malformed {
+        kind: Malformation::of(&error),
+        line: error.line(),
+        column: error.column(),
     }
 }

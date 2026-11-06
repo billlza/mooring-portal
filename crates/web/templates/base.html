@@ -21,6 +21,7 @@
     {% include "nav_links.html" %}
   </nav>
   <div class="actions">
+    {% if chrome.language_switch %}
     <form class="lang" method="post" action="/lang">
       <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
       <input type="hidden" name="to" value="{{ chrome.lang.other().code() }}">
@@ -30,6 +31,7 @@
         <span>{{ chrome.t.common.switch_language_short }}</span>
       </button>
     </form>
+    {% endif %}
     {% if chrome.signed_in %}
     <a class="pill" href="/account">{{ chrome.t.common.my_account }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
     {% else %}

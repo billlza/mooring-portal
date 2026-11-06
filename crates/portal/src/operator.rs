@@ -133,11 +133,18 @@ pub(crate) fn import_profiles(
             report.unbound
         )?;
     }
-    for (account, user) in &report.missing {
+    for unlisted in &report.missing {
         writeln!(
             out,
-            "warning: account {account} is bound to Mooring user {user}, which this bundle does \
-             not list; the account has no profile now"
+            "warning: account {} is bound to Mooring user {}, which this bundle does not list; \
+             the account has no profile now{}",
+            unlisted.account,
+            unlisted.user,
+            if unlisted.link_revoked {
+                ", and its subscription link was turned off"
+            } else {
+                ""
+            }
         )?;
     }
     Ok(())

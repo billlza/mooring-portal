@@ -5,6 +5,7 @@ mod bindings;
 mod failures;
 mod file;
 mod links;
+mod migration;
 mod profiles;
 mod sessions;
 mod sharing;
@@ -23,6 +24,19 @@ const NOW: u64 = 1_793_880_000;
 
 fn store() -> Store {
     Store::open_in_memory().unwrap()
+}
+
+/// An empty owner-only file, as a first `serve` creates it.
+fn new_file(dir: &tempfile::TempDir) -> std::path::PathBuf {
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let path = dir.path().join("portal.db");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)
+        .unwrap();
+    path
 }
 
 fn at(secs: u64) -> UnixTime {

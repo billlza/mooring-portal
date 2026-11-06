@@ -1,5 +1,5 @@
 use super::*;
-use crate::{MAX_CLOCK_SKEW_SECS, ProfileImportError, ProfileImportReport, StoreError};
+use crate::{MAX_CLOCK_SKEW_SECS, ProfileImportError, ProfileImportReport, StoreError, Unlisted};
 
 #[test]
 fn only_bound_users_profiles_are_kept_and_the_rest_reported() {
@@ -21,7 +21,11 @@ fn only_bound_users_profiles_are_kept_and_the_rest_reported() {
         ProfileImportReport {
             stored: vec![user("pilotusera")],
             unbound: 1,
-            missing: vec![(second.code, user("pilotuserz"))],
+            missing: vec![Unlisted {
+                account: second.code,
+                user: user("pilotuserz"),
+                link_revoked: false,
+            }],
         }
     );
     assert_eq!(
@@ -56,7 +60,14 @@ fn a_bundle_replaces_every_profile_and_an_older_one_changes_nothing() {
         .unwrap();
     let newer = ProfileBundle::new(at(NOW + 20), [(user("pilotusera"), cfm("renewed"))]).unwrap();
     let report = store.import_profiles(&newer, at(NOW + 20)).unwrap();
-    assert_eq!(report.missing, vec![(second.code, user("pilotuserb"))]);
+    assert_eq!(
+        report.missing,
+        vec![Unlisted {
+            account: second.code,
+            user: user("pilotuserb"),
+            link_revoked: false,
+        }]
+    );
     let renewed = Some(StoredProfile {
         profile: cfm("renewed"),
         generated_at: at(NOW + 20),

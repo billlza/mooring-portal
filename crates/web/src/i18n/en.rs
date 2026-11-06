@@ -267,7 +267,7 @@ pub(super) const STRINGS: Strings = Strings {
     cfm: CfmText {
         title: "Use with CFM",
         intro: "Only CFM 0.5.x is supported. After importing, turn on “Mainland China direct” in CFM.",
-        waiting: "The operator has not uploaded your CFM profile yet. Once they have, you can make a subscription link or download the profile here.",
+        waiting: "There is no CFM profile for you at the moment. Once the operator uploads one, you can make a subscription link or download the profile here.",
         generated: "Profile generated {}",
         update_hint: "When the operator updates your profile, choose “Update” on it in CFM to fetch the new one; CFM does not update on its own.",
         link_title: "Subscription link",
@@ -277,7 +277,7 @@ pub(super) const STRINGS: Strings = Strings {
         link_rotate: "Make a new link",
         link_revoke: "Turn the link off",
         link_revoked: "Your subscription link is off.",
-        link_unavailable: "The operator has not uploaded your CFM profile yet, so there is nothing a link could fetch.",
+        link_unavailable: "There is no CFM profile for you at the moment, so there is nothing a link could fetch.",
         file_title: "Profile file",
         file_body: "Or download the profile and import it with “Import File” in CFM; delete the downloaded file afterwards.",
         download: "Download the profile (JSON)",

@@ -6,7 +6,7 @@
 
 use portal_core::auth::{StoredPasswordHash, TokenDigest};
 use portal_core::time::UnixTime;
-use rusqlite::{OptionalExtension as _, Transaction, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension as _, Transaction, TransactionBehavior, params};
 
 use crate::accounts::Account;
 use crate::rows::time_to_sql;
@@ -53,16 +53,8 @@ impl Store {
         digest: &TokenDigest,
         now: UnixTime,
     ) -> Result<Option<Account>, StoreError> {
-        let account: Option<i64> = self
-            .conn
-            .query_row(
-                "SELECT account_id FROM sessions WHERE token_digest = ?1 AND expires_at > ?2",
-                params![digest.as_bytes(), time_to_sql(now)],
-                |row| row.get(0),
-            )
-            .optional()?;
-        match account {
-            Some(id) => self.account_row(AccountId(id)),
+        match session_account_id(&self.conn, digest, now)? {
+            Some(account) => self.account_row(account),
             None => Ok(None),
         }
     }
@@ -107,6 +99,26 @@ impl Store {
             link_revoked: links > 0,
         })
     }
+}
+
+/// The account whose unexpired session has `digest`, read on `conn`. A
+/// write that acts for a signed-in account reads it in its own
+/// transaction: a request's session is read when its headers arrive, and
+/// the session may have ended (logout, password change, deletion of the
+/// account) before its body has.
+pub(crate) fn session_account_id(
+    conn: &Connection,
+    digest: &TokenDigest,
+    now: UnixTime,
+) -> Result<Option<AccountId>, StoreError> {
+    let account: Option<i64> = conn
+        .query_row(
+            "SELECT account_id FROM sessions WHERE token_digest = ?1 AND expires_at > ?2",
+            params![digest.as_bytes(), time_to_sql(now)],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(account.map(AccountId))
 }
 
 fn insert_session(tx: &Transaction<'_>, session: &NewSession) -> Result<(), StoreError> {

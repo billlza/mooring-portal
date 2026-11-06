@@ -4,7 +4,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use portal_core::profile::{DocumentError, MAX_BUNDLE_BYTES, ProfileBundle, ProfileError};
+use portal_core::profile::{
+    DocumentError, FoundFormat, MAX_BUNDLE_BYTES, Malformation, ProfileBundle, ProfileError,
+};
 
 /// The directory of the version-1 profile fixtures.
 fn profile_path(sub: &str) -> PathBuf {
@@ -43,34 +45,44 @@ fn each_document_is_kept_as_the_exact_text_mooring_wrote() {
 
 /// What an invalid fixture must be refused with.
 enum Refusal {
-    /// A problem with a key of the bundle, named in the decoder's message.
-    Field(&'static str),
+    /// A bundle that does not decode, refused with the kind and the place
+    /// of the problem: the decoder's own message would name the key or
+    /// quote the value.
+    Malformed(Malformation),
     /// A rule of the contract.
     Rule(fn(&ProfileError) -> bool),
 }
 
 #[test]
 fn every_invalid_bundle_is_refused_for_its_rule() {
-    use Refusal::{Field, Rule};
+    use Malformation::{Shape, Truncated};
+    use Refusal::{Malformed, Rule};
     let cases = [
         (
             "wrong-format",
-            Rule(
-                |e| matches!(e, ProfileError::WrongFormat { found } if found == "mooring-portal-snapshot"),
-            ),
+            Rule(|e| {
+                matches!(
+                    e,
+                    ProfileError::WrongFormat {
+                        found: FoundFormat::Snapshot
+                    }
+                )
+            }),
         ),
         (
             "version-2",
             Rule(|e| matches!(e, ProfileError::UnsupportedVersion { found: 2 })),
         ),
-        ("missing-key", Field("missing field `generated_at`")),
-        ("unknown-key", Field("unknown field `nodes`")),
-        ("unknown-entry-key", Field("unknown field `alias`")),
-        (
-            "alias-as-user",
-            Field("\"k7qd-m2xa\" is not a Mooring user id"),
-        ),
-        ("truncated", Field("EOF while parsing")),
+        ("missing-key", Malformed(Shape)),
+        ("unknown-key", Malformed(Shape)),
+        ("unknown-entry-key", Malformed(Shape)),
+        ("alias-as-user", Malformed(Shape)),
+        ("truncated", Malformed(Truncated)),
+        // Shapes whose decoder messages quoted whole documents.
+        ("bundle-as-string", Malformed(Shape)),
+        ("entry-as-string", Malformed(Shape)),
+        ("profiles-as-string", Malformed(Shape)),
+        ("document-in-user", Malformed(Shape)),
         (
             "no-profiles",
             Rule(|e| matches!(e, ProfileError::NoProfiles)),
@@ -112,10 +124,14 @@ fn every_invalid_bundle_is_refused_for_its_rule() {
         let text = profile_fixture(&format!("invalid/{name}.json"));
         let error = ProfileBundle::parse(text.as_bytes()).expect_err(name);
         match refusal {
-            Field(message) => {
-                assert!(matches!(error, ProfileError::Json(_)), "{name}: {error}");
-                assert!(error.to_string().contains(message), "{name}: {error}");
-            }
+            Malformed(expected) => assert!(
+                matches!(
+                    error,
+                    ProfileError::Malformed { kind, line, column }
+                        if kind == expected && line >= 1 && column >= 1
+                ),
+                "{name}: {error}"
+            ),
             Rule(check) => assert!(check(&error), "{name}: {error}"),
         }
         // No refusal quotes a credential of the fixture's documents.

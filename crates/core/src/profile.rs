@@ -20,7 +20,7 @@ mod error;
 
 pub use bundle::ProfileBundle;
 pub use document::{CfmProfile, DocumentError};
-pub use error::ProfileError;
+pub use error::{FoundFormat, Malformation, ProfileError};
 
 /// The value of the bundle's `format` key.
 pub const FORMAT: &str = "mooring-portal-cfm-profiles";
