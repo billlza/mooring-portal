@@ -1,7 +1,8 @@
 //! English.
 
 use super::text::{
-    AccountText, Auth, Common, Download, Help, Home, Item, Nav, Plans, Strings, SubscriptionText,
+    AccountText, Auth, CfmText, Common, Download, Help, Home, Item, Nav, Plans, Strings,
+    SubscriptionText,
 };
 
 pub(super) const STRINGS: Strings = Strings {
@@ -70,7 +71,7 @@ pub(super) const STRINGS: Strings = Strings {
             },
             Item {
                 title: "Check your subscription",
-                body: "Once the operator hands you your configuration file and binds your account, the subscription page shows your status and usage.",
+                body: "Once the operator binds your account and uploads your CFM profile, the subscription page shows your status and usage, and lets you make a subscription link or download the profile.",
             },
         ],
         note: "This is not a commercial VPN: it is open only to friends the operator trusts, and it may not always be available.",
@@ -107,8 +108,8 @@ pub(super) const STRINGS: Strings = Strings {
         how_steps: [
             "Sign up on this site.",
             "On a FaceTime audio call with the operator, accept the Mooring user agreement and read out your account code.",
-            "The operator hands you your configuration file and binds your account to your Mooring user.",
-            "From then on, the subscription page shows your status, usage, quota and expiry.",
+            "The operator binds your account to your Mooring user and uploads your CFM profile.",
+            "Then make a subscription link or download the profile on the subscription page and import it into CFM; the page also shows your status, usage, quota and expiry.",
         ],
         sections: [
             Item {
@@ -124,8 +125,8 @@ pub(super) const STRINGS: Strings = Strings {
                 body: "The subscription page shows a snapshot the operator imports from time to time, not live figures, and says how current it is. Usage that could not be counted shows as “unavailable”, never as zero.",
             },
             Item {
-                title: "No subscription links",
-                body: "This service has no subscription links; configuration is delivered only as files. If a server is blocked, the operator gives you a new file the same way as before.",
+                title: "Subscription links and profile files",
+                body: "Once the operator has uploaded your CFM profile, you can make a subscription link on the subscription page and import it with “Import Link” in CFM, or download the profile and import it with “Import File”. A link is shown only once and is your credential: do not give it to anyone. When the operator updates your profile (if a server is blocked, say, or the nodes change), choose “Update” on it in CFM; CFM does not update on its own.",
             },
             Item {
                 title: "Payment",
@@ -213,6 +214,7 @@ pub(super) const STRINGS: Strings = Strings {
         current_password_wrong: "The current password is wrong.",
         welcome: "You are signed up. Tell the operator the account code below.",
         password_changed: "Password changed. Every other device has been logged out.",
+        password_changed_link_revoked: "Password changed. Every other device has been logged out, and your subscription link is off: make a new one on the subscription page and import it into CFM again.",
     },
     subscription: SubscriptionText {
         title: "My subscription",
@@ -261,5 +263,28 @@ pub(super) const STRINGS: Strings = Strings {
         cycle_ended: "These figures are for a billing cycle that has ended; the new cycle's figures have not been imported yet, so your status and usage may have changed.",
         lag_note: "On nodes named -reality, a download in progress is counted only when its connection closes, so usage may lag for a while.",
         data_note: "The figures come from a snapshot the operator imports from time to time; they are not live.",
+    },
+    cfm: CfmText {
+        title: "Use with CFM",
+        intro: "Only CFM 0.5.x is supported. After importing, turn on “Mainland China direct” in CFM.",
+        waiting: "The operator has not uploaded your CFM profile yet. Once they have, you can make a subscription link or download the profile here.",
+        generated: "Profile generated {}",
+        update_hint: "When the operator updates your profile, choose “Update” on it in CFM to fetch the new one; CFM does not update on its own.",
+        link_title: "Subscription link",
+        link_none: "You have no subscription link. Make one and import it with “Import Link” in CFM; from then on, “Update” fetches the new profile.",
+        link_created: "Your current link was made {}. A link is shown only once, when it is made; if you have lost it, make a new one and the old one stops working at once.",
+        link_create: "Make a subscription link",
+        link_rotate: "Make a new link",
+        link_revoke: "Turn the link off",
+        link_revoked: "Your subscription link is off.",
+        link_unavailable: "The operator has not uploaded your CFM profile yet, so there is nothing a link could fetch.",
+        file_title: "Profile file",
+        file_body: "Or download the profile and import it with “Import File” in CFM; delete the downloaded file afterwards.",
+        download: "Download the profile (JSON)",
+        made_title: "Your subscription link",
+        made_lead: "In CFM, choose “Import Link” and paste the address below. It is shown only this once; after you leave this page it cannot be shown again.",
+        made_label: "Subscription link",
+        made_warning: "This link is your credential: anyone who has it can fetch your profile. Do not send it to anyone or paste it into chats, mail or documents. If you think it has leaked, make a new one or turn it off on the subscription page.",
+        back: "Back to my subscription",
     },
 };

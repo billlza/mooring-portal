@@ -2,9 +2,10 @@
 //!
 //! Server-rendered pages without JavaScript: the public pages (home,
 //! download, how it works, help), registration, login and logout, and the
-//! signed-in account and subscription pages. Every state-changing request
-//! is a form protected against CSRF; every response carries security
-//! headers; no asset comes from another host.
+//! signed-in account and subscription pages, from which a user downloads
+//! their CFM profile or makes the subscription link CFM fetches it from.
+//! Every state-changing request is a form protected against CSRF; every
+//! response carries security headers; no asset comes from another host.
 
 mod assets;
 mod brand;
@@ -31,7 +32,7 @@ use tokio::net::TcpListener;
 pub use config::{ClientIpSource, OriginError, PublicOrigin, SESSION_TTL_SECS, WebConfig};
 pub use state::{AppState, StartupError};
 
-use pages::{account, auth, lang, public, subscription};
+use pages::{account, auth, cfm, lang, public, subscription};
 use security::{csrf, headers};
 
 /// The portal's routes.
@@ -50,13 +51,19 @@ pub fn router(state: AppState) -> Router {
             get(account::password_page).post(account::change_password),
         )
         .route("/subscription", get(subscription::subscription))
+        .route("/subscription/profile.json", get(cfm::download))
+        .route("/subscription/link", post(cfm::create_link))
+        .route("/subscription/link/revoke", post(cfm::revoke_link))
         .route("/lang", post(lang::switch))
         .layer(middleware::from_fn(csrf::ensure_token));
     let files = Router::new()
         .route("/assets/{file}", get(assets::serve))
         .route("/robots.txt", get(assets::robots));
+    // What CFM fetches carries no cookie and gets none back.
+    let links = Router::new().route("/sub/{token}", get(cfm::fetch));
     pages
         .merge(files)
+        .merge(links)
         .fallback(public::not_found)
         .layer(middleware::from_fn(headers::add))
         .with_state(state)

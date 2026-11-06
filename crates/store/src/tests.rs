@@ -4,16 +4,19 @@ mod accounts;
 mod bindings;
 mod failures;
 mod file;
+mod links;
+mod profiles;
 mod sessions;
 mod sharing;
 mod subscriptions;
 
 use portal_core::account::{AccountCode, Email};
 use portal_core::auth::{StoredPasswordHash, TokenDigest};
+use portal_core::profile::{CfmProfile, ProfileBundle};
 use portal_core::snapshot::{BillingCycle, MooringUserId, Snapshot, UserRecord, UserStatus};
 use portal_core::time::{CalendarDate, UnixTime};
 
-use crate::{Account, NewAccount, NewSession, Store};
+use crate::{Account, NewAccount, NewSession, Store, StoredProfile};
 
 /// 2026-11-05T12:00:00Z.
 const NOW: u64 = 1_793_880_000;
@@ -92,4 +95,18 @@ fn snapshot(generated: u64, users: &[(&str, Option<u64>)]) -> Snapshot {
         }),
     )
     .unwrap()
+}
+
+/// A one-outbound CFM document tagged `tag`.
+fn cfm(tag: &str) -> CfmProfile {
+    CfmProfile::parse(&format!(
+        "{{\"outbounds\": [{{\"type\": \"vless\", \"tag\": \"{tag}\"}}]}}"
+    ))
+    .unwrap()
+}
+
+/// A bundle generated at `generated` with a document per listed user,
+/// tagged by the user's id.
+fn bundle(generated: u64, users: &[&str]) -> ProfileBundle {
+    ProfileBundle::new(at(generated), users.iter().map(|id| (user(id), cfm(id)))).unwrap()
 }

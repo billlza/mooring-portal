@@ -11,6 +11,7 @@ use axum::http::header::{CONTENT_TYPE, COOKIE, LOCATION, ORIGIN, SET_COOKIE};
 use axum::http::{HeaderMap, Request, StatusCode};
 use portal_core::account::AccountCode;
 use portal_core::auth::HashCost;
+use portal_core::profile::ProfileBundle;
 use portal_core::snapshot::{MooringUserId, Snapshot};
 use portal_core::time::{ManualClock, UnixTime};
 use portal_store::{OpenMode, Store};
@@ -148,6 +149,30 @@ impl TestApp {
             .unwrap();
     }
 
+    /// Imports a profile bundle generated at [`NOW`] holding
+    /// [`cfm_document`] for each of `users`.
+    pub(crate) async fn import_profiles(&self, users: &[&str]) {
+        let entries: Vec<String> = users
+            .iter()
+            .map(|user| {
+                format!(
+                    "{{\"user\": \"{user}\", \"document\": {}}}",
+                    cfm_document(user)
+                )
+            })
+            .collect();
+        let text = format!(
+            "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 1, \
+             \"generated_at\": {NOW}, \"profiles\": [{}]}}",
+            entries.join(", ")
+        );
+        let bundle = ProfileBundle::parse(text.as_bytes()).unwrap();
+        let now = UnixTime::from_secs(NOW).unwrap();
+        self.store(move |store| store.import_profiles(&bundle, now))
+            .await
+            .unwrap();
+    }
+
     /// Registers `email` from a fresh browser, which stays logged in.
     pub(crate) async fn signed_up(&self, email: &str) -> (Browser, AccountCode) {
         let mut browser = Browser::new([198, 51, 100, 7]);
@@ -264,5 +289,15 @@ pub(crate) fn snapshot_json(user: &str, served: Option<u64>) -> String {
         "reality_downlink_counted_at_close":true,
         "quota":{{"cycle_served_bytes":40000000000,"warn_percent":80,"action":"suspend"}},
         "expires_at":null}}]}}"#
+    )
+}
+
+/// The CFM document of `user` in the bundles [`TestApp::import_profiles`]
+/// imports. Its credential names the user, so a document served to the
+/// wrong account shows.
+pub(crate) fn cfm_document(user: &str) -> String {
+    format!(
+        "{{\n  \"outbounds\": [\n    {{\"type\": \"vless\", \"tag\": \"lon1-reality\", \
+         \"uuid\": \"secret-of-{user}\"}}\n  ]\n}}"
     )
 }

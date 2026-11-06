@@ -43,6 +43,7 @@ struct PasswordPage {
 pub(crate) enum Notice {
     Welcome,
     PasswordChanged,
+    PasswordChangedLinkRevoked,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,6 +79,7 @@ pub(crate) async fn account(
         notice: query.notice.map(|notice| match notice {
             Notice::Welcome => t.account.welcome,
             Notice::PasswordChanged => t.account.password_changed,
+            Notice::PasswordChangedLinkRevoked => t.account.password_changed_link_revoked,
         }),
         code: account.code.to_string(),
         email: account.email.as_str().to_owned(),
@@ -99,7 +101,8 @@ pub(crate) async fn password_page(ctx: PageContext) -> Result<Response, AppError
 }
 
 /// `POST /account/password`: checks the current password, sets the new
-/// one and replaces every session with a fresh one for this browser.
+/// one, replaces every session with a fresh one for this browser and turns
+/// the subscription link off.
 pub(crate) async fn change_password(
     State(state): State<AppState>,
     ctx: PageContext,
@@ -155,12 +158,16 @@ pub(crate) async fn change_password(
     state.limits().password_succeeded(&account.email)?;
     let password_hash = ticket.hash(password).await?;
     let (replacement, cookie) = session::new_session(&state, id)?;
-    state
+    let change = state
         .database()
         .run(move |store| store.change_password(&password_hash, &replacement))
         .await?
         .map_err(AppError::internal)?;
-    let mut response = see_other("/account?notice=password_changed");
+    let mut response = see_other(if change.link_revoked {
+        "/account?notice=password_changed_link_revoked"
+    } else {
+        "/account?notice=password_changed"
+    });
     response.headers_mut().append(SET_COOKIE, cookie);
     Ok(response)
 }

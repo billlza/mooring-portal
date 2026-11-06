@@ -126,3 +126,29 @@ async fn logs_hold_no_secret_and_nothing_a_request_chose() {
         assert!(!log.contains(secret), "{secret} leaked: {log}");
     }
 }
+
+#[tokio::test]
+async fn logs_hold_no_link_token_and_no_profile() {
+    capture_logs();
+    let app = TestApp::new();
+    let (mut browser, code) = app.signed_up("lilei@qq.com").await;
+    app.bind(code, "pilotusera").await;
+    app.import_profiles(&["pilotusera"]).await;
+    let page = browser.post(&app, "/subscription/link", &[]).await;
+    let marker = format!("{ORIGIN_URL}/sub/");
+    let start = page.body.find(&marker).unwrap() + marker.len();
+    let token = page.body[start..start + 64].to_owned();
+    browser.get(&app, "/subscription/profile.json").await;
+    let mut cfm = Browser::new([203, 0, 113, 61]);
+    let served = cfm.get(&app, &format!("/sub/{token}")).await;
+    assert_eq!(served.status, StatusCode::OK);
+    cfm.get(&app, &format!("/sub/{CHOSEN}")).await;
+    browser.post(&app, "/subscription/link/revoke", &[]).await;
+    let revoked = cfm.get(&app, &format!("/sub/{token}")).await;
+    assert_eq!(revoked.status, StatusCode::NOT_FOUND);
+    let log = logged();
+    assert!(log.contains("registered an account"), "{log}");
+    for secret in [token.as_str(), "secret-of-pilotusera", CHOSEN] {
+        assert!(!log.contains(secret), "{secret} leaked: {log}");
+    }
+}

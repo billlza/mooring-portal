@@ -40,6 +40,22 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          mooring_user TEXT PRIMARY KEY REFERENCES bindings (mooring_user) ON DELETE CASCADE,
          document TEXT NOT NULL
      ) STRICT;",
+    // 2: CFM profiles, the last imported bundle's time, and subscription
+    // links. Profiles and links refer to the binding, so unbinding (or
+    // deleting the account) removes both.
+    "CREATE TABLE cfm_profiles (
+         mooring_user TEXT PRIMARY KEY REFERENCES bindings (mooring_user) ON DELETE CASCADE,
+         document TEXT NOT NULL
+     ) STRICT;
+     CREATE TABLE profile_bundle (
+         id INTEGER PRIMARY KEY CHECK (id = 1),
+         generated_at INTEGER NOT NULL
+     ) STRICT;
+     CREATE TABLE subscription_links (
+         account_id INTEGER PRIMARY KEY REFERENCES bindings (account_id) ON DELETE CASCADE,
+         token_digest BLOB NOT NULL UNIQUE CHECK (length(token_digest) = 32),
+         created_at INTEGER NOT NULL
+     ) STRICT;",
 ];
 
 /// Applies the migrations the database lacks.

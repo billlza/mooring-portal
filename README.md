@@ -7,27 +7,29 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里停泊的
 - 公开页面：首页、下载（CFM 客户端）、订阅说明、帮助；
 - 账号：注册、登录、退出、修改密码；中英文切换，默认中文；
 - 账户页：账号编号、邮箱、注册时间、绑定状态；
-- 订阅页：状态、本计费周期用量、配额、到期时间，数据来自 Mooring 导出的快照；
-- 运营者命令：列出账号、按账号编号绑定或解绑 Mooring 用户、导入快照、删除账号。
+- 订阅页：状态、本计费周期用量、配额、到期时间，数据来自 Mooring 导出的快照；以及 CFM 配置：生成订阅链接（CFM 0.5.x「导入链接」，之后「更新」）或下载 JSON 配置文件（「导入文件」）；
+- 运营者命令：列出账号、按账号编号绑定或解绑 Mooring 用户、导入快照、导入 CFM 配置包、删除账号。
 
-门户不交付任何配置文件，不经手节点凭据，也不接受付款（Mooring 免费，见《Mooring 使用约定》第 1 条）。
+门户保存运营者导入的 CFM 配置，其中含节点凭据，所以门户主机按存放凭据的机器对待（`docs/security.md` 第 9 节）。门户还不接受付款。
 
 ## 当前状态
 
-2026-11-06：v1 完成，只在本地运行过，没有部署。仓库只在本地，没有远程仓库。许可证尚未选定。
+2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。只在本地运行过，没有部署。许可证尚未选定。
 
 ## 仓库结构
 
 | 路径 | 职责 |
 |---|---|
-| `crates/core` | 纯领域逻辑：时间与日期、账号（邮箱、账号编号、密码策略）、Argon2id 与令牌、限流器、快照契约 |
-| `crates/store` | SQLite 持久化：表结构与迁移、账号、会话、绑定、快照导入；文件以 0600 创建 |
+| `crates/core` | 纯领域逻辑：时间与日期、账号（邮箱、账号编号、密码策略）、Argon2id 与令牌、限流器、快照契约、CFM 配置包契约 |
+| `crates/store` | SQLite 持久化：表结构与迁移、账号、会话、绑定、快照导入、配置包导入、订阅链接；文件以 0600 创建 |
 | `crates/web` | HTTP 层（axum）：页面与模板（askama，编译期检查）、会话、CSRF、限流、安全响应头、中英文文案、品牌、样式与程序生成的主图 |
 | `crates/portal` | 二进制 `mooring-portal`：`serve` 与运营者命令 |
 | `contract/fixtures/v1/` | 快照契约的合成样例与金样 |
+| `contract/fixtures/cfm-profiles-v1/` | 配置包契约的合成样例与金样（凭据都是假的，地址都在文档保留网段） |
 | `docs/contract/portal-snapshot-v1.md` | 快照契约规范，含 Mooring 侧导出器的映射建议 |
+| `docs/contract/cfm-profiles-v1.md` | 配置包契约规范：格式、导入、CFM 0.5.1 拉取链接时的约束、Mooring 侧导出器的建议 |
 | `docs/security.md` | 安全设计、威胁模型与剩余风险 |
-| `docs/subscription-links.md` | 订阅链接的威胁模型与方案（v1 不实现） |
+| `docs/subscription-links.md` | 订阅链接与配置文件的决定、设计与剩余风险 |
 
 依赖方向只有一条：`core ← store ← web ← portal`。
 
@@ -94,6 +96,12 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import contract/fixtur
 
 `pilot.json` 里还有其他合成用户，覆盖其余状态：`pilotuserb` 接近配额，`pilotuserc` 因超额暂停，`pilotuserd` 用量无法获取，`pilotusere` 无个人配额，`pilotuserf` 已停用，`pilotuserg` 已到期。换绑前先 `unbind`。
 
+3. 导入合成配置包后，订阅页会出现"在 CFM 中使用"，可以生成订阅链接或下载配置文件（合成配置里的地址在文档保留网段，CFM 会拒绝导入，只用于看页面）：
+
+```bash
+cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contract/fixtures/cfm-profiles-v1/valid/pilot.json
+```
+
 ## 运营者命令
 
 所有命令都在门户主机上运行，数据库就是 `serve` 用的那个文件，服务运行时也可以执行（SQLite WAL 模式，写操作在事务里串行；有测试）。数据库由 `serve` 第一次启动时创建；运营者命令要求文件已经存在，`--db` 写错时报 `there is no database at …`，不会新建一个空库。
@@ -102,9 +110,10 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import contract/fixtur
 |---|---|
 | `accounts` | 列出账号：编号、注册时间（UTC）、绑定的 Mooring 用户、邮箱 |
 | `bind --account <编号> --user <用户编号>` | 绑定。一个账号只能绑一个用户，反过来也一样 |
-| `unbind --account <编号>` | 解绑，并删除该用户在门户上的快照记录 |
+| `unbind --account <编号>` | 解绑，并删除该用户在门户上的快照记录、CFM 配置和订阅链接 |
 | `import <文件>` | 导入快照：只保留已绑定用户；报告未绑定的人数，以及快照里缺少的已绑定用户 |
-| `delete-account --account <编号>` | 删除账号，连同会话、绑定和快照记录 |
+| `import-profiles <文件>` | 导入 CFM 配置包：配置包是完整集合，导入后只保留其中已绑定用户的配置，其余全部删除；报告未绑定的人数，以及配置包里缺少的已绑定用户（它们的链接从此返回 404）。导入后删除配置包文件 |
+| `delete-account --account <编号>` | 删除账号，连同会话、绑定、快照记录、CFM 配置和订阅链接 |
 
 绑定流程：用户注册后，在 FaceTime 语音通话中把账户页上的账号编号念给运营者；运营者**按编号绑定，不按邮箱绑定**（原因见 `docs/security.md` 第 2 节）。编号不区分大小写，字母 o、i、l 会按 0、1、1 读入。
 
@@ -112,9 +121,9 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import contract/fixtur
 
 ## 部署前提（尚未部署）
 
-- 门户只监听回环地址，由同机反向代理（如 Caddy、nginx）终止 TLS 后转发；代理须追加 `X-Forwarded-For`，门户以 `--behind-proxy` 启动。
-- `--origin` 写浏览器实际使用的 `https://` 地址；只有 localhost 可以用 `http://`。
-- 数据库文件及其备份保持 0600。
+- 门户只监听回环地址，由同机反向代理（如 Caddy、nginx）终止 TLS 后转发；代理须追加 `X-Forwarded-For`，门户以 `--behind-proxy` 启动。代理不得压缩 `/sub/` 的响应（CFM 0.5.1 只接受 identity 编码），也不得记录请求路径：路径里是订阅链接的令牌。
+- `--origin` 写浏览器实际使用的 `https://` 地址；只有 localhost 可以用 `http://`。订阅链接就建在这个地址上，CFM 只接受公网 HTTPS 域名或公网 IP。
+- 数据库文件及其备份保持 0600，并当作节点凭据保管。
 - `serve` 收到 SIGINT 或 SIGTERM 后会处理完进行中的请求再退出（有测试）。
 
 ## 待定事项
@@ -122,10 +131,10 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import contract/fixtur
 以下事项需要运营者决定，代码里都还没有做：
 
 1. **品牌**：已定为泊光 Moorlight（2026-11-06），以后要改只改 `brand.rs`。
-2. **《使用约定》修订**：门户会在联网主机上保存已绑定用户的编号、状态、用量、配额和到期时间，以及门户账号的邮箱和密码摘要。这些都不在约定第 1 版第 4 条的范围内，为真实用户绑定前须先修订约定。
-3. **订阅链接**：v1 不做，见 `docs/subscription-links.md`。
+2. **《使用约定》修订**（运营者 2026-11-06 同意修订，文本尚未写）：门户会在联网主机上保存已绑定用户的编号、状态、用量、配额和到期时间、CFM 配置（含凭据），以及门户账号的邮箱和密码摘要；还引入了订阅链接。这与约定第 1 版第 2、4、5 条冲突，为真实用户绑定、导入真实配置包之前须先修订约定。约定的文本和版本号在 Mooring 仓库里。
+3. **订阅链接**：已决定做（2026-11-06），本分支已实现，见 `docs/subscription-links.md`。
 4. **邮箱验证或邀请码**：开放注册时，掌握大量网络的人能占满 `--max-accounts` 的注册名额（`docs/security.md` 第 9 节）。邮箱验证需要外部 SMTP 服务和凭据，没有它就无法自助找回密码，也挡不住用别人的邮箱注册；邀请码由运营者发放，不需要外部服务。按编号绑定已经保证了绑定不会因注册方式而出错。
 5. **托管位置与域名**：门户放在哪台主机；用什么域名；要不要允许搜索引擎收录（现在是 `noindex`）。门户是公开网站，用户从大陆访问它这件事本身会被网络看到。
-6. **支付**：v1 不接。Mooring 现在承诺免费，不接受分摊；出口是运营者的个人手机线路。收费会涉及约定、运营商条款，还需要支付服务商的凭据。
-7. **许可证**、远程仓库、证书与 DNS。
-8. **Mooring 导出器**：按 `docs/contract/portal-snapshot-v1.md` 第 8 节在 Mooring 仓库单独提交。
+6. **支付**：已决定用 Stripe 在线收款，付款后由 Mooring 定时从门户拉取付款记录、自动开通；计费同时支持按月套餐和预付流量包，价格写在门户配置里（2026-11-06）。尚未实现；需要 Stripe 账户与密钥，并修订约定第 1 条。
+7. **许可证**、证书与 DNS。
+8. **Mooring 导出器**：快照导出（`docs/contract/portal-snapshot-v1.md` 第 8 节）与配置包导出（`docs/contract/cfm-profiles-v1.md` 第 7 节），在 Mooring 仓库单独提交。

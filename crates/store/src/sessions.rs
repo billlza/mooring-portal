@@ -15,6 +15,13 @@ use crate::{AccountId, Store, StoreError};
 /// The most sessions one account keeps.
 pub const MAX_SESSIONS_PER_ACCOUNT: u32 = 10;
 
+/// What changing a password did besides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PasswordChange {
+    /// The account's subscription link was removed.
+    pub link_revoked: bool,
+}
+
 /// A session to record.
 #[derive(Debug, Clone, Copy)]
 pub struct NewSession {
@@ -69,13 +76,15 @@ impl Store {
         Ok(())
     }
 
-    /// Sets `account`'s password hash and replaces all of its sessions with
-    /// `replacement`, so that every other browser is logged out.
+    /// Sets `account`'s password hash, replaces all of its sessions with
+    /// `replacement`, so that every other browser is logged out, and
+    /// removes its subscription link, which whoever else was signed in
+    /// could have made.
     pub fn change_password(
         &mut self,
         hash: &StoredPasswordHash,
         replacement: &NewSession,
-    ) -> Result<(), StoreError> {
+    ) -> Result<PasswordChange, StoreError> {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -88,9 +97,15 @@ impl Store {
             return Err(StoreError::Missing { what: "account" });
         }
         tx.execute("DELETE FROM sessions WHERE account_id = ?1", [account])?;
+        let links = tx.execute(
+            "DELETE FROM subscription_links WHERE account_id = ?1",
+            [account],
+        )?;
         insert_session(&tx, replacement)?;
         tx.commit()?;
-        Ok(())
+        Ok(PasswordChange {
+            link_revoked: links > 0,
+        })
     }
 }
 

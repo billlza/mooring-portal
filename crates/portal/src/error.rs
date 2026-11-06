@@ -3,9 +3,12 @@
 use std::io;
 use std::path::PathBuf;
 
+use portal_core::profile::ProfileError;
 use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
-use portal_store::{BindError, DeleteError, ImportError, StoreError, UnbindError};
+use portal_store::{
+    BindError, DeleteError, ImportError, ProfileImportError, StoreError, UnbindError,
+};
 use portal_web::{OriginError, StartupError};
 
 /// Why a command failed.
@@ -23,10 +26,13 @@ pub enum CommandError {
     /// An import was refused.
     #[error(transparent)]
     Import(#[from] ImportError),
+    /// A profile import was refused.
+    #[error(transparent)]
+    ProfileImport(#[from] ProfileImportError),
     /// A deletion was refused.
     #[error(transparent)]
     Delete(#[from] DeleteError),
-    /// The snapshot file could not be read.
+    /// An input file could not be read.
     #[error("cannot read {path}: {source}")]
     Read {
         /// The file.
@@ -43,6 +49,15 @@ pub enum CommandError {
         /// Why it was refused.
         #[source]
         source: SnapshotError,
+    },
+    /// The bundle file is not a valid profile bundle.
+    #[error("{path}: {source}")]
+    Profiles {
+        /// The file.
+        path: PathBuf,
+        /// Why it was refused.
+        #[source]
+        source: ProfileError,
     },
     /// The origin given to `serve` is unusable.
     #[error(transparent)]

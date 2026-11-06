@@ -1,6 +1,6 @@
 [package]
 name = "portal-core"
-description = "Pure domain logic of the Mooring portal: accounts, tokens, rate limits and the snapshot contract."
+description = "Pure domain logic of the Mooring portal: accounts, tokens, rate limits, and the snapshot and CFM profile contracts."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

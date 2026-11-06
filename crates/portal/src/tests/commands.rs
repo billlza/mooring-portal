@@ -104,13 +104,13 @@ fn unbinding_and_deleting_report_what_went() {
     assert_eq!(unbound.code, ExitCode::SUCCESS);
     assert_eq!(
         unbound.out,
-        "unbound account 0000-0000-0001 from Mooring user pilotusera; its subscription record was deleted\n"
+        "unbound account 0000-0000-0001 from Mooring user pilotusera; its subscription record, CFM profile and subscription link were deleted\n"
     );
     let deleted = fixture.run(&["delete-account", "--account", &alice]);
     assert_eq!(deleted.code, ExitCode::SUCCESS);
     assert_eq!(
         deleted.out,
-        "deleted account 0000-0000-0001 with its sessions, binding and subscription record\n"
+        "deleted account 0000-0000-0001 with its sessions, binding, subscription record, CFM profile and subscription link\n"
     );
     assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
 }
@@ -121,6 +121,7 @@ fn commands_refuse_a_missing_database_and_create_none() {
     let typo = fixture.dir.path().join("portl.db");
     let typo_text = typo.to_str().unwrap();
     let pilot = contract_fixture("valid/pilot.json");
+    let bundle = super::profile_fixture("valid/pilot.json");
     for args in [
         vec!["accounts"],
         vec![
@@ -132,6 +133,7 @@ fn commands_refuse_a_missing_database_and_create_none() {
         ],
         vec!["unbind", "--account", "0000-0000-0001"],
         vec!["import", pilot.to_str().unwrap()],
+        vec!["import-profiles", bundle.to_str().unwrap()],
         vec!["delete-account", "--account", "0000-0000-0001"],
     ] {
         let mut line = vec!["mooring-portal", "--db", typo_text];

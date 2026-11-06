@@ -148,3 +148,32 @@
   font-weight: 800;
 }
 
+
+.cfm h3 {
+  margin: 22px 0 6px;
+  font-size: 1rem;
+}
+
+.link-field {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.link-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(120, 165, 255, 0.28);
+  border-radius: 12px;
+  background: rgba(3, 8, 24, 0.85);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+}
+
+.link-field input:focus {
+  border-color: var(--accent-soft);
+  outline: none;
+}

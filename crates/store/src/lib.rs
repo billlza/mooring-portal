@@ -1,7 +1,8 @@
 //! SQLite persistence of the Mooring portal.
 //!
 //! One file holds the accounts, their sessions, the bindings of accounts to
-//! Mooring users, and the latest snapshot record of each bound user. The
+//! Mooring users, the latest snapshot record and CFM profile of each bound
+//! user, and the accounts' subscription links. The
 //! server and the operator's commands open the same file: SQLite's write
 //! lock serialises them (WAL journal, five-second busy timeout), and every
 //! operation that reads before it writes runs in an immediate transaction,
@@ -18,6 +19,8 @@ mod accounts;
 mod bindings;
 mod error;
 mod file;
+mod links;
+mod profiles;
 mod rows;
 mod schema;
 mod sessions;
@@ -31,7 +34,9 @@ use rusqlite::{Connection, OpenFlags};
 pub use accounts::{Account, AccountSummary, Credentials, DeleteError, NewAccount, RegisterError};
 pub use bindings::{BindError, Binding, UnbindError};
 pub use error::{StoreError, UnknownAccount};
-pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession};
+pub use links::{LinkError, LinkedProfile};
+pub use profiles::{ProfileImportError, ProfileImportReport, StoredProfile};
+pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};
 
 /// How long a writer waits for another's lock before failing.

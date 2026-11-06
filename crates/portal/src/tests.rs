@@ -2,6 +2,7 @@
 
 mod commands;
 mod import;
+mod profiles;
 mod usage;
 
 use std::path::{Path, PathBuf};
@@ -94,9 +95,16 @@ fn run_line(line: &[&str], clock: &ManualClock) -> Outcome {
     }
 }
 
-/// The version-1 fixture `name`.
+/// The version-1 snapshot fixture `name`.
 fn contract_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../contract/fixtures/v1")
+        .join(name)
+}
+
+/// The version-1 profile bundle fixture `name`.
+fn profile_fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../contract/fixtures/cfm-profiles-v1")
         .join(name)
 }

@@ -3,7 +3,7 @@
 
 use axum::http::StatusCode;
 
-use super::support::{Browser, PASSWORD, TestApp};
+use super::support::{Browser, ORIGIN_URL, PASSWORD, TestApp};
 
 /// Breaks the database of `file` behind the portal's back.
 fn break_database(path: &std::path::Path) {
@@ -85,4 +85,35 @@ async fn logging_out_and_changing_passwords_report_a_broken_database() {
         third.log_in(&app, "bob@qq.com").await.status,
         StatusCode::SEE_OTHER
     );
+}
+
+#[tokio::test]
+async fn getting_the_cfm_profile_reports_a_broken_database() {
+    let (app, file) = TestApp::on_disk();
+    let (mut browser, code) = app.signed_up("alice@qq.com").await;
+    app.bind(code, "pilotusera").await;
+    app.import_profiles(&["pilotusera"]).await;
+    let page = browser.post(&app, "/subscription/link", &[]).await;
+    let marker = format!("{ORIGIN_URL}/sub/");
+    let start = page.body.find(&marker).unwrap() + marker.len();
+    let link = format!("/sub/{}", &page.body[start..start + 64]);
+    // The session still reads; the profiles and the links do not.
+    let conn = rusqlite::Connection::open(file.path()).unwrap();
+    conn.execute_batch(
+        "DROP TABLE cfm_profiles; \
+         CREATE TRIGGER no_revoke BEFORE DELETE ON subscription_links \
+         BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+    )
+    .unwrap();
+    for path in ["/subscription", "/subscription/profile.json"] {
+        let reply = browser.get(&app, path).await;
+        assert_eq!(reply.status, StatusCode::INTERNAL_SERVER_ERROR, "{path}");
+    }
+    let fetched = Browser::new([203, 0, 113, 42]).get(&app, &link).await;
+    assert_eq!(fetched.status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(!fetched.body.contains("secret-of"));
+    for path in ["/subscription/link", "/subscription/link/revoke"] {
+        let reply = browser.post(&app, path, &[]).await;
+        assert_eq!(reply.status, StatusCode::INTERNAL_SERVER_ERROR, "{path}");
+    }
 }

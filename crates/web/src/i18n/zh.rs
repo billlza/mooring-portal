@@ -1,7 +1,8 @@
 //! Simplified Chinese, the default language.
 
 use super::text::{
-    AccountText, Auth, Common, Download, Help, Home, Item, Nav, Plans, Strings, SubscriptionText,
+    AccountText, Auth, CfmText, Common, Download, Help, Home, Item, Nav, Plans, Strings,
+    SubscriptionText,
 };
 
 pub(super) const STRINGS: Strings = Strings {
@@ -65,7 +66,7 @@ pub(super) const STRINGS: Strings = Strings {
             },
             Item {
                 title: "查看订阅",
-                body: "运营者交付配置文件并绑定账号后，订阅页会显示你的状态和用量。",
+                body: "运营者绑定账号并上传你的 CFM 配置后，订阅页会显示你的状态和用量，你也可以在那里生成订阅链接或下载配置文件。",
             },
         ],
         note: "这不是商业 VPN：本服务只对运营者信任的朋友开放，不保证随时可用。",
@@ -101,8 +102,8 @@ pub(super) const STRINGS: Strings = Strings {
         how_steps: [
             "在本站注册账号。",
             "在与运营者的 FaceTime 语音通话中，确认同意《Mooring 使用约定》，并念出你的账号编号。",
-            "运营者把配置文件交给你，并把你的账号绑定到你的 Mooring 用户。",
-            "之后，订阅页会显示你的状态、用量、配额和到期时间。",
+            "运营者把你的账号绑定到你的 Mooring 用户，并上传你的 CFM 配置。",
+            "之后，在订阅页生成订阅链接或下载配置文件，导入 CFM；订阅页也会显示你的状态、用量、配额和到期时间。",
         ],
         sections: [
             Item {
@@ -118,8 +119,8 @@ pub(super) const STRINGS: Strings = Strings {
                 body: "订阅页的数据来自运营者定期导入的快照，不是实时数据，页面会写明数据截至的时间。统计不到的用量显示为“无法获取”，不会显示成 0。",
             },
             Item {
-                title: "没有订阅链接",
-                body: "本服务不提供订阅链接，配置只以文件交付。服务器被封时，运营者会按原来的方式给你一份新文件。",
+                title: "订阅链接与配置文件",
+                body: "运营者上传你的 CFM 配置后，你可以在订阅页生成订阅链接，在 CFM 里用「导入链接」导入，也可以下载配置文件，用「导入文件」导入。链接只显示一次，它就是你的凭据，不要发给别人。运营者更新配置后（例如服务器被封、换了节点），在 CFM 里对这份配置点「更新」即可；CFM 不会自动更新。",
             },
             Item {
                 title: "付款",
@@ -207,6 +208,7 @@ pub(super) const STRINGS: Strings = Strings {
         current_password_wrong: "当前密码不正确。",
         welcome: "注册成功。请把下面的账号编号告诉运营者。",
         password_changed: "密码已修改，其他设备上的登录已经失效。",
+        password_changed_link_revoked: "密码已修改，其他设备上的登录已经失效。你的订阅链接也已停用：请在订阅页重新生成，并在 CFM 里重新导入。",
     },
     subscription: SubscriptionText {
         title: "我的订阅",
@@ -255,5 +257,28 @@ pub(super) const STRINGS: Strings = Strings {
         cycle_ended: "这些数据属于一个已经结束的计费周期，新周期的数据还没有导入，状态和用量可能已经变化。",
         lag_note: "使用名称含 -reality 的节点时，正在进行的下载要等连接关闭后才计入，所以用量可能暂时偏低。",
         data_note: "数据来自运营者定期导入的快照，不是实时数据。",
+    },
+    cfm: CfmText {
+        title: "在 CFM 中使用",
+        intro: "只支持 CFM 0.5.x。导入后请在 CFM 里打开“中国大陆直连”。",
+        waiting: "运营者还没有为你上传 CFM 配置。上传后，可以在这里生成订阅链接或下载配置文件。",
+        generated: "配置生成于 {}",
+        update_hint: "运营者更新配置后，在 CFM 里对这份配置点「更新」即可取得新配置；CFM 不会自动更新。",
+        link_title: "订阅链接",
+        link_none: "还没有订阅链接。生成后在 CFM 里用「导入链接」导入，以后点「更新」就能取得新配置。",
+        link_created: "当前链接生成于 {}。链接只在生成时显示一次；忘了就重新生成，旧链接会立即失效。",
+        link_create: "生成订阅链接",
+        link_rotate: "重新生成",
+        link_revoke: "停用链接",
+        link_revoked: "订阅链接已停用。",
+        link_unavailable: "运营者还没有为你上传 CFM 配置，暂时不能生成订阅链接。",
+        file_title: "配置文件",
+        file_body: "也可以下载配置文件，在 CFM 里用「导入文件」导入，导入后删除下载的文件。",
+        download: "下载配置文件（JSON）",
+        made_title: "你的订阅链接",
+        made_lead: "在 CFM 里选「导入链接」，粘贴下面的地址。它只显示这一次，离开本页后无法再查看。",
+        made_label: "订阅链接",
+        made_warning: "这个链接就是你的凭据：拿到它的人都能取得你的配置。不要发给任何人，也不要贴到聊天、邮件或文档里。怀疑泄露时，回到订阅页重新生成或停用。",
+        back: "返回我的订阅",
     },
 };

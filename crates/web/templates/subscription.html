@@ -6,6 +6,7 @@
   {% include "tabs.html" %}
 </div>
 <div class="container">
+{% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
 {% match view %}
 {% when SubscriptionView::Unbound %}
   <section class="panel empty">
@@ -60,5 +61,44 @@
     {% if let Some(lag) = details.lag_note %}<p class="small muted">{{ lag }}</p>{% endif %}
   </section>
 {% endmatch %}
+{% if let Some(cfm) = cfm %}
+  <section class="panel cfm">
+    <h2>{{ chrome.t.cfm.title }}</h2>
+    <p class="small muted">{{ chrome.t.cfm.intro }}</p>
+    {% match cfm.generated %}
+    {% when Some with (generated) %}
+    <p>{{ generated }} <span class="muted small">{{ chrome.t.common.beijing_time }}</span></p>
+    <p class="small muted">{{ chrome.t.cfm.update_hint }}</p>
+    {% when None %}
+    <p class="muted">{{ chrome.t.cfm.waiting }}</p>
+    {% endmatch %}
+    {% if cfm.generated.is_some() || cfm.link.is_some() %}
+    <h3>{{ chrome.t.cfm.link_title }}</h3>
+    {% match cfm.link %}
+    {% when Some with (link) %}<p class="small">{{ link }}</p>
+    {% when None %}<p class="small muted">{{ chrome.t.cfm.link_none }}</p>
+    {% endmatch %}
+    <div class="actions-row">
+      {% if cfm.generated.is_some() %}
+      <form class="inline" method="post" action="/subscription/link">
+        <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+        <button class="button" type="submit">{% if cfm.link.is_some() %}{{ chrome.t.cfm.link_rotate }}{% else %}{{ chrome.t.cfm.link_create }}{% endif %}</button>
+      </form>
+      {% endif %}
+      {% if cfm.link.is_some() %}
+      <form class="inline" method="post" action="/subscription/link/revoke">
+        <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+        <button class="button ghost" type="submit">{{ chrome.t.cfm.link_revoke }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if cfm.generated.is_some() %}
+    <h3>{{ chrome.t.cfm.file_title }}</h3>
+    <p class="small muted">{{ chrome.t.cfm.file_body }}</p>
+    <p><a class="button ghost" href="/subscription/profile.json" download>{{ chrome.t.cfm.download }}</a></p>
+    {% endif %}
+  </section>
+{% endif %}
 </div>
 {% endblock %}

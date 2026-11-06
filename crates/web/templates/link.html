@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.cfm.made_title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.account.title }}</h1>
+  {% include "tabs.html" %}
+</div>
+<div class="container">
+  <section class="panel">
+    <h2>{{ chrome.t.cfm.made_title }}</h2>
+    <p>{{ chrome.t.cfm.made_lead }}</p>
+    <label class="link-field">{{ chrome.t.cfm.made_label }}
+      <input type="text" readonly value="{{ url }}" spellcheck="false" autocomplete="off" autocapitalize="off">
+    </label>
+    <p class="alert" role="note">{{ chrome.t.cfm.made_warning }}</p>
+    <p class="small muted">{{ chrome.t.cfm.intro }}</p>
+    <p><a class="button ghost" href="/subscription">{{ chrome.t.cfm.back }}</a></p>
+  </section>
+</div>
+{% endblock %}

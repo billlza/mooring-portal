@@ -5,6 +5,7 @@ use std::io::{Read as _, Write};
 use std::path::Path;
 
 use portal_core::account::AccountCode;
+use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
 use portal_core::snapshot::{MAX_DOCUMENT_BYTES, MooringUserId, Snapshot};
 use portal_core::time::Clock;
 use portal_store::Store;
@@ -59,7 +60,8 @@ pub(crate) fn unbind(
     let user = store.unbind(account)?;
     writeln!(
         out,
-        "unbound account {account} from Mooring user {user}; its subscription record was deleted"
+        "unbound account {account} from Mooring user {user}; its subscription record, CFM \
+         profile and subscription link were deleted"
     )?;
     Ok(())
 }
@@ -71,7 +73,7 @@ pub(crate) fn import(
     file: &Path,
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
-    let document = read_bounded(file)?;
+    let document = read_bounded(file, SNAPSHOT_READ_LIMIT)?;
     let snapshot = Snapshot::parse(&document).map_err(|source| CommandError::Snapshot {
         path: file.to_owned(),
         source,
@@ -102,6 +104,45 @@ pub(crate) fn import(
     Ok(())
 }
 
+/// Imports a CFM profile bundle file.
+pub(crate) fn import_profiles(
+    store: &mut Store,
+    clock: &dyn Clock,
+    file: &Path,
+    out: &mut dyn Write,
+) -> Result<(), CommandError> {
+    let document = read_bounded(file, BUNDLE_READ_LIMIT)?;
+    let bundle = ProfileBundle::parse(&document).map_err(|source| CommandError::Profiles {
+        path: file.to_owned(),
+        source,
+    })?;
+    let report = store.import_profiles(&bundle, clock.now()?)?;
+    let stored: Vec<&str> = report.stored.iter().map(MooringUserId::as_str).collect();
+    writeln!(
+        out,
+        "profile bundle generated at {}: stored {} profile(s){}{}",
+        bundle.generated_at(),
+        stored.len(),
+        if stored.is_empty() { "" } else { ": " },
+        stored.join(", ")
+    )?;
+    if report.unbound > 0 {
+        writeln!(
+            out,
+            "not kept: {} profile(s) of users no account is bound to",
+            report.unbound
+        )?;
+    }
+    for (account, user) in &report.missing {
+        writeln!(
+            out,
+            "warning: account {account} is bound to Mooring user {user}, which this bundle does \
+             not list; the account has no profile now"
+        )?;
+    }
+    Ok(())
+}
+
 /// Deletes an account.
 pub(crate) fn delete_account(
     store: &mut Store,
@@ -111,7 +152,8 @@ pub(crate) fn delete_account(
     store.delete_account(account)?;
     writeln!(
         out,
-        "deleted account {account} with its sessions, binding and subscription record"
+        "deleted account {account} with its sessions, binding, subscription record, CFM \
+         profile and subscription link"
     )?;
     Ok(())
 }
@@ -119,11 +161,13 @@ pub(crate) fn delete_account(
 /// One byte more than a snapshot may have: reading that many tells an
 /// oversized file apart without reading it all. A mebibyte fits any
 /// `u64`, so the conversion is exact.
-const READ_LIMIT: u64 = MAX_DOCUMENT_BYTES as u64 + 1;
+const SNAPSHOT_READ_LIMIT: u64 = MAX_DOCUMENT_BYTES as u64 + 1;
+/// One byte more than a profile bundle may have, for the same reason.
+const BUNDLE_READ_LIMIT: u64 = MAX_BUNDLE_BYTES as u64 + 1;
 
-/// Reads at most [`READ_LIMIT`] bytes of `file`; `Snapshot::parse` refuses
-/// a document that fills them.
-fn read_bounded(file: &Path) -> Result<Vec<u8>, CommandError> {
+/// Reads at most `limit` bytes of `file`; the parser refuses a document
+/// that fills them.
+fn read_bounded(file: &Path, limit: u64) -> Result<Vec<u8>, CommandError> {
     let read_error = |source| CommandError::Read {
         path: file.to_owned(),
         source,
@@ -131,7 +175,7 @@ fn read_bounded(file: &Path) -> Result<Vec<u8>, CommandError> {
     let mut document = Vec::new();
     File::open(file)
         .map_err(read_error)?
-        .take(READ_LIMIT)
+        .take(limit)
         .read_to_end(&mut document)
         .map_err(read_error)?;
     Ok(document)

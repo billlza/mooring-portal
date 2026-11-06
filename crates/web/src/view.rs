@@ -18,6 +18,10 @@ use portal_store::Subscription;
 use crate::format::{beijing, beijing_date, bytes};
 use crate::i18n::{Strings, fill};
 
+mod cfm;
+
+pub(crate) use cfm::CfmPanel;
+
 /// A snapshot older than this is flagged as possibly out of date.
 pub(crate) const STALE_AFTER_SECS: u64 = 48 * 3600;
 

@@ -1,0 +1,92 @@
+# CFM 配置包契约，第 1 版
+
+这是门户与 Mooring 之间的第二份数据通道：Mooring 把每个可交付用户的 CFM 导入文档打成一个配置包，运营者在门户主机上用 `mooring-portal import-profiles` 导入。门户把每个用户自己的文档交给他：订阅页上可以下载，也可以生成订阅链接让 CFM 拉取。
+
+- 实现：`crates/core/src/profile/`（解析与校验）、`crates/store/src/profiles.rs`（导入）、`crates/web/src/pages/cfm.rs`（下载与拉取）
+- 金样：`contract/fixtures/cfm-profiles-v1/`（`valid/` 合法配置包，`invalid/` 每条规则一个反例）
+- 金样测试：`crates/core/tests/contract/profiles.rs`
+
+## 1. 与快照的区别
+
+快照（`portal-snapshot-v1.md`）不含任何凭据。配置包则**含凭据和节点地址**：VLESS UUID、REALITY 公钥与 short id、Hysteria2 密码与混淆密码、节点 IP。所以它是单独的一份文档、单独的导入命令和单独的表，快照的导入和传输不因此多带凭据。门户：
+
+- 只检查文档的外形（第 3 节），不解读、不改写、不派生任何字段；
+- 原样保存 Mooring 写下的文本，原样交给 CFM（逐字节，有测试）；
+- 任何错误信息、日志和 `Debug` 输出都不引用文档内容。
+
+## 2. 配置包
+
+一个 UTF-8 JSON 对象，最大 1 MiB。每个键都必须出现，出现未列出的键即拒绝。
+
+| 键 | 类型 | 含义 |
+|---|---|---|
+| `format` | 字符串，恒为 `"mooring-portal-cfm-profiles"` | 防止把快照或别的 JSON 误当配置包导入 |
+| `version` | 整数，恒为 `1` | 契约版本 |
+| `generated_at` | Unix 秒 | Mooring 生成配置包的时刻 |
+| `profiles` | 数组，至少一项 | 每用户一项，见下表 |
+
+每用户一项：
+
+| 键 | 类型 | 含义 |
+|---|---|---|
+| `user` | 字符串 | Mooring 用户编号（10 个小写 base32 字符，与快照相同；别名会被拒绝） |
+| `document` | JSON 对象 | 该用户的 CFM 导入文档，即 `mooring-export` 以默认格式 `ExportFormat::SingBoxJson` 写出的内容 |
+
+## 3. 规则
+
+违反任何一条，整份配置包被拒绝，什么也不写：
+
+1. 先读 `format` 和 `version`，不认识的格式或版本单独报出。
+2. 用户不重复，至少一个。
+3. 每份 `document` 最大 64 KiB，并且是 sing-box 节点列表：一个对象，**唯一的键**是 `outbounds`，它是非空数组，每一项是带非空字符串 `type` 和 `tag` 的对象。其余字段由 CFM 判断，门户不检查。
+
+第 3 条正是 CFM 0.5.1 导入器把文档交给"受限 sing-box 适配器"的条件（Mooring `docs/cfm-contract.md`，"How CFM reads an export file"）：带 `inbounds`、`route` 等键的完整 sing-box 配置会被 CFM 拒绝，门户在导入时就拒绝它（金样 `invalid/full-sing-box-config.json`）。Clash YAML 等其他格式 CFM 也能导入，但本契约只收 JSON 节点列表（`invalid/clash-yaml-as-text.json`）。
+
+文档出错时只报位置（第几行第几列），不报解码器原话：解码器的信息会引用出错的值，而那可能是凭据（有测试）。
+
+## 4. 导入
+
+`mooring-portal --db <文件> import-profiles <配置包>`：
+
+- 配置包是**完整的集合**：导入后，门户只保留这份配置包里列出的、已绑定用户的文档，其余已存的文档全部删除。Mooring 不再列出的用户（作废了、还没接受当前版本的使用约定）因此自动停止被服务。
+- 未绑定用户的文档不落库，只计数报告。已绑定但配置包没有列出的账号逐个警告：它们此后没有配置，订阅链接返回 404。
+- `generated_at` 比门户主机时钟晚 300 秒以上：拒绝。比上一次导入的配置包早：整份拒绝。同一份可以重复导入。
+- 导入在一个立即事务里完成。
+- 解绑或删除账号时，该账号的文档和订阅链接随之删除（外键级联，有测试）。
+
+## 5. 交付给用户
+
+两种方式，内容完全相同，都是 `Content-Type: application/json`、`Content-Disposition: attachment; filename="moorlight-cfm.json"`、`Cache-Control: no-store`、不压缩：
+
+- **下载**：`GET /subscription/profile.json`，按登录会话取该账号自己的文档。
+- **订阅链接**：`GET /sub/<令牌>`，供 CFM 的「导入链接」和「更新」使用。令牌规则见 `docs/security.md` 第 9 节。
+
+CFM 0.5.1 拉取链接时的行为（`release/0.5.1` 的 `apps/cfw-tauri-shell/src/commands/subscriptions/fetch.rs`）决定了门户必须满足的条件：
+
+| CFM 0.5.1 | 门户 |
+|---|---|
+| 只接受 `https`，主机须是公网域名或公网 IP，URL 不超过 2048 字符，不带用户名密码 | 链接是 `--origin` 加 `/sub/` 加 64 个十六进制字符；部署时 `--origin` 必须是公网 HTTPS 域名 |
+| 发送 `Accept-Encoding: identity`，任何其他 `Content-Encoding` 都拒绝 | 不压缩响应 |
+| 只接受 2xx，正文非空、UTF-8、不超过 4 MiB | 200 时正文是文档（不超过 64 KiB）；其余一律 404 或 429 |
+| 最多跟随 5 次重定向，每一跳都重新校验 | 不重定向 |
+| `User-Agent: clash.meta cfw-rs/0.5.1` | 不按 User-Agent 区分，永远返回同一种格式 |
+| 已连接时经自己的本地代理拉取，未连接时直连 | 无需配合；未连接时用户所在网络能看到门户域名 |
+| 拉回的内容与「导入文件」走同一个导入器 | 两种方式交付的是同一份文档 |
+| 没有定时自动更新，用户对配置点「更新」才重新拉取 | 页面写明需要手动「更新」 |
+
+## 6. 版本演进
+
+增加、删除或改变任何键或规则，都是新版本，并在本目录新增规范与金样。门户拒绝它不认识的版本。
+
+## 7. Mooring 一侧的导出器（尚未实现）
+
+属于 Mooring 仓库，作为单独的 PR。建议做法：
+
+- 在现有的 `user export` 旁增加批量导出：对运营者指定的每个用户（`--user <id>` 可重复），用与 `user export` 相同的检查（用户有效、已接受当前版本的使用约定，否则以 `AgreementNotAccepted` 拒绝）和 `ExportFormat::SingBoxJson` 生成文档，再按本契约打包。
+- 因为配置包是完整集合（第 4 节），每次都应导出**全部**应被服务的用户，而不是只导出新加的一个。
+- 输出文件以 0600 创建，导入门户后删除。
+- 导出器应有自己的金样测试：同一组合成用户的输出与本目录 `valid/pilot.json` 的结构逐项对照。
+
+## 8. 与《使用约定》的关系
+
+《Mooring 使用约定》第 1 版写明"凭据从不上联网的服务器"的交付方式（第 2 条：不要把任何链接粘贴到聊天；第 5 条：本服务没有订阅链接）。门户保存配置包，就把全部可交付用户的节点凭据放到了一台联网主机上，并引入了链接。**导入真实用户的配置包之前，须修订使用约定并请用户重新确认**：写明门户保存什么（第 4 条）、订阅链接怎么用、怎么保管、泄露时怎么办（第 2、5 条）。

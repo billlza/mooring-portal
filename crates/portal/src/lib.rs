@@ -1,6 +1,6 @@
 //! The `mooring-portal` command: `serve` runs the portal, and the operator
-//! commands manage accounts, bindings and snapshot imports in the same
-//! database file, while the server runs or not.
+//! commands manage accounts, bindings, and snapshot and CFM profile imports
+//! in the same database file, while the server runs or not.
 
 mod cli;
 mod error;
@@ -73,6 +73,9 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
         }
         Command::Import { file } => {
             with_store(&mut |store| operator::import(store, clock, &file, out))
+        }
+        Command::ImportProfiles { file } => {
+            with_store(&mut |store| operator::import_profiles(store, clock, &file, out))
         }
         Command::DeleteAccount { account } => {
             with_store(&mut |store| operator::delete_account(store, &account, out))

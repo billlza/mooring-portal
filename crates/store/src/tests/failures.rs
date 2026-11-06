@@ -4,7 +4,10 @@
 use portal_core::account::AccountCode;
 
 use super::*;
-use crate::{BindError, DeleteError, ImportError, RegisterError, StoreError, UnbindError};
+use crate::{
+    BindError, DeleteError, ImportError, LinkError, ProfileImportError, RegisterError, StoreError,
+    UnbindError,
+};
 
 /// A store whose tables are gone after `account` registered.
 fn broken() -> (Store, Account) {
@@ -13,7 +16,8 @@ fn broken() -> (Store, Account) {
     store
         .conn
         .execute_batch(
-            "DROP TABLE subscription_records; DROP TABLE bindings; DROP TABLE sessions; \
+            "DROP TABLE subscription_links; DROP TABLE cfm_profiles; DROP TABLE profile_bundle; \
+             DROP TABLE subscription_records; DROP TABLE bindings; DROP TABLE sessions; \
              DROP TABLE accounts;",
         )
         .unwrap();
@@ -33,6 +37,9 @@ fn reads_fail_loudly() {
     sqlite(store.session_account(&digest(1), at(NOW)));
     sqlite(store.binding(account.id));
     sqlite(store.subscription(account.id));
+    sqlite(store.cfm_profile(account.id));
+    sqlite(store.subscription_link_created(account.id));
+    sqlite(store.linked_profile(&digest(1)));
 }
 
 #[test]
@@ -67,6 +74,15 @@ fn writes_fail_loudly() {
         store.import(&snapshot(NOW, &[("pilotusera", Some(1))]), at(NOW)),
         Err(ImportError::Store(StoreError::Sqlite(_)))
     ));
+    assert!(matches!(
+        store.import_profiles(&bundle(NOW, &["pilotusera"]), at(NOW)),
+        Err(ProfileImportError::Store(StoreError::Sqlite(_)))
+    ));
+    assert!(matches!(
+        store.replace_subscription_link(account.id, &digest(1), at(NOW)),
+        Err(LinkError::Store(StoreError::Sqlite(_)))
+    ));
+    sqlite(store.revoke_subscription_link(account.id));
 }
 
 #[test]
@@ -101,8 +117,17 @@ fn a_password_change_that_fails_late_changes_nothing() {
     store
         .start_session(&session(&account, 1, NOW, 100))
         .unwrap();
-    // The update of the hash and the deletion of the sessions run before
-    // the new session's insertion fails.
+    store
+        .bind(&account.code, &user("pilotusera"), at(NOW))
+        .unwrap();
+    store
+        .import_profiles(&bundle(NOW, &["pilotusera"]), at(NOW))
+        .unwrap();
+    store
+        .replace_subscription_link(account.id, &digest(5), at(NOW))
+        .unwrap();
+    // The update of the hash and the deletion of the sessions and the link
+    // run before the new session's insertion fails.
     store
         .conn
         .execute_batch(
@@ -121,7 +146,11 @@ fn a_password_change_that_fails_late_changes_nothing() {
     );
     assert_eq!(
         store.session_account(&digest(1), at(NOW + 1)).unwrap(),
-        Some(account)
+        Some(account.clone())
+    );
+    assert_eq!(
+        store.subscription_link_created(account.id).unwrap(),
+        Some(at(NOW))
     );
 }
 

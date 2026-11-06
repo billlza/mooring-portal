@@ -12,6 +12,7 @@ pub(crate) struct Strings {
     pub(crate) auth: Auth,
     pub(crate) account: AccountText,
     pub(crate) subscription: SubscriptionText,
+    pub(crate) cfm: CfmText,
 }
 
 /// Text on every page.
@@ -156,6 +157,7 @@ pub(crate) struct AccountText {
     pub(crate) current_password_wrong: &'static str,
     pub(crate) welcome: &'static str,
     pub(crate) password_changed: &'static str,
+    pub(crate) password_changed_link_revoked: &'static str,
 }
 
 /// The subscription page.
@@ -207,4 +209,31 @@ pub(crate) struct SubscriptionText {
     pub(crate) cycle_ended: &'static str,
     pub(crate) lag_note: &'static str,
     pub(crate) data_note: &'static str,
+}
+
+/// Getting the CFM profile: the subscription page's panel and the page
+/// that shows a new subscription link.
+#[derive(Debug)]
+pub(crate) struct CfmText {
+    pub(crate) title: &'static str,
+    pub(crate) intro: &'static str,
+    pub(crate) waiting: &'static str,
+    pub(crate) generated: &'static str,
+    pub(crate) update_hint: &'static str,
+    pub(crate) link_title: &'static str,
+    pub(crate) link_none: &'static str,
+    pub(crate) link_created: &'static str,
+    pub(crate) link_create: &'static str,
+    pub(crate) link_rotate: &'static str,
+    pub(crate) link_revoke: &'static str,
+    pub(crate) link_revoked: &'static str,
+    pub(crate) link_unavailable: &'static str,
+    pub(crate) file_title: &'static str,
+    pub(crate) file_body: &'static str,
+    pub(crate) download: &'static str,
+    pub(crate) made_title: &'static str,
+    pub(crate) made_lead: &'static str,
+    pub(crate) made_label: &'static str,
+    pub(crate) made_warning: &'static str,
+    pub(crate) back: &'static str,
 }

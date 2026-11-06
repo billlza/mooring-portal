@@ -35,7 +35,8 @@ pub(crate) enum Command {
         #[arg(long, value_name = "ID", value_parser = mooring_user)]
         user: MooringUserId,
     },
-    /// Unbind an account; its subscription record goes with the binding.
+    /// Unbind an account; its subscription record, CFM profile and
+    /// subscription link go with the binding.
     Unbind {
         /// The account's code.
         #[arg(long, value_name = "CODE", value_parser = account_code)]
@@ -47,7 +48,15 @@ pub(crate) enum Command {
         #[arg(value_name = "FILE")]
         file: PathBuf,
     },
-    /// Delete an account with its sessions, binding and record.
+    /// Import a CFM profile bundle exported by Mooring (contract version 1);
+    /// it replaces every stored profile.
+    ImportProfiles {
+        /// The bundle file.
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+    },
+    /// Delete an account with its sessions, binding, record, profile and
+    /// link.
     DeleteAccount {
         /// The account's code.
         #[arg(long, value_name = "CODE", value_parser = account_code)]
