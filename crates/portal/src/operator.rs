@@ -95,10 +95,11 @@ pub(crate) fn import(
             report.unbound
         )?;
     }
-    for (account, user) in &report.missing {
+    for missing in &report.missing {
         writeln!(
             out,
-            "warning: account {account} is bound to Mooring user {user}, which this snapshot does not list"
+            "warning: account {} is bound to Mooring user {}, which this snapshot does not list",
+            missing.account, missing.user
         )?;
     }
     Ok(())
@@ -126,28 +127,59 @@ pub(crate) fn import_profiles(
         if stored.is_empty() { "" } else { ": " },
         stored.join(", ")
     )?;
-    if report.unbound > 0 {
+    for withheld in &report.withheld {
         writeln!(
             out,
-            "not kept: {} profile(s) of users no account is bound to",
-            report.unbound
-        )?;
-    }
-    for unlisted in &report.missing {
-        writeln!(
-            out,
-            "warning: account {} is bound to Mooring user {}, which this bundle does not list; \
-             the account has no profile now{}",
-            unlisted.account,
-            unlisted.user,
-            if unlisted.link_revoked {
-                ", and its subscription link was turned off"
+            "withheld by Mooring ({}): account {} has no profile now{}",
+            withheld.reason,
+            withheld.account,
+            if withheld.link_revoked {
+                ", and its subscription link has ended for good"
             } else {
                 ""
             }
         )?;
     }
+    if !report.unbound_profiles.is_empty() {
+        writeln!(
+            out,
+            "warning: no account is bound to {}: their profiles were not kept, but their \
+             credentials passed through this host. Delete the bundle file now, and leave these \
+             users out of the next export",
+            ids(&report.unbound_profiles)
+        )?;
+    }
+    if !report.unbound_withheld.is_empty() {
+        writeln!(
+            out,
+            "warning: no account is bound to {}, whom the bundle withholds; leave these users out \
+             of the next export",
+            ids(&report.unbound_withheld)
+        )?;
+    }
     Ok(())
+}
+
+/// Prints, on one line in id order, `--user <id>` for every bound account's
+/// Mooring user: the arguments that name them to Mooring's exports. Ids
+/// are lowercase base32, so the line is safe to paste or substitute
+/// unquoted.
+pub(crate) fn bound_users(store: &Store, out: &mut dyn Write) -> Result<(), CommandError> {
+    let mut users: Vec<MooringUserId> = store
+        .accounts()?
+        .into_iter()
+        .filter_map(|account| account.binding.map(|binding| binding.user))
+        .collect();
+    users.sort();
+    let arguments: Vec<String> = users.iter().map(|user| format!("--user {user}")).collect();
+    writeln!(out, "{}", arguments.join(" "))?;
+    Ok(())
+}
+
+/// `users`, comma-separated.
+fn ids(users: &[MooringUserId]) -> String {
+    let ids: Vec<&str> = users.iter().map(MooringUserId::as_str).collect();
+    ids.join(", ")
 }
 
 /// Deletes an account.

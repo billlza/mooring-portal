@@ -8,13 +8,12 @@
 
 use std::collections::BTreeSet;
 
-use portal_core::account::AccountCode;
 use portal_core::snapshot::{MooringUserId, Snapshot, SnapshotError, UserSnapshot};
 use portal_core::time::UnixTime;
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
-use crate::bindings::{Binding, binding_row};
-use crate::rows::{code_from_sql, corrupt, user_from_sql};
+use crate::bindings::{Binding, BoundAccount, binding_row, bound_accounts};
+use crate::rows::corrupt;
 use crate::{AccountId, Store, StoreError};
 
 /// How far a snapshot's generation time may lie ahead of this host's
@@ -29,9 +28,9 @@ pub struct ImportReport {
     /// How many users of the snapshot no account is bound to; their
     /// records were not kept.
     pub unbound: usize,
-    /// Bound accounts whose Mooring user the snapshot does not list, with
-    /// that user: their pages keep showing their previous record, if any.
-    pub missing: Vec<(AccountCode, MooringUserId)>,
+    /// Bound accounts whose Mooring user the snapshot does not list, in user
+    /// id order: their pages keep showing their previous record, if any.
+    pub missing: Vec<BoundAccount>,
 }
 
 /// Why a snapshot was not imported.
@@ -108,15 +107,11 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let bound = bound_accounts(&tx)?;
         let mut stored = Vec::new();
         let mut unbound = 0;
         for part in snapshot.per_user() {
-            let bound: bool = tx.query_row(
-                "SELECT EXISTS (SELECT 1 FROM bindings WHERE mooring_user = ?1)",
-                [part.user().as_str()],
-                |row| row.get(0),
-            )?;
-            if !bound {
+            if !bound.contains_key(part.user()) {
                 unbound += 1;
                 continue;
             }
@@ -145,22 +140,11 @@ impl Store {
             stored.push(part.user().clone());
         }
         let listed: BTreeSet<&MooringUserId> = snapshot.users().map(|(user, _)| user).collect();
-        let mut statement = tx.prepare(
-            "SELECT a.code, b.mooring_user FROM bindings b JOIN accounts a ON a.id = b.account_id
-             ORDER BY b.mooring_user",
-        )?;
-        let rows = statement.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?;
-        let mut missing = Vec::new();
-        for row in rows {
-            let (code, user) = row?;
-            let user = user_from_sql(&user)?;
-            if !listed.contains(&user) {
-                missing.push((code_from_sql(&code)?, user));
-            }
-        }
-        drop(statement);
+        let missing = bound
+            .into_values()
+            .map(|(_, account)| account)
+            .filter(|account| !listed.contains(&account.user))
+            .collect();
         tx.commit()?;
         Ok(ImportReport {
             stored,

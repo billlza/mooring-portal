@@ -5,8 +5,8 @@ use portal_core::account::AccountCode;
 
 use super::*;
 use crate::{
-    BindError, DeleteError, ImportError, LinkError, ProfileImportError, RegisterError, RevokeError,
-    StoreError, UnbindError,
+    BindError, DeleteError, ImportError, LinkError, LinkedProfile, ProfileImportError,
+    RegisterError, RevokeError, StoreError, UnbindError,
 };
 
 /// A store whose tables are gone after `account` registered.
@@ -112,6 +112,100 @@ fn a_failure_part_way_through_leaves_nothing_behind() {
     ));
     store.conn.execute_batch("DROP TRIGGER refuse;").unwrap();
     assert!(store.accounts().unwrap().is_empty());
+}
+
+#[test]
+fn a_snapshot_import_that_fails_part_way_stores_nothing() {
+    // With the insert of pilotuserb's record made to fail, the transaction
+    // keeps no record, however far it got.
+    let mut store = store();
+    let first = register(&mut store, "a@qq.com", 1);
+    let second = register(&mut store, "b@qq.com", 2);
+    store
+        .bind(&first.code, &user("pilotusera"), at(NOW))
+        .unwrap();
+    store
+        .bind(&second.code, &user("pilotuserb"), at(NOW))
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE TRIGGER refuse BEFORE INSERT ON subscription_records \
+             WHEN NEW.mooring_user = 'pilotuserb' BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+        )
+        .unwrap();
+    let both = snapshot(NOW, &[("pilotusera", Some(1)), ("pilotuserb", Some(2))]);
+    assert!(matches!(
+        store.import(&both, at(NOW)),
+        Err(ImportError::Store(StoreError::Sqlite(_)))
+    ));
+    store.conn.execute_batch("DROP TRIGGER refuse;").unwrap();
+    let kept: i64 = store
+        .conn
+        .query_row("SELECT count(*) FROM subscription_records", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(kept, 0);
+}
+
+#[test]
+fn a_profile_import_that_fails_late_changes_nothing() {
+    // The import replaces the profiles and ends a withheld account's link
+    // before it writes the bundle's time. With that last write made to fail,
+    // the profiles, the link and the time stay as they were.
+    let mut store = store();
+    let first = register(&mut store, "a@qq.com", 1);
+    let second = register(&mut store, "b@qq.com", 2);
+    store.start_session(&session(&second, 2, NOW, 100)).unwrap();
+    store
+        .bind(&first.code, &user("pilotusera"), at(NOW))
+        .unwrap();
+    store
+        .bind(&second.code, &user("pilotuserb"), at(NOW))
+        .unwrap();
+    store
+        .import_profiles(&bundle(NOW, &["pilotusera", "pilotuserb"]), at(NOW))
+        .unwrap();
+    store
+        .replace_subscription_link(&digest(2), &digest(9), at(NOW))
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE TRIGGER refuse_insert BEFORE INSERT ON profile_bundle \
+             BEGIN SELECT RAISE(ABORT, 'refused'); END; \
+             CREATE TRIGGER refuse_update BEFORE UPDATE ON profile_bundle \
+             BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+        )
+        .unwrap();
+    let renewed = withholding(
+        NOW + 10,
+        &["pilotusera"],
+        &[("pilotuserb", WithheldReason::Revoked)],
+    );
+    assert!(matches!(
+        store.import_profiles(&renewed, at(NOW + 10)),
+        Err(ProfileImportError::Store(StoreError::Sqlite(_)))
+    ));
+    store
+        .conn
+        .execute_batch("DROP TRIGGER refuse_insert; DROP TRIGGER refuse_update;")
+        .unwrap();
+    for (account, id) in [(&first, "pilotusera"), (&second, "pilotuserb")] {
+        assert_eq!(
+            store.cfm_profile(account.id).unwrap(),
+            Some(StoredProfile {
+                profile: cfm(id),
+                generated_at: at(NOW),
+            }),
+            "{id}"
+        );
+    }
+    assert_eq!(
+        store.linked_profile(&digest(9)).unwrap(),
+        LinkedProfile::Profile(cfm("pilotuserb"))
+    );
 }
 
 #[test]

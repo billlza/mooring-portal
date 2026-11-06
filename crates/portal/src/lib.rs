@@ -65,6 +65,7 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
     match cli.command {
         Command::Serve(args) => serve::serve(&db, &args),
         Command::Accounts => with_store(&mut |store| operator::accounts(store, out)),
+        Command::BoundUsers => with_store(&mut |store| operator::bound_users(store, out)),
         Command::Bind { account, user } => {
             with_store(&mut |store| operator::bind(store, clock, &account, &user, out))
         }

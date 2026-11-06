@@ -2,12 +2,16 @@
 //!
 //! Only the operator binds, by account code (see
 //! `portal_core::account::AccountCode` for why not by email). Unbinding
-//! deletes the user's subscription record with the binding.
+//! deletes the user's subscription record, CFM profile and subscription
+//! link with the binding.
+
+use std::collections::BTreeMap;
+use std::fmt;
 
 use portal_core::account::AccountCode;
 use portal_core::snapshot::MooringUserId;
 use portal_core::time::UnixTime;
-use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
+use rusqlite::{OptionalExtension as _, Transaction, TransactionBehavior, params};
 
 use crate::rows::{code_from_sql, corrupt, time_from_sql, time_to_sql, user_from_sql};
 use crate::{AccountId, Store, StoreError, UnknownAccount};
@@ -19,6 +23,21 @@ pub struct Binding {
     pub user: MooringUserId,
     /// When the operator bound it.
     pub bound_at: UnixTime,
+}
+
+/// A bound account, with its Mooring user.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundAccount {
+    /// The account.
+    pub account: AccountCode,
+    /// The Mooring user it is bound to.
+    pub user: MooringUserId,
+}
+
+impl fmt::Display for BoundAccount {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} (Mooring user {})", self.account, self.user)
+    }
 }
 
 /// Why a binding was not made.
@@ -187,4 +206,29 @@ pub(crate) fn binding_from_sql(
             "a joined binding has a user without a time, or a time without a user".to_owned(),
         )),
     }
+}
+
+/// Every bound account by its Mooring user, with the account's row id, as
+/// `tx` sees them: the imports read the bindings once, in the transaction
+/// that writes.
+pub(crate) fn bound_accounts(
+    tx: &Transaction<'_>,
+) -> Result<BTreeMap<MooringUserId, (AccountId, BoundAccount)>, StoreError> {
+    let rows: Vec<(i64, String, String)> = tx
+        .prepare(
+            "SELECT b.account_id, a.code, b.mooring_user FROM bindings b
+             JOIN accounts a ON a.id = b.account_id",
+        )?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .collect::<Result<_, _>>()?;
+    let mut bound = BTreeMap::new();
+    for (id, code, user) in rows {
+        let user = user_from_sql(&user)?;
+        let account = BoundAccount {
+            account: code_from_sql(&code)?,
+            user: user.clone(),
+        };
+        bound.insert(user, (AccountId(id), account));
+    }
+    Ok(bound)
 }

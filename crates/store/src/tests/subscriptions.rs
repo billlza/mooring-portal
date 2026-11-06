@@ -1,5 +1,7 @@
 use super::*;
-use crate::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, StoreError, Subscription};
+use crate::{
+    BoundAccount, ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, StoreError, Subscription,
+};
 
 fn record_of(store: &Store, account: &Account) -> Option<u64> {
     match store.subscription(account.id).unwrap() {
@@ -40,7 +42,10 @@ fn only_bound_users_are_kept_and_the_rest_reported() {
         ImportReport {
             stored: vec![user("pilotusera")],
             unbound: 2,
-            missing: vec![(second.code, user("pilotuserz"))],
+            missing: vec![BoundAccount {
+                account: second.code,
+                user: user("pilotuserz"),
+            }],
         }
     );
     let kept: i64 = store

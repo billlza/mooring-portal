@@ -11,6 +11,13 @@ use super::{Fixture, profile_fixture};
 /// 2026-11-06T09:00:00Z, when the pilot bundle was generated.
 const GENERATED: u64 = 1_793_955_600;
 
+/// What importing the pilot bundle says when no account is bound to
+/// pilotuserb.
+const UNBOUND_PILOTUSERB: &str = "warning: no account is bound to pilotuserb: their profiles \
+                                  were not kept, but their credentials passed through this \
+                                  host. Delete the bundle file now, and leave these users out \
+                                  of the next export\n";
+
 #[test]
 fn the_pilot_bundle_stores_bound_users_profiles_and_reports_the_rest() {
     let fixture = Fixture::new();
@@ -18,16 +25,17 @@ fn the_pilot_bundle_stores_bound_users_profiles_and_reports_the_rest() {
     let alice = fixture.account("alice@qq.com", 1).to_string();
     let bob = fixture.account("bob@163.com", 2).to_string();
     fixture.run(&["bind", "--account", &alice, "--user", "pilotusera"]);
-    fixture.run(&["bind", "--account", &bob, "--user", "pilotuserz"]);
+    fixture.run(&["bind", "--account", &bob, "--user", "pilotuserc"]);
     let file = profile_fixture("valid/pilot.json");
     let outcome = fixture.run(&["import-profiles", file.to_str().unwrap()]);
     assert_eq!(outcome.code, ExitCode::SUCCESS, "{}", outcome.err);
     assert_eq!(
         outcome.out,
-        "profile bundle generated at 2026-11-06T09:00:00Z: stored 1 profile(s): pilotusera\n\
-         not kept: 1 profile(s) of users no account is bound to\n\
-         warning: account 0000-0000-0002 is bound to Mooring user pilotuserz, which this bundle \
-         does not list; the account has no profile now\n"
+        format!(
+            "profile bundle generated at 2026-11-06T09:00:00Z: stored 1 profile(s): pilotusera\n\
+             withheld by Mooring (suspended): account 0000-0000-0002 (Mooring user pilotuserc) \
+             has no profile now\n{UNBOUND_PILOTUSERB}"
+        )
     );
     // The same bundle again is accepted and changes nothing.
     let again = fixture.run(&["import-profiles", file.to_str().unwrap()]);
@@ -132,7 +140,7 @@ fn bundles_from_the_future_or_older_than_the_last_are_refused() {
 }
 
 #[test]
-fn a_bundle_that_leaves_a_linked_user_out_says_the_link_was_turned_off() {
+fn a_bundle_that_withholds_a_linked_user_says_its_link_has_ended() {
     let fixture = Fixture::new();
     fixture.clock.set(UnixTime::from_secs(GENERATED).unwrap());
     let (alice, session) = fixture.signed_in("alice@qq.com", 1);
@@ -146,11 +154,12 @@ fn a_bundle_that_leaves_a_linked_user_out_says_the_link_was_turned_off() {
         .store()
         .replace_subscription_link(&session, &link, now)
         .unwrap();
-    // A later bundle with only pilotuserb.
+    // A later bundle that withholds pilotusera.
     let later = format!(
-        "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 1, \"generated_at\": {}, \
+        "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 2, \"generated_at\": {}, \
          \"profiles\": [{{\"user\": \"pilotuserb\", \"document\": {{\"outbounds\": \
-         [{{\"type\": \"vless\", \"tag\": \"lon1-reality\"}}]}}}}]}}",
+         [{{\"type\": \"vless\", \"tag\": \"lon1-reality\"}}]}}}}], \"withheld\": \
+         [{{\"user\": \"pilotusera\", \"reason\": \"revoked\"}}]}}",
         GENERATED + 60
     );
     assert!(ProfileBundle::parse(later.as_bytes()).is_ok());
@@ -162,14 +171,81 @@ fn a_bundle_that_leaves_a_linked_user_out_says_the_link_was_turned_off() {
     assert_eq!(outcome.code, ExitCode::SUCCESS, "{}", outcome.err);
     assert_eq!(
         outcome.out,
-        "profile bundle generated at 2026-11-06T09:01:00Z: stored 0 profile(s)\n\
-         not kept: 1 profile(s) of users no account is bound to\n\
-         warning: account 0000-0000-0001 is bound to Mooring user pilotusera, which this bundle \
-         does not list; the account has no profile now, and its subscription link was turned \
-         off\n"
+        format!(
+            "profile bundle generated at 2026-11-06T09:01:00Z: stored 0 profile(s)\n\
+             withheld by Mooring (revoked): account 0000-0000-0001 (Mooring user pilotusera) \
+             has no profile now, and its subscription link has ended for good\n\
+             {UNBOUND_PILOTUSERB}"
+        )
     );
     assert_eq!(
         fixture.store().linked_profile(&link).unwrap(),
         portal_store::LinkedProfile::Unknown
     );
+}
+
+#[test]
+fn a_bundle_that_leaves_a_bound_account_out_is_refused_and_keeps_every_link() {
+    let fixture = Fixture::new();
+    fixture.clock.set(UnixTime::from_secs(GENERATED).unwrap());
+    let (alice, session) = fixture.signed_in("alice@qq.com", 1);
+    let alice = alice.to_string();
+    fixture.run(&["bind", "--account", &alice, "--user", "pilotusera"]);
+    let pilot = profile_fixture("valid/pilot.json");
+    let first = fixture.run(&["import-profiles", pilot.to_str().unwrap()]);
+    assert_eq!(
+        first.out,
+        format!(
+            "profile bundle generated at 2026-11-06T09:00:00Z: stored 1 profile(s): pilotusera\n\
+             {UNBOUND_PILOTUSERB}warning: no account is bound to pilotuserc, whom the bundle \
+             withholds; leave these users out of the next export\n"
+        )
+    );
+    let link = TokenDigest::from_bytes([7; 32]);
+    let now = UnixTime::from_secs(GENERATED).unwrap();
+    fixture
+        .store()
+        .replace_subscription_link(&session, &link, now)
+        .unwrap();
+    // Bob is bound to a user the pilot bundle does not name.
+    let bob = fixture.account("bob@163.com", 2).to_string();
+    fixture.run(&["bind", "--account", &bob, "--user", "pilotuserd"]);
+    let outcome = fixture.run(&["import-profiles", pilot.to_str().unwrap()]);
+    assert_eq!(outcome.code, ExitCode::FAILURE);
+    assert_eq!(
+        outcome.err,
+        "mooring-portal: the bundle does not name the Mooring user of 0000-0000-0002 (Mooring \
+         user pilotuserd); nothing was imported. Export the bundle again naming every bound \
+         account's user. Unbind an account only if it is not to be served any more: unbinding \
+         deletes its subscription link\n"
+    );
+    assert!(outcome.out.is_empty());
+    assert!(matches!(
+        fixture.store().linked_profile(&link).unwrap(),
+        portal_store::LinkedProfile::Profile(_)
+    ));
+    // With Bob unbound, the same bundle imports, and Alice keeps her link.
+    fixture.run(&["unbind", "--account", &bob]);
+    let outcome = fixture.run(&["import-profiles", pilot.to_str().unwrap()]);
+    assert_eq!(outcome.code, ExitCode::SUCCESS, "{}", outcome.err);
+    assert!(matches!(
+        fixture.store().linked_profile(&link).unwrap(),
+        portal_store::LinkedProfile::Profile(_)
+    ));
+}
+
+#[test]
+fn bound_users_names_every_bound_account_for_the_export_in_id_order() {
+    let fixture = Fixture::new();
+    let empty = fixture.run(&["bound-users"]);
+    assert_eq!(empty.code, ExitCode::SUCCESS, "{}", empty.err);
+    assert_eq!(empty.out, "\n");
+    let alice = fixture.account("alice@qq.com", 1).to_string();
+    let bob = fixture.account("bob@163.com", 2).to_string();
+    fixture.account("carol@126.com", 3);
+    fixture.run(&["bind", "--account", &alice, "--user", "pilotuserz"]);
+    fixture.run(&["bind", "--account", &bob, "--user", "pilotuserb"]);
+    let outcome = fixture.run(&["bound-users"]);
+    assert_eq!(outcome.code, ExitCode::SUCCESS, "{}", outcome.err);
+    assert_eq!(outcome.out, "--user pilotuserb --user pilotuserz\n");
 }

@@ -13,11 +13,11 @@ v1 没有做订阅链接，只写了威胁模型（本文件的前一版，见 g
 
 ## 2. 为什么是这种格式
 
-CFM 0.5.1（`release/0.5.1` 分支）的「导入链接」把拉回的内容交给与「导入文件」相同的导入器（`import_profile_url` → `import_online` → `import_subscription_document`）。Mooring 的 `mooring-export` 已经按 CFM 0.4/0.5 两条线的导入规则写出 sing-box JSON 节点列表（根上只有 `outbounds`），并在 Mooring 的 `docs/cfm-contract.md` 里逐字段对照了 CFM 的规则。门户因此不另造格式，原样交出 Mooring 写的文档；链接拉取的具体约束见 `docs/contract/cfm-profiles-v1.md` 第 5 节。
+CFM 0.5.1（`release/0.5.1` 分支）的「导入链接」把拉回的内容交给与「导入文件」相同的导入器（`import_profile_url` → `import_online` → `import_subscription_document`）。Mooring 的 `mooring-export` 已经按 CFM 0.4/0.5 两条线的导入规则写出 sing-box JSON 节点列表（根上只有 `outbounds`），并在 Mooring 的 `docs/cfm-contract.md` 里逐字段对照了 CFM 的规则。门户因此不另造格式，原样交出 Mooring 写的文档；链接拉取的具体约束见 `docs/contract/cfm-profiles-v2.md` 第 5 节。
 
 ## 3. 数据怎么流
 
-1. 运营者在 Mooring 里为应被服务的全部用户导出一个配置包（契约：`docs/contract/cfm-profiles-v1.md`；导出器属于 Mooring，见该文件第 7 节）。
+1. 运营者在 Mooring 里点名全部已绑定门户账号的用户，导出一个配置包（契约：`docs/contract/cfm-profiles-v2.md`；导出器属于 Mooring，见该文件第 7 节）。名单用门户的 `bound-users` 命令取；漏了谁，门户整份拒绝导入，并列出漏掉的账号。
 2. 运营者在门户主机上运行 `mooring-portal --db <文件> import-profiles <配置包>`，然后删除配置包文件。
 3. 用户登录门户，在订阅页生成订阅链接或下载配置文件，导入 CFM。
 4. 节点变化时（例如服务器被封），运营者重复第 1、2 步；用户在 CFM 里点「更新」。CFM 不会自动更新。
@@ -28,10 +28,10 @@ CFM 0.5.1（`release/0.5.1` 分支）的「导入链接」把拉回的内容交�
 
 | 变化 | 风险 | 处理 |
 |---|---|---|
-| 节点凭据（UUID、REALITY 公钥与 short id、Hysteria2 密码）放到了联网的门户主机上 | 门户主机被攻破或数据库外泄时，全部已绑定用户的凭据一起泄露 | 在 Mooring 里全部更换、重新导出导入；托管位置由运营者权衡（README "待定事项"） |
-| 链接本身就是凭据 | 会留在 CFM 的配置记录里，可能被截图或转发 | 只显示一次、只存摘要；可重新生成、停用；修改密码、解绑、删除账号时自动停用，配置包不再列出该用户时也停用且不恢复；页面写明保管要求 |
+| 节点凭据（UUID、REALITY 公钥与 short id、Hysteria2 密码）放到了联网的门户主机上 | 门户主机被攻破或数据库外泄时，全部已绑定用户的凭据一起泄露 | 配置包只含已绑定用户，不用门户的人凭据不上门户主机；在 Mooring 里全部更换、重新导出导入；托管位置由运营者权衡（README "待定事项"） |
+| 链接本身就是凭据 | 会留在 CFM 的配置记录里，可能被截图或转发 | 只显示一次、只存摘要；可重新生成、停用；修改密码、解绑、删除账号时自动停用，Mooring 不再交付该用户（配置包把他列入 `withheld`）时也停用且不恢复；运营者漏列不会停用链接；页面写明保管要求 |
 | CFM 回连门户拉取 | 未连接时直连，用户所在网络能看到门户域名；门户被封会连带影响「更新」 | 已连接时 CFM 经自己的代理拉取；也可以改用下载配置文件 |
-| 交付不再经过运营者当面或语音交接 | 失去"每次交付都经过确认"这一环 | 使用约定的检查仍在 Mooring 一侧：导出器只为已接受当前版本使用约定的用户导出（`AgreementNotAccepted`） |
+| 交付不再经过运营者当面或语音交接 | 失去"每次交付都经过确认"这一环 | 使用约定的检查仍在 Mooring 一侧：导出器只为已接受当前版本使用约定的用户导出文档，其余点名的用户列入 `withheld` |
 | 使用约定第 2、4、5 条与此冲突 | 所有用户都要重新确认 | 导入真实用户的配置包之前修订使用约定 |
 
 令牌、拉取和存储的细节见 `docs/security.md` 第 9 节。

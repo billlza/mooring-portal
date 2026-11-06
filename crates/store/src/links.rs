@@ -84,8 +84,11 @@ pub enum CfmDelivery {
 pub enum LinkedProfile {
     /// No link has the digest.
     Unknown,
-    /// The link's account has no profile: the last bundle did not list its
-    /// Mooring user.
+    /// The link's account has no profile. The store never leaves a link so:
+    /// a link is made only with a profile, an import that withholds the user
+    /// ends the link in the same transaction, and every other import that
+    /// succeeds delivers the profile again. Only a database changed outside
+    /// the store gets here, and a fetch answers it like an unknown token.
     NoProfile,
     /// The profile of the link's account.
     Profile(CfmProfile),

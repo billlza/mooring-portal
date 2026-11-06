@@ -202,7 +202,7 @@ async fn changing_the_password_turns_the_link_off() {
 }
 
 #[tokio::test]
-async fn unbinding_or_a_bundle_that_leaves_the_user_out_ends_the_link_for_good() {
+async fn unbinding_or_withholding_the_user_ends_the_link_for_good() {
     let app = TestApp::new();
     let (mut lilei, lilei_code) = bound(&app, "lilei@qq.com", "pilotusera").await;
     let (mut hanmeimei, _) = bound(&app, "hanmeimei@qq.com", "pilotuserb").await;
@@ -216,8 +216,8 @@ async fn unbinding_or_a_bundle_that_leaves_the_user_out_ends_the_link_for_good()
         fetch(&app, &lilei_link, CFM).await.status,
         StatusCode::NOT_FOUND
     );
-    // A bundle that leaves pilotuserb out ends its link with its profile.
-    app.import_profiles(&["pilotusera"]).await;
+    // A bundle that withholds pilotuserb ends its link with its profile.
+    app.import_bundle(&[], &["pilotuserb"]).await;
     assert_eq!(
         fetch(&app, &hanmeimei_link, CFM).await.status,
         StatusCode::NOT_FOUND
@@ -226,8 +226,8 @@ async fn unbinding_or_a_bundle_that_leaves_the_user_out_ends_the_link_for_good()
     assert!(page.body.contains("目前没有你的 CFM 配置。"));
     assert!(!page.body.contains("停用链接"));
     assert!(!page.body.contains("action=\"/subscription/link\""));
-    // Listed again, the user has a profile but not the old link.
-    app.import_profiles(&["pilotusera", "pilotuserb"]).await;
+    // Delivered to again, the user has a profile but not the old link.
+    app.import_profiles(&["pilotuserb"]).await;
     assert_eq!(
         fetch(&app, &hanmeimei_link, CFM).await.status,
         StatusCode::NOT_FOUND

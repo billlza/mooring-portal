@@ -150,8 +150,14 @@ impl TestApp {
     }
 
     /// Imports a profile bundle generated at [`NOW`] holding
-    /// [`cfm_document`] for each of `users`.
+    /// [`cfm_document`] for each of `users`, withholding no one.
     pub(crate) async fn import_profiles(&self, users: &[&str]) {
+        self.import_bundle(users, &[]).await;
+    }
+
+    /// [`Self::import_profiles`], also withholding the users `withheld` as
+    /// suspended.
+    pub(crate) async fn import_bundle(&self, users: &[&str], withheld: &[&str]) {
         let entries: Vec<String> = users
             .iter()
             .map(|user| {
@@ -161,10 +167,15 @@ impl TestApp {
                 )
             })
             .collect();
+        let withheld: Vec<String> = withheld
+            .iter()
+            .map(|user| format!("{{\"user\": \"{user}\", \"reason\": \"suspended\"}}"))
+            .collect();
         let text = format!(
-            "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 1, \
-             \"generated_at\": {NOW}, \"profiles\": [{}]}}",
-            entries.join(", ")
+            "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 2, \
+             \"generated_at\": {NOW}, \"profiles\": [{}], \"withheld\": [{}]}}",
+            entries.join(", "),
+            withheld.join(", ")
         );
         let bundle = ProfileBundle::parse(text.as_bytes()).unwrap();
         let now = UnixTime::from_secs(NOW).unwrap();

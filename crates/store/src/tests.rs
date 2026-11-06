@@ -13,7 +13,7 @@ mod subscriptions;
 
 use portal_core::account::{AccountCode, Email};
 use portal_core::auth::{StoredPasswordHash, TokenDigest};
-use portal_core::profile::{CfmProfile, ProfileBundle};
+use portal_core::profile::{CfmProfile, ProfileBundle, WithheldReason};
 use portal_core::snapshot::{BillingCycle, MooringUserId, Snapshot, UserRecord, UserStatus};
 use portal_core::time::{CalendarDate, UnixTime};
 
@@ -120,7 +120,22 @@ fn cfm(tag: &str) -> CfmProfile {
 }
 
 /// A bundle generated at `generated` with a document per listed user,
-/// tagged by the user's id.
+/// tagged by the user's id, that withholds no one.
 fn bundle(generated: u64, users: &[&str]) -> ProfileBundle {
-    ProfileBundle::new(at(generated), users.iter().map(|id| (user(id), cfm(id)))).unwrap()
+    withholding(generated, users, &[])
+}
+
+/// [`bundle`], also withholding the users `withheld` for the reasons
+/// given.
+fn withholding(
+    generated: u64,
+    users: &[&str],
+    withheld: &[(&str, WithheldReason)],
+) -> ProfileBundle {
+    ProfileBundle::new(
+        at(generated),
+        users.iter().map(|id| (user(id), cfm(id))),
+        withheld.iter().map(|(id, reason)| (user(id), *reason)),
+    )
+    .unwrap()
 }

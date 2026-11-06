@@ -1,6 +1,6 @@
 {
   "format": "mooring-portal-cfm-profiles",
-  "version": 1,
+  "version": 2,
   "generated_at": 1793955600,
   "profiles": [
     {
@@ -39,4 +39,31 @@
             "hop_interval": "30s",
             "password": "synthetic-hysteria2-password-for-pilotusera",
             "obfs": {
-              "type"
+              "type": "salamander",
+              "password": "synthetic-salamander-password-not-a-real-1"
+            },
+            "tls": {
+              "enabled": true,
+              "server_name": "n000000000000000a.internal",
+              "certificate_public_key_sha256": [
+                "c3ludGhldGljIFNQS0kgcGluIC0gbm90IGEgcmVhbCBvbmU="
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "user": "pilotuserb",
+      "document": {
+        "outbounds": []
+      }
+    }
+  ],
+  "withheld": [
+    {
+      "user": "pilotuserc",
+      "reason": "suspended"
+    }
+  ]
+}

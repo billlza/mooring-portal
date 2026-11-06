@@ -3,8 +3,8 @@
 //! documents an exporter may write, in the canonical pretty form;
 //! `invalid/` one document per rule, each refused for that rule; `stored/`
 //! the exact one-user documents the portal stores. The CFM profile bundle
-//! contract, version 1, is tested the same way against
-//! `contract/fixtures/cfm-profiles-v1/`.
+//! contract, version 2, is tested the same way against
+//! `contract/fixtures/cfm-profiles-v2/`.
 //!
 //! Every module is test code, including helpers that are not `#[test]`
 //! functions; `#[cfg(test)]` declares that, so the workspace's test-only

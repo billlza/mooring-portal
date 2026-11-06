@@ -1,6 +1,7 @@
 //! Profile bundles: decoding and the cross-entry rules.
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use serde::Deserialize;
 use serde::de::IgnoredAny;
@@ -20,7 +21,7 @@ struct Header {
     version: u32,
 }
 
-/// The version-1 bundle as written. Every key is required and no other key
+/// The version-2 bundle as written. Every key is required and no other key
 /// is accepted; `format` and `version` were checked by [`Header`].
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -32,6 +33,7 @@ struct BundleRepr<'a> {
     generated_at: UnixTime,
     #[serde(borrow)]
     profiles: Vec<EntryRepr<'a>>,
+    withheld: Vec<WithheldRepr>,
 }
 
 /// One user's entry. The document is taken as the exact text Mooring
@@ -44,33 +46,81 @@ struct EntryRepr<'a> {
     document: &'a RawValue,
 }
 
-/// A bundle that satisfies every rule of the contract: at least one
-/// profile, no user twice, and every document a sing-box node list.
+/// One withheld user.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WithheldRepr {
+    user: MooringUserId,
+    reason: WithheldReason,
+}
+
+/// Why Mooring withholds a user the operator named. The portal treats every
+/// reason alike; the reason tells the operator, and lets the portal tell a
+/// passing state from revocation later without a new contract version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WithheldReason {
+    /// Suspended, for whatever reason: the nodes serve the user nothing,
+    /// but Mooring keeps the credentials.
+    Suspended,
+    /// Being revoked or revoked: the credentials are gone for good.
+    Revoked,
+    /// Served, but not yet agreed to the current user agreement, so
+    /// Mooring exports nothing to the user.
+    AgreementNotAccepted,
+}
+
+impl fmt::Display for WithheldReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Suspended => "suspended",
+            Self::Revoked => "revoked",
+            Self::AgreementNotAccepted => "not agreed to the current user agreement",
+        })
+    }
+}
+
+/// A bundle that satisfies every rule of the contract: it names at least
+/// one user and no user twice, and every document is a sing-box node list.
+///
+/// A bundle names each user the operator asked Mooring for: it delivers a
+/// profile to the user, or withholds the user.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileBundle {
     generated_at: UnixTime,
     profiles: BTreeMap<MooringUserId, CfmProfile>,
+    withheld: BTreeMap<MooringUserId, WithheldReason>,
 }
 
 impl ProfileBundle {
-    /// A bundle of `profiles`, checked against the contract's rules.
+    /// A bundle delivering `profiles` and withholding `withheld`, checked
+    /// against the contract's rules.
     pub fn new(
         generated_at: UnixTime,
         profiles: impl IntoIterator<Item = (MooringUserId, CfmProfile)>,
+        withheld: impl IntoIterator<Item = (MooringUserId, WithheldReason)>,
     ) -> Result<Self, ProfileError> {
-        let mut checked = BTreeMap::new();
+        let mut delivered = BTreeMap::new();
         for (user, profile) in profiles {
-            if checked.contains_key(&user) {
+            if delivered.contains_key(&user) {
                 return Err(ProfileError::DuplicateUser { user });
             }
-            checked.insert(user, profile);
+            delivered.insert(user, profile);
         }
-        if checked.is_empty() {
-            return Err(ProfileError::NoProfiles);
+        let mut kept_back = BTreeMap::new();
+        for (user, reason) in withheld {
+            if delivered.contains_key(&user) || kept_back.contains_key(&user) {
+                return Err(ProfileError::DuplicateUser { user });
+            }
+            kept_back.insert(user, reason);
+        }
+        if delivered.is_empty() && kept_back.is_empty() {
+            return Err(ProfileError::NamesNobody);
         }
         Ok(Self {
             generated_at,
-            profiles: checked,
+            profiles: delivered,
+            withheld: kept_back,
         })
     }
 
@@ -103,7 +153,11 @@ impl ProfileBundle {
                 }
             }
         }
-        Self::new(repr.generated_at, profiles)
+        let withheld = repr
+            .withheld
+            .into_iter()
+            .map(|entry| (entry.user, entry.reason));
+        Self::new(repr.generated_at, profiles, withheld)
     }
 
     /// When Mooring generated the bundle.
@@ -112,9 +166,22 @@ impl ProfileBundle {
         self.generated_at
     }
 
-    /// The profiles, in user id order.
+    /// The profiles Mooring delivers, in user id order.
     pub fn profiles(&self) -> impl Iterator<Item = (&MooringUserId, &CfmProfile)> {
         self.profiles.iter()
+    }
+
+    /// The users Mooring withholds, with why, in id order: the operator
+    /// named them, but Mooring delivers nothing to them now.
+    pub fn withheld(&self) -> impl Iterator<Item = (&MooringUserId, WithheldReason)> {
+        self.withheld.iter().map(|(user, reason)| (user, *reason))
+    }
+
+    /// Whether the bundle names `user`, delivering a profile or
+    /// withholding the user.
+    #[must_use]
+    pub fn names(&self, user: &MooringUserId) -> bool {
+        self.profiles.contains_key(user) || self.withheld.contains_key(user)
     }
 }
 

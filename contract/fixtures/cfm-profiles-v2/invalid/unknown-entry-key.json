@@ -1,6 +1,6 @@
 {
   "format": "mooring-portal-cfm-profiles",
-  "version": 1,
+  "version": 2,
   "generated_at": 1793955600,
   "profiles": [
     {
@@ -51,7 +51,8 @@
             }
           }
         ]
-      }
+      },
+      "alias": "k7qd-m2xa"
     },
     {
       "user": "pilotuserb",
@@ -59,7 +60,7 @@
         "outbounds": [
           {
             "type": "vless",
-            "tag": "",
+            "tag": "lon1-reality",
             "server": "192.0.2.10",
             "server_port": 443,
             "uuid": "00000000-0000-4000-8000-00000000000b",
@@ -81,6 +82,12 @@
           }
         ]
       }
+    }
+  ],
+  "withheld": [
+    {
+      "user": "pilotuserc",
+      "reason": "suspended"
     }
   ]
 }

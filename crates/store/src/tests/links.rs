@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
-    CfmDelivery, LinkError, LinkedProfile, PasswordChange, RevokeError, StoreError, Unlisted,
+    BoundAccount, CfmDelivery, LinkError, LinkedProfile, PasswordChange, ProfileImportError,
+    RevokeError, StoreError, Withheld,
 };
 
 /// The session digests of the two accounts of [`two_bound_accounts`].
@@ -146,7 +147,7 @@ fn only_a_bound_account_with_a_profile_has_a_link_and_unbinding_removes_it() {
         .start_session(&session(&loose, 103, NOW, 10_000))
         .unwrap();
     assert!(matches!(make(&mut store, 103, 9), Err(LinkError::Unbound)));
-    // Bound, but the last bundle did not list the user.
+    // Bound, but no bundle has delivered a profile to the user yet.
     store
         .bind(&loose.code, &user("pilotuserc"), at(NOW))
         .unwrap();
@@ -247,35 +248,45 @@ fn a_linked_profile_that_no_longer_reads_is_corrupt() {
 }
 
 #[test]
-fn a_bundle_that_leaves_the_user_out_ends_the_link_for_good() {
+fn a_withheld_user_loses_the_link_for_good() {
     let (mut store, first, second) = two_bound_accounts();
     make(&mut store, FIRST, 1).unwrap();
     make(&mut store, SECOND, 2).unwrap();
     let report = store
-        .import_profiles(&bundle(NOW + 10, &["pilotuserb"]), at(NOW + 10))
+        .import_profiles(
+            &withholding(
+                NOW + 10,
+                &["pilotuserb"],
+                &[("pilotusera", WithheldReason::Revoked)],
+            ),
+            at(NOW + 10),
+        )
         .unwrap();
     assert_eq!(
-        report.missing,
-        vec![Unlisted {
-            account: first.code,
-            user: user("pilotusera"),
+        report.withheld,
+        vec![Withheld {
+            account: BoundAccount {
+                account: first.code,
+                user: user("pilotusera"),
+            },
+            reason: WithheldReason::Revoked,
             link_revoked: true,
         }]
     );
     assert_eq!(store.subscription_link_created(first.id).unwrap(), None);
-    // Listing the user again does not bring the old link back.
+    // Delivering to the user again does not bring the old link back.
     let report = store
         .import_profiles(
             &bundle(NOW + 20, &["pilotusera", "pilotuserb"]),
             at(NOW + 20),
         )
         .unwrap();
-    assert!(report.missing.is_empty());
+    assert!(report.withheld.is_empty());
     assert_eq!(
         store.linked_profile(&digest(1)).unwrap(),
         LinkedProfile::Unknown
     );
-    // A listed user's link is untouched by either import.
+    // A delivered user's link is untouched by either import.
     assert_eq!(
         store.linked_profile(&digest(2)).unwrap(),
         LinkedProfile::Profile(cfm("pilotuserb"))
@@ -284,18 +295,58 @@ fn a_bundle_that_leaves_the_user_out_ends_the_link_for_good() {
         store.subscription_link_created(second.id).unwrap(),
         Some(at(NOW))
     );
-    // Left out without a link, the report says no link was turned off.
+    // Withheld without a link, the report says no link was ended.
     let report = store
-        .import_profiles(&bundle(NOW + 30, &["pilotuserb"]), at(NOW + 30))
+        .import_profiles(
+            &withholding(
+                NOW + 30,
+                &["pilotuserb"],
+                &[("pilotusera", WithheldReason::Suspended)],
+            ),
+            at(NOW + 30),
+        )
         .unwrap();
     assert_eq!(
-        report.missing,
-        vec![Unlisted {
-            account: first.code,
-            user: user("pilotusera"),
+        report.withheld,
+        vec![Withheld {
+            account: BoundAccount {
+                account: first.code,
+                user: user("pilotusera"),
+            },
+            reason: WithheldReason::Suspended,
             link_revoked: false,
         }]
     );
+}
+
+#[test]
+fn a_bundle_that_leaves_a_linked_account_out_keeps_every_link() {
+    let (mut store, first, second) = two_bound_accounts();
+    make(&mut store, FIRST, 1).unwrap();
+    make(&mut store, SECOND, 2).unwrap();
+    // pilotuserb's link would end if the bundle were imported, but the bundle
+    // leaves pilotusera out, so nothing happens.
+    assert!(matches!(
+        store.import_profiles(
+            &withholding(NOW + 10, &[], &[("pilotuserb", WithheldReason::Revoked)]),
+            at(NOW + 10)
+        ),
+        Err(ProfileImportError::LeavesOut { accounts })
+            if accounts.len() == 1 && accounts[0].account == first.code
+    ));
+    for (byte, id) in [(1, "pilotusera"), (2, "pilotuserb")] {
+        assert_eq!(
+            store.linked_profile(&digest(byte)).unwrap(),
+            LinkedProfile::Profile(cfm(id)),
+            "{id}"
+        );
+    }
+    for account in [&first, &second] {
+        assert_eq!(
+            store.subscription_link_created(account.id).unwrap(),
+            Some(at(NOW))
+        );
+    }
 }
 
 #[test]

@@ -25,9 +25,9 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里停泊的
 | `crates/web` | HTTP 层（axum）：页面与模板（askama，编译期检查）、会话、CSRF、限流、安全响应头、中英文文案、品牌、样式与程序生成的主图 |
 | `crates/portal` | 二进制 `mooring-portal`：`serve` 与运营者命令 |
 | `contract/fixtures/v1/` | 快照契约的合成样例与金样 |
-| `contract/fixtures/cfm-profiles-v1/` | 配置包契约的合成样例与金样（凭据都是假的，地址都在文档保留网段） |
+| `contract/fixtures/cfm-profiles-v2/` | 配置包契约的合成样例与金样（凭据都是假的，地址都在文档保留网段） |
 | `docs/contract/portal-snapshot-v1.md` | 快照契约规范，含 Mooring 侧导出器的映射建议 |
-| `docs/contract/cfm-profiles-v1.md` | 配置包契约规范：格式、导入、CFM 0.5.1 拉取链接时的约束、Mooring 侧导出器的建议 |
+| `docs/contract/cfm-profiles-v2.md` | 配置包契约规范：格式、导入、CFM 0.5.1 拉取链接时的约束、Mooring 侧导出器要做的事、与第 1 版的区别 |
 | `docs/security.md` | 安全设计、威胁模型与剩余风险 |
 | `docs/subscription-links.md` | 订阅链接与配置文件的决定、设计与剩余风险 |
 | `docs/payments.md` | 支付：已定的方向、推荐方案（Stripe Payment Links + Webhook）、Mooring 拉取契约草案和待定问题；尚未实现 |
@@ -97,10 +97,10 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import contract/fixtur
 
 `pilot.json` 里还有其他合成用户，覆盖其余状态：`pilotuserb` 接近配额，`pilotuserc` 因超额暂停，`pilotuserd` 用量无法获取，`pilotusere` 无个人配额，`pilotuserf` 已停用，`pilotuserg` 已到期。换绑前先 `unbind`。
 
-3. 导入合成配置包后，订阅页会出现"在 CFM 中使用"，可以生成订阅链接或下载配置文件（合成配置里的地址在文档保留网段，CFM 会拒绝导入，只用于看页面）：
+3. 导入合成配置包后，订阅页会出现"在 CFM 中使用"，可以生成订阅链接或下载配置文件（合成配置里的地址在文档保留网段，CFM 会拒绝导入，只用于看页面）。合成配置包为 `pilotusera`、`pilotuserb` 交付配置，把 `pilotuserc` 列为不交付；绑定的是其他合成用户时，导入会因漏列被拒绝：
 
 ```bash
-cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contract/fixtures/cfm-profiles-v1/valid/pilot.json
+cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contract/fixtures/cfm-profiles-v2/valid/pilot.json
 ```
 
 ## 运营者命令
@@ -110,10 +110,11 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 | 命令 | 作用 |
 |---|---|
 | `accounts` | 列出账号：编号、注册时间（UTC）、绑定的 Mooring 用户、邮箱 |
+| `bound-users` | 按编号顺序输出一行 `--user <编号> …`，即全部已绑定账号的 Mooring 用户，直接接在 Mooring 的导出命令后面（Mooring 的配置包和快照导出都用 `--user` 点名） |
 | `bind --account <编号> --user <用户编号>` | 绑定。一个账号只能绑一个用户，反过来也一样 |
 | `unbind --account <编号>` | 解绑，并删除该用户在门户上的快照记录、CFM 配置和订阅链接 |
 | `import <文件>` | 导入快照：只保留已绑定用户；报告未绑定的人数，以及快照里缺少的已绑定用户 |
-| `import-profiles <文件>` | 导入 CFM 配置包：配置包是完整集合，导入后只保留其中已绑定用户的配置，其余全部删除；没被列出的已绑定账号，订阅链接一并停用，以后再列出也不会恢复。报告未绑定的人数，以及配置包里缺少的已绑定用户（并注明谁的链接被停用了）。导入后删除配置包文件 |
+| `import-profiles <文件>` | 导入 CFM 配置包。配置包必须点名每一个已绑定账号的 Mooring 用户，漏了谁就整份拒绝，什么也不改，并列出漏掉的账号。导入后只保留其中已绑定用户的配置，其余全部删除；Mooring 不交付（列入 `withheld`）的已绑定账号，订阅链接一并停用，以后再交付也不会恢复。报告这些账号和原因（并注明谁的链接就此停用），以及点名了却没有绑定账号的用户。导入后删除配置包文件 |
 | `delete-account --account <编号>` | 删除账号，连同会话、绑定、快照记录、CFM 配置和订阅链接 |
 
 绑定流程：用户注册后，在 FaceTime 语音通话中把账户页上的账号编号念给运营者；运营者**按编号绑定，不按邮箱绑定**（原因见 `docs/security.md` 第 2 节）。编号不区分大小写，字母 o、i、l 会按 0、1、1 读入。
@@ -138,5 +139,6 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 5. **托管位置与域名**：门户放在哪台主机；用什么域名；要不要允许搜索引擎收录（现在是 `noindex`）。门户是公开网站，用户从大陆访问它这件事本身会被网络看到。
 6. **支付**：已决定用 Stripe 在线收款，付款后由 Mooring 定时从门户拉取付款记录、自动开通；计费同时支持按月套餐和预付流量包，价格写在门户配置里（2026-11-06）。尚未实现，方案见 `docs/payments.md`；开工前要先定：签约是否自动续费、退款怎么处理；还需要 Stripe 账户，并修订约定第 1 条。
 7. **许可证**、证书与 DNS。
-8. **Mooring 导出器**：已合并（Mooring PR #24，main `d478e91`）；《使用约定》第 2 版落地之前，导出命令对任何用户都拒绝。
-9. **配置包的范围**：现在配置包带上全部应被服务用户的凭据，其中也有没绑定门户账号的用户（门户导入时丢弃）。另一种做法是只导出已绑定用户（`docs/contract/cfm-profiles-v1.md` 第 7 节）。
+8. **Mooring 导出器**：已合并（Mooring PR #24，main `d478e91`）；《使用约定》第 2 版落地之前，导出命令对任何用户都拒绝。其中的配置包导出器写的是配置包契约第 1 版，要按第 2 版更新（见第 9 条）。
+9. **配置包的范围**：已决定只导出已绑定用户（2026-11-06，运营者原话「只导出已绑定用户」）。配置包契约因此升为第 2 版（`docs/contract/cfm-profiles-v2.md`）：运营者在 Mooring 里点名全部已绑定用户，Mooring 不交付的写进 `withheld` 并注明原因（暂停、作废、未确认约定）；漏列的配置包整份拒绝。Mooring 导出器要按第 2 版改（契约第 7 节），改好之前门户不接受它写出的第 1 版配置包。
+10. **暂停中的用户的订阅链接**：被暂停或还没确认新版《使用约定》的已绑定用户，导入后订阅链接现在永久停用；恢复服务后，用户要在门户重新生成链接，再在 CFM 里重新导入。按流量包付费的用户每次用完被暂停，都要这样做一遍。另一种做法是只暂停链接，恢复交付后照常「更新」，作废的用户仍然永久停用。配置包已经带上原因，改这一点只动门户（订阅页要能显示和停用暂停中的链接）和约定第 5 条。

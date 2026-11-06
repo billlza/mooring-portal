@@ -114,11 +114,11 @@ pub enum ProfileError {
         /// The `version` it carries.
         found: u32,
     },
-    /// No profiles.
-    #[error("the bundle lists no profiles")]
-    NoProfiles,
-    /// The same user twice.
-    #[error("user {user} is listed more than once")]
+    /// No user at all: no profile, and no one withheld.
+    #[error("the bundle names no user: it has no profile and withholds no one")]
+    NamesNobody,
+    /// The same user twice, delivered or withheld.
+    #[error("user {user} is named more than once")]
     DuplicateUser {
         /// The user.
         user: MooringUserId,

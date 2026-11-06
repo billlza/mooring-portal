@@ -26,6 +26,9 @@ pub(crate) enum Command {
     Serve(ServeArgs),
     /// List every account with its binding.
     Accounts,
+    /// Print `--user <id>` for every bound account's Mooring user, the
+    /// names Mooring's exports must be given.
+    BoundUsers,
     /// Bind an account to a Mooring user.
     Bind {
         /// The account's code, as its owner reads it from their account page.
@@ -48,8 +51,9 @@ pub(crate) enum Command {
         #[arg(value_name = "FILE")]
         file: PathBuf,
     },
-    /// Import a CFM profile bundle exported by Mooring (contract version 1);
-    /// it replaces every stored profile.
+    /// Import a CFM profile bundle exported by Mooring (contract version 2).
+    /// It must name every bound account's Mooring user (`bound-users`
+    /// prints them), and it replaces every stored profile.
     ImportProfiles {
         /// The bundle file.
         #[arg(value_name = "FILE")]

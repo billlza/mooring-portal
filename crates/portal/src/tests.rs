@@ -121,9 +121,9 @@ fn contract_fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// The version-1 profile bundle fixture `name`.
+/// The version-2 profile bundle fixture `name`.
 fn profile_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../contract/fixtures/cfm-profiles-v1")
+        .join("../../contract/fixtures/cfm-profiles-v2")
         .join(name)
 }

@@ -1,22 +1,26 @@
 //! CFM profiles, one per bound Mooring user, imported from bundles.
 //!
-//! A bundle is the complete set of profiles Mooring may deliver, so an
-//! import replaces every stored profile with the bundle's profiles of bound
-//! users: a user Mooring stops listing (revoked, say, or not yet agreed to
-//! the current user agreement) stops being served, and the account's
-//! subscription link ends with the profile, so that listing the user again
-//! does not bring an old link back. A bundle from the future, or older than
-//! the last one imported, is refused whole.
+//! The operator names every bound account's Mooring user when exporting a
+//! bundle, and Mooring delivers a profile to each named user or withholds
+//! the user (paused, revoked, or not yet agreed to the current user
+//! agreement). An import replaces every stored profile with the bundle's
+//! profiles of bound users. A withheld user stops being served, and the
+//! account's subscription link ends with the profile, so that delivering
+//! to the user again does not bring an old link back.
+//!
+//! A bundle that does not name a bound account's user at all is refused
+//! whole: that is a slip in the operator's list, not a decision to stop
+//! serving the account, so it must not end the account's link. A bundle
+//! from the future, or older than the last one imported, is refused whole
+//! too.
 
-use std::collections::BTreeSet;
-
-use portal_core::account::AccountCode;
-use portal_core::profile::{CfmProfile, ProfileBundle};
+use portal_core::profile::{CfmProfile, ProfileBundle, WithheldReason};
 use portal_core::snapshot::MooringUserId;
 use portal_core::time::UnixTime;
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
-use crate::rows::{code_from_sql, corrupt, time_from_sql, time_to_sql, user_from_sql};
+use crate::bindings::{BoundAccount, bound_accounts};
+use crate::rows::{corrupt, time_from_sql, time_to_sql};
 use crate::subscriptions::MAX_CLOCK_SKEW_SECS;
 use crate::{AccountId, Store, StoreError};
 
@@ -25,23 +29,26 @@ use crate::{AccountId, Store, StoreError};
 pub struct ProfileImportReport {
     /// The bound users whose profiles were stored, in id order.
     pub stored: Vec<MooringUserId>,
-    /// How many users of the bundle no account is bound to; their profiles
-    /// were not kept.
-    pub unbound: usize,
-    /// Bound accounts whose Mooring user the bundle does not list, in user
-    /// id order.
-    pub missing: Vec<Unlisted>,
+    /// Bound accounts whose Mooring user the bundle withholds, in user id
+    /// order.
+    pub withheld: Vec<Withheld>,
+    /// Users the bundle delivers a profile to that no account is bound to,
+    /// in id order: their profiles were not kept, but their credentials
+    /// passed through this host.
+    pub unbound_profiles: Vec<MooringUserId>,
+    /// Users the bundle withholds that no account is bound to, in id order.
+    pub unbound_withheld: Vec<MooringUserId>,
 }
 
-/// A bound account whose Mooring user a bundle does not list: it has no
+/// A bound account whose Mooring user a bundle withholds: it has no
 /// profile now, and no subscription link.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Unlisted {
-    /// The account.
-    pub account: AccountCode,
-    /// Its Mooring user.
-    pub user: MooringUserId,
-    /// It had a link, which the import ended.
+pub struct Withheld {
+    /// The account and its Mooring user.
+    pub account: BoundAccount,
+    /// Why Mooring withholds the user.
+    pub reason: WithheldReason,
+    /// It had a link, which the import ended for good.
     pub link_revoked: bool,
 }
 
@@ -70,9 +77,28 @@ pub enum ProfileImportError {
         /// When the refused bundle was generated.
         incoming: UnixTime,
     },
+    /// The bundle neither delivers to nor withholds the Mooring users of
+    /// some bound accounts: most likely the operator left them out of the
+    /// export. Nothing was imported.
+    #[error(
+        "the bundle does not name the Mooring user of {}; nothing was imported. Export the \
+         bundle again naming every bound account's user. Unbind an account only if it is not \
+         to be served any more: unbinding deletes its subscription link",
+        list(.accounts)
+    )]
+    LeavesOut {
+        /// The accounts left out, in user id order; never empty.
+        accounts: Vec<BoundAccount>,
+    },
     /// The database failed.
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+/// `accounts`, comma-separated.
+fn list(accounts: &[BoundAccount]) -> String {
+    let named: Vec<String> = accounts.iter().map(BoundAccount::to_string).collect();
+    named.join(", ")
 }
 
 impl From<rusqlite::Error> for ProfileImportError {
@@ -92,7 +118,7 @@ pub struct StoredProfile {
 
 impl Store {
     /// Replaces the stored profiles with those of the bound users in
-    /// `bundle`.
+    /// `bundle`, which must name every bound account's Mooring user.
     pub fn import_profiles(
         &mut self,
         bundle: &ProfileBundle,
@@ -126,17 +152,21 @@ impl Store {
                 });
             }
         }
+        let bound = bound_accounts(&tx)?;
+        let left_out: Vec<BoundAccount> = bound
+            .values()
+            .filter(|(_, account)| !bundle.names(&account.user))
+            .map(|(_, account)| account.clone())
+            .collect();
+        if !left_out.is_empty() {
+            return Err(ProfileImportError::LeavesOut { accounts: left_out });
+        }
         tx.execute("DELETE FROM cfm_profiles", [])?;
         let mut stored = Vec::new();
-        let mut unbound = 0;
+        let mut unbound_profiles = Vec::new();
         for (user, profile) in bundle.profiles() {
-            let bound: bool = tx.query_row(
-                "SELECT EXISTS (SELECT 1 FROM bindings WHERE mooring_user = ?1)",
-                [user.as_str()],
-                |row| row.get(0),
-            )?;
-            if !bound {
-                unbound += 1;
+            if !bound.contains_key(user) {
+                unbound_profiles.push(user.clone());
                 continue;
             }
             tx.execute(
@@ -145,45 +175,39 @@ impl Store {
             )?;
             stored.push(user.clone());
         }
+        let mut withheld = Vec::new();
+        let mut unbound_withheld = Vec::new();
+        for (user, reason) in bundle.withheld() {
+            let Some((id, account)) = bound.get(user) else {
+                unbound_withheld.push(user.clone());
+                continue;
+            };
+            let links = tx.execute(
+                "DELETE FROM subscription_links WHERE account_id = ?1",
+                [id.0],
+            )?;
+            withheld.push(Withheld {
+                account: account.clone(),
+                reason,
+                link_revoked: links > 0,
+            });
+        }
         tx.execute(
             "INSERT INTO profile_bundle (id, generated_at) VALUES (1, ?1)
              ON CONFLICT (id) DO UPDATE SET generated_at = excluded.generated_at",
             [time_to_sql(bundle.generated_at())],
         )?;
-        let listed: BTreeSet<&MooringUserId> = bundle.profiles().map(|(user, _)| user).collect();
-        let bound: Vec<(i64, String, String)> = tx
-            .prepare(
-                "SELECT b.account_id, a.code, b.mooring_user FROM bindings b
-                 JOIN accounts a ON a.id = b.account_id ORDER BY b.mooring_user",
-            )?
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
-            .collect::<Result<_, _>>()?;
-        let mut missing = Vec::new();
-        for (account, code, user) in bound {
-            let user = user_from_sql(&user)?;
-            if listed.contains(&user) {
-                continue;
-            }
-            let links = tx.execute(
-                "DELETE FROM subscription_links WHERE account_id = ?1",
-                [account],
-            )?;
-            missing.push(Unlisted {
-                account: code_from_sql(&code)?,
-                user,
-                link_revoked: links > 0,
-            });
-        }
         tx.commit()?;
         Ok(ProfileImportReport {
             stored,
-            unbound,
-            missing,
+            withheld,
+            unbound_profiles,
+            unbound_withheld,
         })
     }
 
     /// The profile of `account`'s Mooring user, if the account is bound and
-    /// the last bundle listed the user.
+    /// the last bundle delivered a profile to the user.
     pub fn cfm_profile(&self, account: AccountId) -> Result<Option<StoredProfile>, StoreError> {
         let found: Option<(String, Option<i64>)> = self
             .conn
