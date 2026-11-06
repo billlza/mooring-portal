@@ -1,0 +1,158 @@
+/* Narrow screens and reduced motion. */
+
+@media (max-width: 880px) {
+  .topbar {
+    gap: 12px;
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .actions {
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .menu {
+    display: block;
+    position: relative;
+  }
+
+  .menu summary {
+    padding: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .menu summary svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .menu nav {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    display: grid;
+    min-width: 180px;
+    padding: 8px;
+    border: 1px solid var(--panel-line);
+    border-radius: 14px;
+    background: rgba(6, 11, 31, 0.97);
+  }
+
+  .menu nav a {
+    padding: 10px 14px;
+    border-radius: 10px;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .menu nav a[aria-current="page"] {
+    background: rgba(61, 139, 255, 0.16);
+  }
+
+  .pill {
+    padding: 8px 14px;
+    font-size: 0.88rem;
+  }
+
+  .pill svg {
+    display: none;
+  }
+
+  .hero {
+    align-items: flex-start;
+  }
+
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg, rgba(2, 4, 12, 0.88) 0%, rgba(2, 4, 12, 0.55) 45%, rgba(2, 4, 12, 0) 70%);
+  }
+
+  .hero-art {
+    object-position: 70% 100%;
+  }
+
+  .hero-inner {
+    padding: 104px 16px 64px;
+  }
+
+  .facts > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-latin,
+  .lang span {
+    display: none;
+  }
+
+  /* The English labels are wider; keep the bar within the screen. */
+  .topbar {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .actions {
+    gap: 6px;
+  }
+
+  .logo {
+    gap: 6px;
+  }
+
+  .logo img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .logo-name {
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+  }
+
+  .lang button {
+    padding: 6px 8px;
+  }
+
+  .pill {
+    padding: 7px 12px;
+    font-size: 0.82rem;
+  }
+
+  .points {
+    flex-direction: column;
+  }
+
+  .points li + li::before {
+    content: none;
+  }
+
+  .help-float {
+    right: 14px;
+    bottom: 14px;
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-twinkle::before,
+  .hero-twinkle::after {
+    animation: none;
+    opacity: 0.5;
+  }
+}

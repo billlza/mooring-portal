@@ -1,0 +1,43 @@
+# cargo-deny policy. `cargo deny check` must pass with no warnings.
+#
+# The portal's host is not chosen yet, so the graph covers the development
+# Mac and the Linux servers it may run on.
+
+[graph]
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+all-features = true
+
+[advisories]
+ignore = []
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+unused-ignored-advisory = "deny"
+
+[licenses]
+# The portal's own licence is not chosen yet; its crates are unpublished
+# and ignored. Dependencies may use only these permissive licences: one is
+# added together with the first dependency that needs it.
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "MIT",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+unused-allowed-license = "deny"
+private = { ignore = true }
+
+[bans]
+multiple-versions = "deny"
+multiple-versions-include-dev = true
+wildcards = "deny"
+allow-wildcard-paths = true
+skip = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+unused-allowed-source = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

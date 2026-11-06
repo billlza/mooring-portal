@@ -1,0 +1,83 @@
+//! The command line.
+
+use std::net::SocketAddr;
+use std::path::PathBuf;
+
+use clap::{Args, Parser, Subcommand};
+use portal_core::account::{AccountCode, AccountCodeError};
+use portal_core::snapshot::{MooringUserId, MooringUserIdError};
+
+/// The Mooring portal: its server, and the operator's commands on its
+/// database.
+#[derive(Debug, Parser)]
+#[command(name = "mooring-portal", version)]
+pub(crate) struct Cli {
+    /// The portal's SQLite database. `serve` creates it, owner-only, if it
+    /// is missing; every other command needs it to exist.
+    #[arg(long, value_name = "FILE")]
+    pub(crate) db: PathBuf,
+    #[command(subcommand)]
+    pub(crate) command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum Command {
+    /// Run the portal's web server until interrupted.
+    Serve(ServeArgs),
+    /// List every account with its binding.
+    Accounts,
+    /// Bind an account to a Mooring user.
+    Bind {
+        /// The account's code, as its owner reads it from their account page.
+        #[arg(long, value_name = "CODE", value_parser = account_code)]
+        account: AccountCode,
+        /// The Mooring user id (10 lowercase base32 characters).
+        #[arg(long, value_name = "ID", value_parser = mooring_user)]
+        user: MooringUserId,
+    },
+    /// Unbind an account; its subscription record goes with the binding.
+    Unbind {
+        /// The account's code.
+        #[arg(long, value_name = "CODE", value_parser = account_code)]
+        account: AccountCode,
+    },
+    /// Import a portal snapshot exported by Mooring (contract version 1).
+    Import {
+        /// The snapshot file.
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+    },
+    /// Delete an account with its sessions, binding and record.
+    DeleteAccount {
+        /// The account's code.
+        #[arg(long, value_name = "CODE", value_parser = account_code)]
+        account: AccountCode,
+    },
+}
+
+/// How the server runs.
+#[derive(Debug, Args)]
+pub(crate) struct ServeArgs {
+    /// The address to listen on.
+    #[arg(long, value_name = "ADDRESS", default_value = "127.0.0.1:8080")]
+    pub(crate) listen: SocketAddr,
+    /// The origin browsers use, such as `https://portal.example`; plain http
+    /// only for localhost.
+    #[arg(long, value_name = "URL")]
+    pub(crate) origin: String,
+    /// The server sits behind a reverse proxy on this host, which appends
+    /// the client's address to X-Forwarded-For.
+    #[arg(long)]
+    pub(crate) behind_proxy: bool,
+    /// Registration closes once the portal holds this many accounts.
+    #[arg(long, value_name = "N", default_value_t = 200)]
+    pub(crate) max_accounts: u32,
+}
+
+fn account_code(text: &str) -> Result<AccountCode, AccountCodeError> {
+    AccountCode::parse(text)
+}
+
+fn mooring_user(text: &str) -> Result<MooringUserId, MooringUserIdError> {
+    MooringUserId::parse(text)
+}

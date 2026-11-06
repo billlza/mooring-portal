@@ -1,0 +1,11 @@
+{
+  "format": "mooring-portal-snapshot",
+  "version": 1,
+  "generated_at": 1793880000,
+  "cycle": {
+    "start": "2026-11-01",
+    "next_start": "2026-12-01"
+  },
+  "counted_through": 1793879700,
+  "users": []
+}

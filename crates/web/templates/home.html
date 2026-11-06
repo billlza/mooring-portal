@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.home.title }}{% endblock %}
+{% block body_class %}home{% endblock %}
+{% block main %}
+<section class="hero">
+  <img class="hero-art" src="{{ hero }}" alt="" width="1600" height="1000" fetchpriority="high">
+  <div class="hero-twinkle" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <h1 class="slogan">{{ chrome.brand.slogan }}</h1>
+    <ul class="points">
+      {% for point in chrome.t.home.points %}<li>{{ point }}</li>{% endfor %}
+    </ul>
+    <div class="cta">
+      <a class="button" href="/download">{{ chrome.t.home.download }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <a class="button ghost" href="/plans">{{ chrome.t.home.learn_more }}</a>
+    </div>
+  </div>
+</section>
+<section class="section">
+  <div class="container">
+    <h2>{{ chrome.t.home.intro_title }}</h2>
+    <p class="lead">{{ chrome.t.home.intro_body }}</p>
+    <div class="cards">
+      {% for feature in chrome.t.home.features %}
+      <article class="card">
+        <h3>{{ feature.title }}</h3>
+        <p>{{ feature.body }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+<section class="section deep">
+  <div class="container">
+    <h2>{{ chrome.t.home.steps_title }}</h2>
+    <ol class="steps">
+      {% for step in chrome.t.home.steps %}
+      <li>
+        <h3>{{ step.title }}</h3>
+        <p>{{ step.body }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="note">{{ chrome.t.home.note }}</p>
+  </div>
+</section>
+{% endblock %}

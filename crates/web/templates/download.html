@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.download.title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.download.title }}</h1>
+  <p class="lead">{{ chrome.t.download.lead }}</p>
+</div>
+<div class="container grid-2">
+  <section class="panel">
+    <h2>{{ chrome.t.download.mac_title }}</h2>
+    <p class="muted">{{ chrome.t.download.mac_requirements }}</p>
+    <dl class="facts">
+      <div><dt>{{ chrome.t.download.version }}</dt><dd>CFM {{ mac.version }}</dd></div>
+      <div><dt>{{ chrome.t.download.published }}</dt><dd>{{ mac.published }}</dd></div>
+      <div><dt>{{ chrome.t.download.checksum }}</dt><dd><code class="hash">{{ mac.dmg_sha256 }}</code></dd></div>
+    </dl>
+    <div class="actions-row">
+      <a class="button" href="{{ mac.dmg_url }}" rel="noopener noreferrer">{{ chrome.t.download.button }}</a>
+      <a class="link" href="{{ mac.page_url }}" rel="noopener noreferrer">{{ chrome.t.download.release_page }}</a>
+    </div>
+    <p class="small"><code class="hash">{{ mac.dmg_name }}</code></p>
+    <p class="small muted">{{ chrome.t.download.checksum_hint }}</p>
+    <p class="small muted">{{ chrome.t.download.signed }}</p>
+    <p class="small">{{ chrome.t.download.fallback }}</p>
+  </section>
+  <section class="panel dim">
+    <h2>{{ chrome.t.download.windows_title }}</h2>
+    <p><span class="badge">{{ chrome.t.download.windows_status }}</span></p>
+    <p class="muted">{{ chrome.t.download.windows_body }}</p>
+    <p class="muted">{{ chrome.t.download.unsupported }}</p>
+  </section>
+</div>
+<div class="container">
+  <section class="panel">
+    <h2>{{ chrome.t.download.setup_title }}</h2>
+    <ol class="numbered">
+      {% for step in chrome.t.download.setup_steps %}<li>{{ step }}</li>{% endfor %}
+    </ol>
+  </section>
+</div>
+{% endblock %}

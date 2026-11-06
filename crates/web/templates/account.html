@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.account.title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.account.title }}</h1>
+  {% include "tabs.html" %}
+</div>
+<div class="container">
+  {% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  <section class="panel">
+    <p class="label">{{ chrome.t.account.code }}</p>
+    <p class="code">{{ code }}</p>
+    <p class="muted small">{{ chrome.t.account.code_hint }}</p>
+  </section>
+  <section class="panel">
+    <dl class="facts">
+      <div><dt>{{ chrome.t.account.email }}</dt><dd>{{ email }}</dd></div>
+      <div><dt>{{ chrome.t.account.created }}</dt><dd>{{ created }} <span class="muted small">{{ chrome.t.common.beijing_time }}</span></dd></div>
+      <div>
+        <dt>{{ chrome.t.account.binding }}</dt>
+        <dd>
+          {% match bound_since %}
+          {% when Some with (since) %}<span class="tone-good">{{ chrome.t.account.bound }}</span> <span class="muted small">{{ since }}</span>
+          {% when None %}<span>{{ chrome.t.account.unbound }}</span><span class="block muted small">{{ chrome.t.account.unbound_hint }}</span>
+          {% endmatch %}
+        </dd>
+      </div>
+    </dl>
+  </section>
+  <section class="panel">
+    <h2>{{ chrome.t.account.security }}</h2>
+    <div class="actions-row">
+      <a class="button ghost" href="/account/password">{{ chrome.t.account.change_password }}</a>
+      <form class="inline" method="post" action="/logout">
+        <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+        <button class="button ghost" type="submit">{{ chrome.t.auth.logout }}</button>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

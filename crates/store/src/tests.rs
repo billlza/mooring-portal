@@ -1,0 +1,95 @@
+//! Tests of the store against in-memory and on-disk databases.
+
+mod accounts;
+mod bindings;
+mod failures;
+mod file;
+mod sessions;
+mod sharing;
+mod subscriptions;
+
+use portal_core::account::{AccountCode, Email};
+use portal_core::auth::{StoredPasswordHash, TokenDigest};
+use portal_core::snapshot::{BillingCycle, MooringUserId, Snapshot, UserRecord, UserStatus};
+use portal_core::time::{CalendarDate, UnixTime};
+
+use crate::{Account, NewAccount, NewSession, Store};
+
+/// 2026-11-05T12:00:00Z.
+const NOW: u64 = 1_793_880_000;
+
+fn store() -> Store {
+    Store::open_in_memory().unwrap()
+}
+
+fn at(secs: u64) -> UnixTime {
+    UnixTime::from_secs(secs).unwrap()
+}
+
+fn email(text: &str) -> Email {
+    Email::parse(text).unwrap()
+}
+
+fn user(text: &str) -> MooringUserId {
+    MooringUserId::parse(text).unwrap()
+}
+
+fn hash(text: &str) -> StoredPasswordHash {
+    StoredPasswordHash::from_stored(format!("$argon2id$v=19$m=8,t=1,p=1$c2FsdHNhbHQ${text}"))
+}
+
+/// Registers `address` with code `bits`, at most 100 accounts.
+fn register(store: &mut Store, address: &str, bits: u64) -> Account {
+    store
+        .register(
+            NewAccount {
+                code: AccountCode::from_bits(bits),
+                email: email(address),
+                password_hash: hash("first"),
+                created_at: at(NOW + bits),
+            },
+            100,
+        )
+        .unwrap()
+}
+
+fn digest(byte: u8) -> TokenDigest {
+    TokenDigest::from_bytes([byte; 32])
+}
+
+fn session(account: &Account, byte: u8, created: u64, ttl: u64) -> NewSession {
+    NewSession {
+        digest: digest(byte),
+        account: account.id,
+        created_at: at(created),
+        expires_at: at(created + ttl),
+    }
+}
+
+/// A snapshot of November 2026 generated at `generated`, with usage
+/// counted to it and one active record per listed user.
+fn snapshot(generated: u64, users: &[(&str, Option<u64>)]) -> Snapshot {
+    let cycle = BillingCycle::new(
+        CalendarDate::parse("2026-11-01").unwrap(),
+        CalendarDate::parse("2026-12-01").unwrap(),
+    )
+    .unwrap();
+    Snapshot::new(
+        at(generated),
+        cycle,
+        Some(at(generated)),
+        users.iter().map(|(id, used)| {
+            (
+                user(id),
+                UserRecord {
+                    status: UserStatus::Active,
+                    cycle_served_bytes: *used,
+                    reality_downlink_counted_at_close: true,
+                    quota: None,
+                    expires_at: None,
+                },
+            )
+        }),
+    )
+    .unwrap()
+}

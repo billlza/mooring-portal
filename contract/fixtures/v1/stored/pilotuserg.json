@@ -1,0 +1,1 @@
+{"format":"mooring-portal-snapshot","version":1,"generated_at":1793880000,"cycle":{"start":"2026-11-01","next_start":"2026-12-01"},"counted_through":1793879700,"users":[{"user":"pilotuserg","status":{"suspended":{"reason":"expired","since":1793577900}},"cycle_served_bytes":1500000000,"reality_downlink_counted_at_close":false,"quota":null,"expires_at":1793577600}]}

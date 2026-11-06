@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.help.title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.help.title }}</h1>
+</div>
+<div class="container">
+  <section class="panel">
+    <h2>{{ chrome.t.help.contact_title }}</h2>
+    <p class="muted">{{ chrome.t.help.contact_body }}</p>
+  </section>
+  <section class="panel">
+    <h2>{{ chrome.t.help.faq_title }}</h2>
+    {% for faq in chrome.t.help.faqs %}
+    <details class="faq">
+      <summary>{{ faq.title }}</summary>
+      <p class="muted">{{ faq.body }}</p>
+    </details>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

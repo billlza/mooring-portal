@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.subscription.title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.account.title }}</h1>
+  {% include "tabs.html" %}
+</div>
+<div class="container">
+{% match view %}
+{% when SubscriptionView::Unbound %}
+  <section class="panel empty">
+    <h2>{{ chrome.t.subscription.none_title }}</h2>
+    <p class="muted">{{ chrome.t.subscription.none_body }}</p>
+    <p><a class="button ghost" href="/account">{{ chrome.t.account.tab_account }}</a></p>
+  </section>
+{% when SubscriptionView::Awaiting { message } %}
+  <section class="panel empty">
+    <h2>{{ chrome.t.subscription.awaiting_title }}</h2>
+    <p class="muted">{{ message }}</p>
+  </section>
+{% when SubscriptionView::Ready with (details) %}
+  {% for alert in details.alerts %}<p class="alert" role="status">{{ alert }}</p>{% endfor %}
+  <div class="facts-grid">
+    <section class="panel fact">
+      <p class="label">{{ chrome.t.subscription.status }}</p>
+      <p class="value {{ details.status.tone.class() }}">{{ details.status.value }}</p>
+      {% if let Some(note) = details.status.note %}<p class="small muted">{{ note }}</p>{% endif %}
+    </section>
+    <section class="panel fact">
+      <p class="label">{{ details.usage_label }}</p>
+      <p class="value {{ details.usage.tone.class() }}">{{ details.usage.value }}</p>
+      {% if let Some(note) = details.usage.note %}<p class="small muted">{{ note }}</p>{% endif %}
+      <p class="small muted">{{ details.counted }}</p>
+    </section>
+    <section class="panel fact">
+      <p class="label">{{ chrome.t.subscription.quota }}</p>
+      <p class="value">{{ details.quota.value }}</p>
+      {% if let Some(gauge) = details.quota.gauge %}
+      <p class="small {{ gauge.tone.class() }}">{{ gauge.label }}{% if let Some(used) = gauge.used %} · {{ used }}{% endif %}</p>
+      {% if let Some(bar) = gauge.bar %}
+      <svg class="gauge {{ gauge.tone.class() }}" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="gauge-track" width="100" height="6" rx="3"/><rect class="gauge-fill" width="{{ bar }}" height="6" rx="3"/></svg>
+      {% endif %}
+      {% endif %}
+      <p class="small muted">{{ details.quota.note }}</p>
+    </section>
+    <section class="panel fact">
+      <p class="label">{{ chrome.t.subscription.expiry }}</p>
+      <p class="value {{ details.expiry.tone.class() }}">{{ details.expiry.value }}</p>
+      {% if let Some(note) = details.expiry.note %}<p class="small {{ details.expiry.tone.class() }}">{{ note }}</p>{% endif %}
+    </section>
+  </div>
+  <section class="panel">
+    <dl class="facts">
+      <div>
+        <dt>{{ details.cycle_label }}</dt>
+        <dd>{{ details.cycle }} <span class="muted small">{{ chrome.t.common.beijing_time }}</span><span class="block muted small">{{ details.resets }}</span></dd>
+      </div>
+    </dl>
+    <p class="small muted">{{ details.as_of }} {{ chrome.t.common.beijing_time }} · {{ chrome.t.subscription.data_note }}</p>
+    {% if let Some(lag) = details.lag_note %}<p class="small muted">{{ lag }}</p>{% endif %}
+  </section>
+{% endmatch %}
+</div>
+{% endblock %}

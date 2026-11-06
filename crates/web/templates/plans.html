@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.plans.title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.plans.title }}</h1>
+  <p class="lead">{{ chrome.t.plans.lead }}</p>
+</div>
+<div class="container">
+  <section class="panel">
+    <h2>{{ chrome.t.plans.how_title }}</h2>
+    <ol class="numbered">
+      {% for step in chrome.t.plans.how_steps %}<li>{{ step }}</li>{% endfor %}
+    </ol>
+  </section>
+  <div class="grid-2">
+    {% for section in chrome.t.plans.sections %}
+    <section class="panel">
+      <h2>{{ section.title }}</h2>
+      <p class="muted">{{ section.body }}</p>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+[package]
+name = "portal-web"
+description = "HTTP front end of the Mooring portal: pages, sessions, CSRF and security headers."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+askama = { workspace = true }
+axum = { workspace = true }
+portal-core = { workspace = true }
+portal-store = { workspace = true }
+serde = { workspace = true }
+serde_urlencoded = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+rusqlite = { workspace = true }
+tempfile = { workspace = true }
+tower = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,6 @@
+# Test code may assert with unwrap/expect/panic and print; production code
+# may not (the workspace lints deny them outside tests).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-print-in-tests = true

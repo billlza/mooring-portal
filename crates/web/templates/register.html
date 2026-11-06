@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.auth.register_title }}{% endblock %}
+{% block main %}
+<div class="container auth">
+  <section class="panel auth-panel">
+    <h1>{{ chrome.t.auth.register_title }}</h1>
+    {% if let Some(error) = error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+    <form class="form" method="post" action="/register">
+      <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+      <label>{{ chrome.t.auth.email }}
+        <input type="email" name="email" value="{{ email }}" autocomplete="username" maxlength="254" required>
+      </label>
+      <label>{{ chrome.t.auth.password }}
+        <input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <span class="hint">{{ chrome.t.auth.password_hint }}</span>
+      </label>
+      <label>{{ chrome.t.auth.confirm }}
+        <input type="password" name="confirm" autocomplete="new-password" minlength="12" maxlength="128" required>
+      </label>
+      <button class="button wide" type="submit">{{ chrome.t.auth.register_submit }}</button>
+    </form>
+    <p class="small muted">{{ chrome.t.auth.register_note }}</p>
+    <p class="switch"><a class="link" href="/login">{{ chrome.t.auth.to_login }}</a></p>
+  </section>
+</div>
+{% endblock %}

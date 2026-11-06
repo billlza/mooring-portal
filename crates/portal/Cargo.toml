@@ -1,0 +1,27 @@
+[package]
+name = "mooring-portal"
+description = "The Mooring portal server and its operator commands."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "mooring-portal"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+portal-core = { workspace = true }
+portal-store = { workspace = true }
+portal-web = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
