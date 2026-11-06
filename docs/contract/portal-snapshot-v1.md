@@ -80,9 +80,14 @@
 - 门户拒绝它不认识的版本，并在错误里写明版本号。
 - 若门户里已存有旧版本记录，新版本发布时须同时提供迁移。
 
-## 8. Mooring 一侧的导出器（尚未实现）
+## 8. Mooring 一侧的导出器
 
-导出器属于 Mooring 仓库（例如 `mooringctl portal export`），按本契约定稿、运营者同意后在 Mooring 单独提交。建议做法：
+已在 Mooring 实现：PR #24，2026-11-06 合并为 main `d478e91`，命令是 `mooringctl portal export --user <id>... --out <文件>`。《使用约定》写明门户之前，它对任何用户都拒绝。Mooring 的两个取舍：
+
+- `counted_through` 取导出时刻的汇总时刻，通常等于 `generated_at`。
+- 用量采集落后时，快照照样写出，但 `counted_through` 和所有 `cycle_served_bytes` 都是 `null`，命令打印原因；门户据此显示"无法获取"。用量文件读不了或自相矛盾时，命令拒绝，不写文件，以免门户把上一次的好数据换掉。
+
+字段的来源如下：
 
 | 字段 | 来源 |
 |---|---|

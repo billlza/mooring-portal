@@ -138,4 +138,5 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 5. **托管位置与域名**：门户放在哪台主机；用什么域名；要不要允许搜索引擎收录（现在是 `noindex`）。门户是公开网站，用户从大陆访问它这件事本身会被网络看到。
 6. **支付**：已决定用 Stripe 在线收款，付款后由 Mooring 定时从门户拉取付款记录、自动开通；计费同时支持按月套餐和预付流量包，价格写在门户配置里（2026-11-06）。尚未实现，方案见 `docs/payments.md`；开工前要先定：签约是否自动续费、退款怎么处理；还需要 Stripe 账户，并修订约定第 1 条。
 7. **许可证**、证书与 DNS。
-8. **Mooring 导出器**：快照导出（`docs/contract/portal-snapshot-v1.md` 第 8 节）与配置包导出（`docs/contract/cfm-profiles-v1.md` 第 7 节），在 Mooring 仓库单独提交。
+8. **Mooring 导出器**：已合并（Mooring PR #24，main `d478e91`）；《使用约定》第 2 版落地之前，导出命令对任何用户都拒绝。
+9. **配置包的范围**：现在配置包带上全部应被服务用户的凭据，其中也有没绑定门户账号的用户（门户导入时丢弃）。另一种做法是只导出已绑定用户（`docs/contract/cfm-profiles-v1.md` 第 7 节）。
