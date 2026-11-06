@@ -155,9 +155,9 @@ impl TestApp {
         self.import_bundle(users, &[]).await;
     }
 
-    /// [`Self::import_profiles`], also withholding the users `withheld` as
-    /// suspended.
-    pub(crate) async fn import_bundle(&self, users: &[&str], withheld: &[&str]) {
+    /// [`Self::import_profiles`], also withholding the users `withheld`
+    /// for the reasons given, as the contract spells them.
+    pub(crate) async fn import_bundle(&self, users: &[&str], withheld: &[(&str, &str)]) {
         let entries: Vec<String> = users
             .iter()
             .map(|user| {
@@ -169,7 +169,7 @@ impl TestApp {
             .collect();
         let withheld: Vec<String> = withheld
             .iter()
-            .map(|user| format!("{{\"user\": \"{user}\", \"reason\": \"suspended\"}}"))
+            .map(|(user, reason)| format!("{{\"user\": \"{user}\", \"reason\": \"{reason}\"}}"))
             .collect();
         let text = format!(
             "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 2, \

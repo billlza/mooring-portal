@@ -140,7 +140,7 @@ fn bundles_from_the_future_or_older_than_the_last_are_refused() {
 }
 
 #[test]
-fn a_bundle_that_withholds_a_linked_user_says_its_link_has_ended() {
+fn a_bundle_that_withholds_a_linked_user_says_what_became_of_its_link() {
     let fixture = Fixture::new();
     fixture.clock.set(UnixTime::from_secs(GENERATED).unwrap());
     let (alice, session) = fixture.signed_in("alice@qq.com", 1);
@@ -154,7 +154,31 @@ fn a_bundle_that_withholds_a_linked_user_says_its_link_has_ended() {
         .store()
         .replace_subscription_link(&session, &link, now)
         .unwrap();
-    // A later bundle that withholds pilotusera.
+    // A bundle that withholds pilotusera as suspended pauses the link.
+    let paused = format!(
+        "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 2, \"generated_at\": {}, \
+         \"profiles\": [], \"withheld\": [{{\"user\": \"pilotusera\", \"reason\": \
+         \"suspended\"}}]}}",
+        GENERATED + 30
+    );
+    let file = fixture.file("paused.json", paused.as_bytes());
+    fixture
+        .clock
+        .set(UnixTime::from_secs(GENERATED + 30).unwrap());
+    let outcome = fixture.run(&["import-profiles", file.to_str().unwrap()]);
+    assert_eq!(outcome.code, ExitCode::SUCCESS, "{}", outcome.err);
+    assert_eq!(
+        outcome.out,
+        "profile bundle generated at 2026-11-06T09:00:30Z: stored 0 profile(s)\n\
+         withheld by Mooring (suspended): account 0000-0000-0001 (Mooring user pilotusera) has \
+         no profile now, and its subscription link is paused until Mooring delivers to the \
+         user again\n"
+    );
+    assert_eq!(
+        fixture.store().linked_profile(&link).unwrap(),
+        portal_store::LinkedProfile::NoProfile
+    );
+    // A later bundle that withholds pilotusera as revoked ends it.
     let later = format!(
         "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 2, \"generated_at\": {}, \
          \"profiles\": [{{\"user\": \"pilotuserb\", \"document\": {{\"outbounds\": \

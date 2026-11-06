@@ -66,8 +66,18 @@
     <h2>{{ chrome.t.cfm.title }}</h2>
     <p class="small muted">{{ chrome.t.cfm.intro }}</p>
     {% match cfm %}
-    {% when CfmPanel::Waiting %}
+    {% when CfmPanel::Waiting { paused } %}
     <p class="muted">{{ chrome.t.cfm.waiting }}</p>
+    {% if let Some(paused) = paused %}
+    <h3>{{ chrome.t.cfm.link_title }}</h3>
+    <p class="small">{{ paused }}</p>
+    <div class="actions-row">
+      <form class="inline" method="post" action="/subscription/link/revoke">
+        <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+        <button class="button ghost" type="submit">{{ chrome.t.cfm.link_revoke }}</button>
+      </form>
+    </div>
+    {% endif %}
     {% when CfmPanel::Ready { generated, link } %}
     <p>{{ generated }} <span class="muted small">{{ chrome.t.common.beijing_time }}</span></p>
     <p class="small muted">{{ chrome.t.cfm.update_hint }}</p>

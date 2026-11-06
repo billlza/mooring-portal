@@ -68,8 +68,12 @@ impl From<rusqlite::Error> for RevokeError {
 /// read in one statement, so the profile and the link agree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CfmDelivery {
-    /// The account has no profile, and so no link.
-    NoProfile,
+    /// The account has no profile now.
+    NoProfile {
+        /// When the account's link was made, if it still has one: a link
+        /// paused while Mooring withholds the user for a passing reason.
+        paused_link_created_at: Option<UnixTime>,
+    },
     /// The account has a profile.
     Profile {
         /// When Mooring generated the bundle it came in.
@@ -84,11 +88,10 @@ pub enum CfmDelivery {
 pub enum LinkedProfile {
     /// No link has the digest.
     Unknown,
-    /// The link's account has no profile. The store never leaves a link so:
-    /// a link is made only with a profile, an import that withholds the user
-    /// ends the link in the same transaction, and every other import that
-    /// succeeds delivers the profile again. Only a database changed outside
-    /// the store gets here, and a fetch answers it like an unknown token.
+    /// The link's account has no profile now: Mooring withholds its user
+    /// for a passing reason (suspended, or not yet agreed to the current
+    /// user agreement). The link serves nothing until a bundle delivers to
+    /// the user again; a fetch answers it like an unknown token.
     NoProfile,
     /// The profile of the link's account.
     Profile(CfmProfile),
@@ -162,21 +165,33 @@ impl Store {
 
     /// How `account` gets its profile.
     pub fn cfm_delivery(&self, account: AccountId) -> Result<CfmDelivery, StoreError> {
-        let found: Option<(Option<i64>, Option<i64>)> = self
+        let found: Option<(bool, Option<i64>, Option<i64>)> = self
             .conn
             .query_row(
-                "SELECT pb.generated_at, l.created_at FROM bindings b
-                 JOIN cfm_profiles p ON p.mooring_user = b.mooring_user
+                "SELECT p.mooring_user IS NOT NULL, pb.generated_at, l.created_at
+                 FROM bindings b
+                 LEFT JOIN cfm_profiles p ON p.mooring_user = b.mooring_user
                  LEFT JOIN profile_bundle pb ON pb.id = 1
                  LEFT JOIN subscription_links l ON l.account_id = b.account_id
                  WHERE b.account_id = ?1",
                 [account.0],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        let Some((generated_at, link_created_at)) = found else {
-            return Ok(CfmDelivery::NoProfile);
+        // An unbound account has no link: links go with bindings.
+        let Some((has_profile, generated_at, link_created_at)) = found else {
+            return Ok(CfmDelivery::NoProfile {
+                paused_link_created_at: None,
+            });
         };
+        let link_created_at = link_created_at
+            .map(|secs| time_from_sql(secs, "link creation time"))
+            .transpose()?;
+        if !has_profile {
+            return Ok(CfmDelivery::NoProfile {
+                paused_link_created_at: link_created_at,
+            });
+        }
         // An import writes the bundle's time with its profiles.
         let generated_at = generated_at.ok_or_else(|| {
             corrupt(
@@ -186,9 +201,7 @@ impl Store {
         })?;
         Ok(CfmDelivery::Profile {
             generated_at: time_from_sql(generated_at, "profile bundle time")?,
-            link_created_at: link_created_at
-                .map(|secs| time_from_sql(secs, "link creation time"))
-                .transpose()?,
+            link_created_at,
         })
     }
 

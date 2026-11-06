@@ -54,9 +54,9 @@ struct WithheldRepr {
     reason: WithheldReason,
 }
 
-/// Why Mooring withholds a user the operator named. The portal treats every
-/// reason alike; the reason tells the operator, and lets the portal tell a
-/// passing state from revocation later without a new contract version.
+/// Why Mooring withholds a user the operator named. The portal pauses the
+/// subscription link of a user withheld for a passing reason and ends it
+/// for a final one ([`WithheldReason::is_final`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WithheldReason {
@@ -68,6 +68,19 @@ pub enum WithheldReason {
     /// Served, but not yet agreed to the current user agreement, so
     /// Mooring exports nothing to the user.
     AgreementNotAccepted,
+}
+
+impl WithheldReason {
+    /// Whether the user will never be served again. Only revocation is
+    /// final: a suspension ends (a new billing cycle, a renewal, the
+    /// operator's word), and an agreement can still be agreed to.
+    #[must_use]
+    pub const fn is_final(self) -> bool {
+        match self {
+            Self::Revoked => true,
+            Self::Suspended | Self::AgreementNotAccepted => false,
+        }
+    }
 }
 
 impl fmt::Display for WithheldReason {

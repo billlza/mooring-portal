@@ -39,6 +39,13 @@ fn withheld(bundle: &ProfileBundle) -> Vec<(&str, WithheldReason)> {
 }
 
 #[test]
+fn only_revocation_is_final() {
+    assert!(WithheldReason::Revoked.is_final());
+    assert!(!WithheldReason::Suspended.is_final());
+    assert!(!WithheldReason::AgreementNotAccepted.is_final());
+}
+
+#[test]
 fn each_reason_is_named_for_the_operator() {
     for (reason, text) in [
         (WithheldReason::Suspended, "suspended"),

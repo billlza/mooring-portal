@@ -273,6 +273,7 @@ pub(super) const STRINGS: Strings = Strings {
         link_title: "Subscription link",
         link_none: "You have no subscription link. Make one and import it with “Import Link” in CFM; from then on, “Update” fetches the new profile.",
         link_created: "Your current link was made {}. A link is shown only once, when it is made; if you have lost it, make a new one and the old one stops working at once.",
+        link_paused: "Your subscription link, made {}, is paused and fetches no profile for now. Once the operator provides your profile again, choose “Update” on it in CFM; there is no need to make a new link.",
         link_create: "Make a subscription link",
         link_rotate: "Make a new link",
         link_revoke: "Turn the link off",

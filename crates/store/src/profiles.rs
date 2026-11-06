@@ -4,9 +4,12 @@
 //! bundle, and Mooring delivers a profile to each named user or withholds
 //! the user (paused, revoked, or not yet agreed to the current user
 //! agreement). An import replaces every stored profile with the bundle's
-//! profiles of bound users. A withheld user stops being served, and the
-//! account's subscription link ends with the profile, so that delivering
-//! to the user again does not bring an old link back.
+//! profiles of bound users, so a withheld user stops being served. What
+//! becomes of the account's subscription link depends on why: a user
+//! withheld for a while (suspended, or not yet agreed) keeps the link,
+//! which serves nothing until a bundle delivers to the user again and then
+//! works as before; a revoked user's link ends for good, so that the user
+//! being served again (as a new user) does not bring an old link back.
 //!
 //! A bundle that does not name a bound account's user at all is refused
 //! whole: that is a slip in the operator's list, not a decision to stop
@@ -48,8 +51,20 @@ pub struct Withheld {
     pub account: BoundAccount,
     /// Why Mooring withholds the user.
     pub reason: WithheldReason,
-    /// It had a link, which the import ended for good.
-    pub link_revoked: bool,
+    /// What became of the account's subscription link.
+    pub link: WithheldLink,
+}
+
+/// What an import did to a withheld account's subscription link.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WithheldLink {
+    /// The account has no link.
+    NoLink,
+    /// The link stays, serving nothing until a bundle delivers to the user
+    /// again: the user is withheld for a passing reason.
+    Paused,
+    /// The link ended for good: the user is revoked.
+    Ended,
 }
 
 /// Why a bundle was not imported.
@@ -182,14 +197,32 @@ impl Store {
                 unbound_withheld.push(user.clone());
                 continue;
             };
-            let links = tx.execute(
-                "DELETE FROM subscription_links WHERE account_id = ?1",
-                [id.0],
-            )?;
+            let link = if reason.is_final() {
+                let ended = tx.execute(
+                    "DELETE FROM subscription_links WHERE account_id = ?1",
+                    [id.0],
+                )?;
+                if ended > 0 {
+                    WithheldLink::Ended
+                } else {
+                    WithheldLink::NoLink
+                }
+            } else {
+                let kept: bool = tx.query_row(
+                    "SELECT EXISTS (SELECT 1 FROM subscription_links WHERE account_id = ?1)",
+                    [id.0],
+                    |row| row.get(0),
+                )?;
+                if kept {
+                    WithheldLink::Paused
+                } else {
+                    WithheldLink::NoLink
+                }
+            };
             withheld.push(Withheld {
                 account: account.clone(),
                 reason,
-                link_revoked: links > 0,
+                link,
             });
         }
         tx.execute(

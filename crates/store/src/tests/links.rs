@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     BoundAccount, CfmDelivery, LinkError, LinkedProfile, PasswordChange, ProfileImportError,
-    RevokeError, StoreError, Withheld,
+    RevokeError, StoreError, Withheld, WithheldLink,
 };
 
 /// The session digests of the two accounts of [`two_bound_accounts`].
@@ -248,7 +248,7 @@ fn a_linked_profile_that_no_longer_reads_is_corrupt() {
 }
 
 #[test]
-fn a_withheld_user_loses_the_link_for_good() {
+fn a_revoked_user_loses_the_link_for_good() {
     let (mut store, first, second) = two_bound_accounts();
     make(&mut store, FIRST, 1).unwrap();
     make(&mut store, SECOND, 2).unwrap();
@@ -270,7 +270,7 @@ fn a_withheld_user_loses_the_link_for_good() {
                 user: user("pilotusera"),
             },
             reason: WithheldReason::Revoked,
-            link_revoked: true,
+            link: WithheldLink::Ended,
         }]
     );
     assert_eq!(store.subscription_link_created(first.id).unwrap(), None);
@@ -314,8 +314,99 @@ fn a_withheld_user_loses_the_link_for_good() {
                 user: user("pilotusera"),
             },
             reason: WithheldReason::Suspended,
-            link_revoked: false,
+            link: WithheldLink::NoLink,
         }]
+    );
+}
+
+#[test]
+fn a_user_withheld_for_a_while_keeps_a_paused_link() {
+    let (mut store, first, _) = two_bound_accounts();
+    make(&mut store, FIRST, 1).unwrap();
+    make(&mut store, SECOND, 2).unwrap();
+    for (generated, reason) in [
+        (NOW + 10, WithheldReason::Suspended),
+        (NOW + 20, WithheldReason::AgreementNotAccepted),
+    ] {
+        let report = store
+            .import_profiles(
+                &withholding(generated, &["pilotuserb"], &[("pilotusera", reason)]),
+                at(generated),
+            )
+            .unwrap();
+        assert_eq!(
+            report.withheld,
+            vec![Withheld {
+                account: BoundAccount {
+                    account: first.code,
+                    user: user("pilotusera"),
+                },
+                reason,
+                link: WithheldLink::Paused,
+            }]
+        );
+        // The link serves nothing, the page says it is paused, and no new
+        // link can be made meanwhile.
+        assert_eq!(
+            store.linked_profile(&digest(1)).unwrap(),
+            LinkedProfile::NoProfile
+        );
+        assert_eq!(
+            store.cfm_delivery(first.id).unwrap(),
+            CfmDelivery::NoProfile {
+                paused_link_created_at: Some(at(NOW))
+            }
+        );
+        assert!(matches!(
+            make(&mut store, FIRST, 3),
+            Err(LinkError::NoProfile)
+        ));
+        // Delivered to again, the same link serves the profile.
+        store
+            .import_profiles(
+                &bundle(generated + 5, &["pilotusera", "pilotuserb"]),
+                at(generated + 5),
+            )
+            .unwrap();
+        assert_eq!(
+            store.linked_profile(&digest(1)).unwrap(),
+            LinkedProfile::Profile(cfm("pilotusera"))
+        );
+        assert_eq!(
+            store.subscription_link_created(first.id).unwrap(),
+            Some(at(NOW))
+        );
+    }
+    // Its owner can still revoke a paused link, and it stays gone.
+    store
+        .import_profiles(
+            &withholding(
+                NOW + 40,
+                &["pilotuserb"],
+                &[("pilotusera", WithheldReason::Suspended)],
+            ),
+            at(NOW + 40),
+        )
+        .unwrap();
+    assert!(
+        store
+            .revoke_subscription_link(&digest(FIRST), at(NOW + 40))
+            .unwrap()
+    );
+    store
+        .import_profiles(
+            &bundle(NOW + 50, &["pilotusera", "pilotuserb"]),
+            at(NOW + 50),
+        )
+        .unwrap();
+    assert_eq!(
+        store.linked_profile(&digest(1)).unwrap(),
+        LinkedProfile::Unknown
+    );
+    // The other account's link is untouched throughout.
+    assert_eq!(
+        store.linked_profile(&digest(2)).unwrap(),
+        LinkedProfile::Profile(cfm("pilotuserb"))
     );
 }
 
@@ -355,7 +446,9 @@ fn the_delivery_reads_the_profile_and_the_link_together() {
     let loose = register(&mut store, "c@qq.com", 3);
     assert_eq!(
         store.cfm_delivery(loose.id).unwrap(),
-        CfmDelivery::NoProfile
+        CfmDelivery::NoProfile {
+            paused_link_created_at: None
+        }
     );
     assert_eq!(
         store.cfm_delivery(first.id).unwrap(),
@@ -385,6 +478,30 @@ fn the_delivery_reads_the_profile_and_the_link_together() {
             ..
         })
     ));
+    // A paused link's time is read without a profile, and checked as well.
+    store
+        .conn
+        .execute(
+            "DELETE FROM cfm_profiles WHERE mooring_user = 'pilotusera'",
+            [],
+        )
+        .unwrap();
+    assert!(matches!(
+        store.cfm_delivery(first.id),
+        Err(StoreError::Corrupt {
+            what: "link creation time",
+            ..
+        })
+    ));
+    // With the link sound again, a profile without the bundle's time is
+    // corrupt.
+    store
+        .import_profiles(&bundle(NOW, &["pilotusera", "pilotuserb"]), at(NOW))
+        .unwrap();
+    store
+        .conn
+        .execute("UPDATE subscription_links SET created_at = 1", [])
+        .unwrap();
     store
         .conn
         .execute("DELETE FROM profile_bundle", [])

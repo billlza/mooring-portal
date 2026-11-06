@@ -267,6 +267,7 @@ pub(super) const STRINGS: Strings = Strings {
         link_title: "订阅链接",
         link_none: "还没有订阅链接。生成后在 CFM 里用「导入链接」导入，以后点「更新」就能取得新配置。",
         link_created: "当前链接生成于 {}。链接只在生成时显示一次；忘了就重新生成，旧链接会立即失效。",
+        link_paused: "你的订阅链接生成于 {}，现在暂停，取不到配置。运营者恢复为你提供配置后，在 CFM 里对这份配置点「更新」即可，不用重新生成。",
         link_create: "生成订阅链接",
         link_rotate: "重新生成",
         link_revoke: "停用链接",

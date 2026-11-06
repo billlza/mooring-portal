@@ -8,7 +8,7 @@ use portal_core::account::AccountCode;
 use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
 use portal_core::snapshot::{MAX_DOCUMENT_BYTES, MooringUserId, Snapshot};
 use portal_core::time::Clock;
-use portal_store::Store;
+use portal_store::{Store, WithheldLink};
 
 use crate::CommandError;
 
@@ -133,10 +133,12 @@ pub(crate) fn import_profiles(
             "withheld by Mooring ({}): account {} has no profile now{}",
             withheld.reason,
             withheld.account,
-            if withheld.link_revoked {
-                ", and its subscription link has ended for good"
-            } else {
-                ""
+            match withheld.link {
+                WithheldLink::NoLink => "",
+                WithheldLink::Paused => {
+                    ", and its subscription link is paused until Mooring delivers to the user again"
+                }
+                WithheldLink::Ended => ", and its subscription link has ended for good",
             }
         )?;
     }

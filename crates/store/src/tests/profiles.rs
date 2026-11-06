@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     BoundAccount, MAX_CLOCK_SKEW_SECS, ProfileImportError, ProfileImportReport, StoreError,
-    Withheld,
+    Withheld, WithheldLink,
 };
 
 #[test]
@@ -42,7 +42,7 @@ fn bound_users_profiles_are_kept_withheld_ones_dropped_and_the_rest_reported() {
                     user: user("pilotuserz"),
                 },
                 reason: WithheldReason::Revoked,
-                link_revoked: false,
+                link: WithheldLink::NoLink,
             }],
             unbound_profiles: vec![user("pilotusery")],
             unbound_withheld: vec![user("pilotuserc")],
@@ -170,7 +170,7 @@ fn a_bundle_may_withhold_everyone_it_names() {
                     user: user("pilotusera"),
                 },
                 reason: WithheldReason::AgreementNotAccepted,
-                link_revoked: false,
+                link: WithheldLink::NoLink,
             }],
             unbound_profiles: vec![],
             unbound_withheld: vec![],
@@ -208,7 +208,7 @@ fn a_bundle_replaces_every_profile_and_an_older_one_changes_nothing() {
                 user: user("pilotuserb"),
             },
             reason: WithheldReason::Suspended,
-            link_revoked: false,
+            link: WithheldLink::NoLink,
         }]
     );
     let renewed = Some(StoredProfile {

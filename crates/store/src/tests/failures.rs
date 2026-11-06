@@ -150,6 +150,35 @@ fn a_snapshot_import_that_fails_part_way_stores_nothing() {
 }
 
 #[test]
+fn a_profile_import_that_cannot_read_the_links_fails() {
+    // Without the links table the import cannot tell whether a withheld
+    // account has a link to pause or to end, and fails instead of guessing.
+    let mut store = store();
+    let account = register(&mut store, "a@qq.com", 1);
+    store
+        .bind(&account.code, &user("pilotusera"), at(NOW))
+        .unwrap();
+    store
+        .import_profiles(&bundle(NOW, &["pilotusera"]), at(NOW))
+        .unwrap();
+    store
+        .conn
+        .execute_batch("DROP TABLE subscription_links;")
+        .unwrap();
+    for reason in [WithheldReason::Suspended, WithheldReason::Revoked] {
+        let withheld = withholding(NOW + 1, &[], &[("pilotusera", reason)]);
+        assert!(
+            matches!(
+                store.import_profiles(&withheld, at(NOW + 1)),
+                Err(ProfileImportError::Store(StoreError::Sqlite(_)))
+            ),
+            "{reason}"
+        );
+    }
+    assert!(store.cfm_profile(account.id).unwrap().is_some());
+}
+
+#[test]
 fn a_profile_import_that_fails_late_changes_nothing() {
     // The import replaces the profiles and ends a withheld account's link
     // before it writes the bundle's time. With that last write made to fail,

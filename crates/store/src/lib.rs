@@ -35,7 +35,9 @@ pub use accounts::{Account, AccountSummary, Credentials, DeleteError, NewAccount
 pub use bindings::{BindError, Binding, BoundAccount, UnbindError};
 pub use error::{StoreError, UnknownAccount};
 pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
-pub use profiles::{ProfileImportError, ProfileImportReport, StoredProfile, Withheld};
+pub use profiles::{
+    ProfileImportError, ProfileImportReport, StoredProfile, Withheld, WithheldLink,
+};
 pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};
 

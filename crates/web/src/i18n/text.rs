@@ -223,6 +223,7 @@ pub(crate) struct CfmText {
     pub(crate) link_title: &'static str,
     pub(crate) link_none: &'static str,
     pub(crate) link_created: &'static str,
+    pub(crate) link_paused: &'static str,
     pub(crate) link_create: &'static str,
     pub(crate) link_rotate: &'static str,
     pub(crate) link_revoke: &'static str,

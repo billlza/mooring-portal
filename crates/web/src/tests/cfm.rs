@@ -202,7 +202,41 @@ async fn changing_the_password_turns_the_link_off() {
 }
 
 #[tokio::test]
-async fn unbinding_or_withholding_the_user_ends_the_link_for_good() {
+async fn a_paused_link_fetches_nothing_and_works_again_once_delivered() {
+    let app = TestApp::new();
+    let (mut lilei, _) = bound(&app, "lilei@qq.com", "pilotusera").await;
+    app.import_profiles(&["pilotusera"]).await;
+    let link = make_link(&app, &mut lilei).await;
+    for reason in ["suspended", "agreement_not_accepted"] {
+        app.import_bundle(&[], &[("pilotusera", reason)]).await;
+        assert_eq!(
+            fetch(&app, &link, CFM).await.status,
+            StatusCode::NOT_FOUND,
+            "{reason}"
+        );
+        let page = lilei.get(&app, "/subscription").await;
+        assert!(page.body.contains("现在暂停，取不到配置"), "{reason}");
+        assert!(
+            page.body.contains("action=\"/subscription/link/revoke\""),
+            "{reason}"
+        );
+        assert!(
+            !page.body.contains("action=\"/subscription/link\""),
+            "{reason}"
+        );
+        app.import_profiles(&["pilotusera"]).await;
+        is_document_of(&fetch(&app, &link, CFM).await, "pilotusera");
+    }
+    // Revoked by its owner while paused, it stays gone once delivered again.
+    app.import_bundle(&[], &[("pilotusera", "suspended")]).await;
+    let revoked = lilei.post(&app, "/subscription/link/revoke", &[]).await;
+    assert_eq!(revoked.location(), "/subscription?notice=link_revoked");
+    app.import_profiles(&["pilotusera"]).await;
+    assert_eq!(fetch(&app, &link, CFM).await.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn unbinding_or_revoking_the_user_ends_the_link_for_good() {
     let app = TestApp::new();
     let (mut lilei, lilei_code) = bound(&app, "lilei@qq.com", "pilotusera").await;
     let (mut hanmeimei, _) = bound(&app, "hanmeimei@qq.com", "pilotuserb").await;
@@ -216,8 +250,9 @@ async fn unbinding_or_withholding_the_user_ends_the_link_for_good() {
         fetch(&app, &lilei_link, CFM).await.status,
         StatusCode::NOT_FOUND
     );
-    // A bundle that withholds pilotuserb ends its link with its profile.
-    app.import_bundle(&[], &["pilotuserb"]).await;
+    // A bundle that withholds pilotuserb as revoked ends its link with its
+    // profile.
+    app.import_bundle(&[], &[("pilotuserb", "revoked")]).await;
     assert_eq!(
         fetch(&app, &hanmeimei_link, CFM).await.status,
         StatusCode::NOT_FOUND
