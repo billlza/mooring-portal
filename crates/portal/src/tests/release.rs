@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use portal_core::release::MAX_RELEASE_BYTES;
+use portal_core::release::{MAX_RELEASE_BYTES, REPOSITORY};
 use portal_core::time::UnixTime;
 
 use super::{Fixture, NOW};
@@ -78,7 +78,7 @@ fn the_latest_release_goes_on_the_page_and_finding_it_again_only_moves_the_check
     assert_eq!(again.code, ExitCode::SUCCESS);
     assert_eq!(
         again.out,
-        "CFM 0.5.1 is still the latest release; the download page is unchanged\n"
+        "CFM 0.5.1 is still the release described; the download page is unchanged\n"
     );
     assert_eq!(fixture.offered(), Some(("0.5.1".to_owned(), NOW + 300)));
 }
@@ -101,8 +101,8 @@ fn a_newer_an_older_and_a_republished_release_are_each_said() {
     assert_eq!(older.code, ExitCode::SUCCESS);
     assert_eq!(
         older.out,
-        "warning: CFM 0.5.1 (published 2026-11-07T15:27:01Z) replaces 0.5.10 on the download \
-         page: 0.5.10 is no longer the latest release\n"
+        "warning: the release described is CFM 0.5.1 (published 2026-11-07T15:27:01Z), older \
+         than the 0.5.10 on the download page; the page now offers 0.5.1\n"
     );
     assert_eq!(fixture.offered().unwrap().0, "0.5.1");
 
@@ -111,11 +111,25 @@ fn a_newer_an_older_and_a_republished_release_are_each_said() {
     assert_eq!(swapped.code, ExitCode::SUCCESS);
     assert_eq!(
         swapped.out,
-        "warning: CFM 0.5.1 was published again, with another disk image or time of \
-         publication (now 2026-11-07T15:27:01Z); the download page follows it\n"
+        "warning: the description of CFM 0.5.1 is not the one imported before: its disk \
+         image or its time of publication (now 2026-11-07T15:27:01Z) has changed; the \
+         download page follows it\n"
     );
     let offered = fixture.store().offered_release().unwrap().unwrap().release;
     assert_eq!(offered.dmg_sha256(), OTHER_SHA);
+}
+
+#[test]
+fn the_deployment_notes_fetch_from_the_repository_the_portal_reads() {
+    // The repository is named in the code, which builds the page's
+    // addresses from it, and again in the unit that fetches the
+    // description. A fetch from anywhere else would be refused, every
+    // five minutes, for not being this repository's.
+    let notes = include_str!("../../../../docs/releases.md");
+    let named = REPOSITORY.strip_prefix("https://github.com/").unwrap();
+    let fetched = format!("https://api.github.com/repos/{named}/releases/latest");
+    assert_eq!(notes.matches("https://api.github.com/").count(), 1);
+    assert!(notes.contains(&format!(" {fetched}\n")), "{fetched}");
 }
 
 #[test]

@@ -172,11 +172,12 @@ pub(crate) fn import_profiles(
 }
 
 /// Puts the release a file describes on the download page. The file is
-/// GitHub's description of CFM's latest release, fetched by the host. A
-/// description that is refused changes nothing, not even the time the
-/// page's release was last found to be the latest: a check that keeps
-/// failing must come to show on the page. Nothing private is replaced, so
-/// nothing is erased.
+/// meant to be GitHub's description of CFM's latest release, fetched by
+/// the host; the command knows only what the file says, and says no more
+/// than that. A description that is refused changes nothing, not even the
+/// time a description was last imported: a check that keeps failing must
+/// come to show on the page. Nothing private is replaced, so nothing is
+/// erased.
 pub(crate) fn import_release(
     store: &mut Store,
     clock: &dyn Clock,
@@ -197,7 +198,7 @@ pub(crate) fn import_release(
         ),
         ReleaseChange::Unchanged => writeln!(
             out,
-            "CFM {version} is still the latest release; the download page is unchanged"
+            "CFM {version} is still the release described; the download page is unchanged"
         ),
         ReleaseChange::Newer { from } => writeln!(
             out,
@@ -205,13 +206,14 @@ pub(crate) fn import_release(
         ),
         ReleaseChange::Older { from } => writeln!(
             out,
-            "warning: CFM {version} (published {published}) replaces {from} on the download \
-             page: {from} is no longer the latest release"
+            "warning: the release described is CFM {version} (published {published}), older \
+             than the {from} on the download page; the page now offers {version}"
         ),
         ReleaseChange::Republished => writeln!(
             out,
-            "warning: CFM {version} was published again, with another disk image or time of \
-             publication (now {published}); the download page follows it"
+            "warning: the description of CFM {version} is not the one imported before: its \
+             disk image or its time of publication (now {published}) has changed; the \
+             download page follows it"
         ),
     }?;
     Ok(())

@@ -149,7 +149,7 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 ## 部署前提（尚未部署）
 
 - 门户只监听回环地址，由同机反向代理（如 Caddy、nginx）终止 TLS 后转发；代理须追加 `X-Forwarded-For`，门户以 `--behind-proxy` 启动。代理不得压缩 `/sub/` 的响应（CFM 0.5.1 只接受 identity 编码），也不得记录请求路径：路径里是订阅链接的令牌。
-- 门户主机上要有一个定时器，每 5 分钟取一次 CFM 的最新发布并导入，下载页才会跟着更新；主机因此要能访问 `api.github.com`。单元文件见 `docs/releases.md` 第 4 节。
+- 门户主机上要有一个定时器，每 5 分钟取一次 CFM 的最新发布并导入，下载页才会跟着更新；主机因此要能访问 `api.github.com`。取数据的进程用另一个读不到数据库的账号运行，导入的进程没有网络。单元文件见 `docs/releases.md` 第 4 节，它们还没有在真实主机上运行过。
 - 代理可以压缩 `/assets/` 下的响应（样式、图片和脚本都是公开的固定内容，压缩后小得多），不要压缩页面（`docs/security.md` 第 6 节）。代理不得改写或去掉门户的 `Content-Security-Policy`；代理自己生成的错误页要带 `X-Content-Type-Options: nosniff`。
 - `--origin` 写浏览器实际使用的 `https://` 地址；只有 localhost 可以用 `http://`。订阅链接就建在这个地址上，CFM 只接受公网 HTTPS 域名或公网 IP。
 - 数据库文件及其备份保持 0600，并当作节点凭据保管。删号和封禁抹不到已经做好的备份，备份要定期轮换。

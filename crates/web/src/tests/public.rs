@@ -383,12 +383,14 @@ async fn the_download_page_offers_the_release_the_host_last_imported() {
             .get(&app, "/download")
             .await
             .body
-            .contains("超过 24 小时")
+            .contains("24 小时内没有核对")
     );
     app.clock.advance(1).unwrap();
     let stale = browser.get(&app, "/download").await.body;
     assert!(
-        stale.contains("<p class=\"alert\" role=\"status\">这份发布信息已经超过 24 小时没有核对")
+        stale.contains(
+            "<p class=\"alert\" role=\"status\">最近 24 小时内没有核对这份发布信息的记录"
+        )
     );
     assert!(stale.contains("<dd>CFM 0.5.2</dd>"), "it is still offered");
 
@@ -402,7 +404,7 @@ async fn the_download_page_offers_the_release_the_host_last_imported() {
         .await;
     let english = browser.get(&app, "/download").await.body;
     assert!(english.contains("Release details checked at 2026-11-05 20:05"));
-    assert!(english.contains("have not been checked for more than 24 hours"));
+    assert!(english.contains("no record of these release details being checked in the last 24"));
     let fresh = TestApp::new();
     browser.cookies.remove("__Host-session");
     let english = browser.get(&fresh, "/download").await.body;

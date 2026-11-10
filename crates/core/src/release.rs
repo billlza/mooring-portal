@@ -6,13 +6,16 @@
 //! [`CfmRelease::from_github`] reads it.
 //!
 //! The description comes from the network, so nothing in it is trusted to
-//! be what it should be, and nothing in it is copied to the page. Three
-//! things are kept, each checked: the version, the time of publication and
-//! the disk image's SHA-256. Every address the page links to is built from
-//! the version and [`REPOSITORY`], which is fixed here, so no description,
-//! however wrong, can make the page link anywhere else. A description that
-//! is a draft or a pre-release, or whose page, disk image or digest is not
-//! what GitHub writes for a release of that repository, is refused whole.
+//! be what it should be. Three things are kept from it, each checked: the
+//! version, the time of publication and the disk image's SHA-256. Nothing
+//! else of it reaches the page: every address the page links to is built
+//! from the version and [`REPOSITORY`], which is fixed here, so no
+//! description, however wrong, can make the page link anywhere else. A
+//! description that is a draft or a pre-release, or whose page, disk image
+//! or digest is not what GitHub writes for a release of that repository,
+//! is refused whole. Of a release's files only the disk image's entry is
+//! read; what the entries of the others hold, or whether they are entries
+//! at all, is not looked at.
 //!
 //! No refusal carries text from the description: a refusal is printed to
 //! the operator's terminal, or to a service's log when imports are
@@ -21,6 +24,7 @@
 use std::fmt;
 
 use serde::Deserialize;
+use serde_json::value::RawValue;
 
 use crate::json::Malformation;
 use crate::time::UnixTime;
@@ -124,21 +128,28 @@ pub struct CfmRelease {
     dmg_sha256: String,
 }
 
-/// A release as GitHub describes it; the keys the portal reads.
+/// A release as GitHub describes it; the keys the portal reads. Its files
+/// are kept as they are written until one is known to be the disk image.
 #[derive(Deserialize)]
-struct Described {
+struct Described<'a> {
     tag_name: String,
     draft: bool,
     prerelease: bool,
     published_at: Option<String>,
     html_url: String,
-    assets: Vec<Asset>,
+    #[serde(borrow)]
+    assets: Vec<&'a RawValue>,
 }
 
-/// One of a release's files.
+/// What tells one of a release's files from another.
 #[derive(Deserialize)]
-struct Asset {
+struct Named {
     name: String,
+}
+
+/// The disk image's entry among a release's files.
+#[derive(Deserialize)]
+struct DiskImage {
     state: String,
     size: u64,
     digest: Option<String>,
@@ -171,11 +182,17 @@ impl CfmRelease {
             .and_then(|text| UnixTime::parse_utc(text).ok())
             .ok_or(ReleaseError::PublishedAt)?;
         let name = dmg_name(version);
-        let mut images = described.assets.iter().filter(|asset| asset.name == name);
+        // An entry that does not say what it is called, once and in text,
+        // is not the disk image, whatever else it is.
+        let mut images = described.assets.iter().filter(|file| {
+            serde_json::from_str::<Named>(file.get()).is_ok_and(|named| named.name == name)
+        });
         let image = images.next().ok_or(ReleaseError::NoDiskImage)?;
         if images.next().is_some() {
             return Err(ReleaseError::DiskImages);
         }
+        let image: DiskImage = serde_json::from_str(image.get())
+            .map_err(|error| ReleaseError::Malformed(Malformation::of(&error)))?;
         if image.state != "uploaded" {
             return Err(ReleaseError::NotUploaded);
         }

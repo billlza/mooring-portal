@@ -2,9 +2,11 @@
 //!
 //! The release is the one the host last imported from GitHub. The page
 //! says when that was last found to be the latest, and says so plainly
-//! when the check is a day old: a host that has stopped checking must not
-//! go on looking current. With no release imported yet the page says that,
-//! and never falls back to one written into the program.
+//! when there is no check on record within the last day: a host that has
+//! stopped checking must not go on looking current. That covers a check
+//! dated ahead of the clock, which was made while the clock was wrong and
+//! so says nothing of its age. With no release imported yet the page says
+//! that, and never falls back to one written into the program.
 
 use portal_core::release::REPOSITORY;
 use portal_core::time::UnixTime;
@@ -15,6 +17,9 @@ use crate::i18n::{Strings, fill};
 
 /// A check older than this is said to be out of date.
 pub(crate) const STALE_AFTER_SECS: u64 = 24 * 3600;
+/// A check this far ahead of the clock is still taken at its word: a clock
+/// is set right in small steps.
+pub(crate) const AHEAD_SECS: u64 = 5 * 60;
 
 /// The download page's macOS panel.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,7 +45,8 @@ pub(crate) struct Offered {
     pub(crate) dmg_sha256: String,
     /// "Release details checked at …".
     pub(crate) checked: String,
-    /// The warning that the check is out of date, when it is.
+    /// The warning that no check within the last day is on record, when
+    /// none is.
     pub(crate) stale: Option<&'static str>,
 }
 
@@ -64,7 +70,9 @@ impl ReleaseView {
             dmg_url: release.dmg_url(),
             dmg_sha256: release.dmg_sha256().to_owned(),
             checked: fill(t.download.checked, beijing(checked_at)),
-            stale: (now.secs_since(checked_at) > STALE_AFTER_SECS).then_some(t.download.stale),
+            stale: (now.secs_since(checked_at) > STALE_AFTER_SECS
+                || checked_at.secs_since(now) > AHEAD_SECS)
+                .then_some(t.download.stale),
         }))
     }
 }
@@ -141,10 +149,19 @@ mod tests {
             assert_eq!(stale(0), None);
             assert_eq!(stale(STALE_AFTER_SECS), None);
             assert_eq!(stale(STALE_AFTER_SECS + 1), Some(t.download.stale));
-            // A clock set back does not make a check stale.
-            let earlier = ReleaseView::of(Some(offered(NOW + 60)), at(NOW), t);
-            assert!(matches!(earlier, ReleaseView::Offered(shown) if shown.stale.is_none()));
+            // A check a little ahead of the clock is a clock being set
+            // right. One far ahead was made when the clock was wrong, and
+            // says nothing of how old it is: it must not look current.
+            let ahead = |by: u64| match ReleaseView::of(Some(offered(NOW + by)), at(NOW), t) {
+                ReleaseView::Offered(shown) => shown.stale,
+                ReleaseView::NotYet { .. } => panic!("a release was offered"),
+            };
+            assert_eq!(ahead(60), None);
+            assert_eq!(ahead(AHEAD_SECS), None);
+            assert_eq!(ahead(AHEAD_SECS + 1), Some(t.download.stale));
+            assert_eq!(ahead(400 * 86_400), Some(t.download.stale));
         }
         assert_eq!(STALE_AFTER_SECS, 86_400);
+        assert_eq!(AHEAD_SECS, 300);
     }
 }

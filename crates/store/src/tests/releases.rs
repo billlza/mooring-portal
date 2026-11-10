@@ -1,7 +1,10 @@
 //! The release on offer: one row, replaced whole, and checked when read.
 
+use std::thread;
+use std::time::Duration;
+
 use portal_core::release::{CfmRelease, Version};
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 
 use super::*;
 use crate::schema::MIGRATIONS;
@@ -97,6 +100,52 @@ fn each_import_replaces_the_release_and_says_what_changed() {
         .query_row("SELECT count(*) FROM cfm_release", [], |row| row.get(0))
         .unwrap();
     assert_eq!(rows, 1);
+}
+
+#[test]
+fn an_import_waits_for_another_writer_and_sees_what_it_wrote() {
+    // Two imports may run at once: a timer's, and one the operator starts.
+    // The second must take its turn before it reads what is on offer; if
+    // it read first and wrote after, the file would have changed under it.
+    let dir = tempfile::tempdir().unwrap();
+    let path = new_file(&dir);
+    let mut ahead = Store::open(&path, OpenMode::Existing).unwrap();
+    let mut behind = Store::open(&path, OpenMode::Existing).unwrap();
+    let older = release("0.5.1", NOW - 1000, SHA_A);
+    let newer = release("0.5.2", NOW, SHA_B);
+    let writing = ahead
+        .conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .unwrap();
+    writing
+        .execute(
+            "INSERT INTO cfm_release (id, version, published_at, dmg_sha256, checked_at)
+             VALUES (1, '0.5.1', ?1, ?2, ?3)",
+            (
+                i64::try_from(NOW - 1000).unwrap(),
+                SHA_A,
+                i64::try_from(NOW).unwrap(),
+            ),
+        )
+        .unwrap();
+    let importing = thread::spawn(move || {
+        let change = behind.offer_release(&newer, at(NOW + 300));
+        (change, behind.offered_release())
+    });
+    // Long enough for the import to be waiting, well within its patience.
+    thread::sleep(Duration::from_millis(300));
+    writing.commit().unwrap();
+    let (change, offered) = importing.join().unwrap();
+    assert_eq!(
+        change.unwrap(),
+        ReleaseChange::Newer {
+            from: older.version()
+        }
+    );
+    assert_eq!(
+        offered.unwrap().unwrap().release.version(),
+        version("0.5.2")
+    );
 }
 
 #[test]

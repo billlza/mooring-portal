@@ -95,7 +95,7 @@ pub(super) const STRINGS: Strings = Strings {
         windows_body: "The Windows version has not been released yet. It will be offered here once it is.",
         not_yet: "This site has not fetched CFM's release details yet. Download the latest version from the release page, and tell the operator if this does not change.",
         checked: "Release details checked at {}",
-        stale: "These release details have not been checked for more than 24 hours and may not be the latest. Go by the release page.",
+        stale: "There is no record of these release details being checked in the last 24 hours, so they may not be the latest. Go by the release page.",
         unsupported: "Phones and other clients are not supported.",
         setup_title: "Turn on “Mainland China direct” after installing",
         setup_steps: [

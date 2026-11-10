@@ -13,12 +13,13 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use crate::rows::{corrupt, time_from_sql, time_to_sql};
 use crate::{Store, StoreError};
 
-/// The release on offer, and when it was last found to be the latest.
+/// The release on offer, and when a description of it was last imported.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OfferedRelease {
     /// The release.
     pub release: CfmRelease,
-    /// When an import last found it to be the latest.
+    /// When it was last imported: when the host last found it described
+    /// as the latest.
     pub checked_at: UnixTime,
 }
 
@@ -27,7 +28,7 @@ pub struct OfferedRelease {
 pub enum ReleaseChange {
     /// Nothing was on offer before.
     First,
-    /// The same release is still the latest; only the time of the check
+    /// The same release was imported again; only the time of the check
     /// moved.
     Unchanged,
     /// A newer release took the place of `from`.
@@ -36,7 +37,7 @@ pub enum ReleaseChange {
         from: Version,
     },
     /// An older release took the place of `from`: the newer one is no
-    /// longer the latest, so it was withdrawn.
+    /// longer the one described as the latest.
     Older {
         /// The version offered until now.
         from: Version,
@@ -47,7 +48,9 @@ pub enum ReleaseChange {
 }
 
 impl Store {
-    /// Puts `release` on offer, found to be the latest at `now`.
+    /// Puts `release` on offer, imported at `now`. The whole of it is one
+    /// turn at the file: what was on offer is read only once no other
+    /// writer can change it.
     pub fn offer_release(
         &mut self,
         release: &CfmRelease,

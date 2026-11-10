@@ -87,7 +87,7 @@ pub(super) const STRINGS: Strings = Strings {
         fallback: "下载不了时，告诉运营者，当面用隔空投送给你。",
         not_yet: "本站还没有取得 CFM 的发布信息。请到发布页面下载最新版本；一直是这样的话，请告诉运营者。",
         checked: "发布信息核对于 {}",
-        stale: "这份发布信息已经超过 24 小时没有核对，可能不是最新版本，请以发布页面为准。",
+        stale: "最近 24 小时内没有核对这份发布信息的记录，它可能不是最新版本，请以发布页面为准。",
         windows_title: "Windows",
         windows_status: "即将推出",
         windows_body: "Windows 版尚未发布。发布后会在这里提供。",

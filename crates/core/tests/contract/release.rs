@@ -24,7 +24,7 @@ fn release_fixture(path: &str) -> Vec<u8> {
 }
 
 /// Each refused description, by file name, and why it is refused.
-const REFUSED: [(&str, ReleaseError); 37] = [
+const REFUSED: [(&str, ReleaseError); 41] = [
     ("draft", ReleaseError::Draft),
     ("prerelease", ReleaseError::Prerelease),
     ("not-published", ReleaseError::PublishedAt),
@@ -39,6 +39,7 @@ const REFUSED: [(&str, ReleaseError); 37] = [
     ("page-of-another-repository", ReleaseError::Page),
     ("page-of-another-tag", ReleaseError::Page),
     ("no-tag", ReleaseError::Malformed(Malformation::Shape)),
+    ("tag-twice", ReleaseError::Malformed(Malformation::Shape)),
     ("no-assets", ReleaseError::Malformed(Malformation::Shape)),
     ("no-dmg", ReleaseError::NoDiskImage),
     ("two-dmgs", ReleaseError::DiskImages),
@@ -50,6 +51,11 @@ const REFUSED: [(&str, ReleaseError); 37] = [
     ("dmg-digest-sha512", ReleaseError::Digest),
     ("dmg-digest-other-algorithm", ReleaseError::Digest),
     ("dmg-digest-no-algorithm", ReleaseError::Digest),
+    (
+        "dmg-digest-twice",
+        ReleaseError::Malformed(Malformation::Shape),
+    ),
+    ("dmg-name-twice", ReleaseError::NoDiskImage),
     ("dmg-digest-uppercase", ReleaseError::Digest),
     ("dmg-digest-short", ReleaseError::Digest),
     ("dmg-digest-not-hex", ReleaseError::Digest),
@@ -74,6 +80,7 @@ const REFUSED: [(&str, ReleaseError); 37] = [
         "release-as-text",
         ReleaseError::Malformed(Malformation::Shape),
     ),
+    ("text-after", ReleaseError::Malformed(Malformation::Syntax)),
 ];
 
 #[test]
@@ -152,6 +159,43 @@ fn only_the_disk_image_is_looked_at_among_the_files() {
         }
     }
     let read = CfmRelease::from_github(description.to_string().as_bytes()).unwrap();
+    assert_eq!(read.version().to_string(), "0.5.1");
+    // Nor is another file's entry held to any shape: a size that is no
+    // whole number, keys of the wrong type or missing, a name given
+    // twice, or an entry that is no file at all.
+    let assets = description["assets"].as_array_mut().unwrap();
+    let mut others = assets
+        .iter_mut()
+        .filter(|asset| asset["name"] != "Clash.for.Mac_0.5.1_arm64.dmg");
+    others.next().unwrap()["size"] = 432.5.into();
+    others.next().unwrap()["state"] = serde_json::Value::Null;
+    let manifest = others.next().unwrap();
+    assert_eq!(
+        manifest["name"],
+        "Clash.for.Mac_0.5.1_arm64.dmg.manifest.json"
+    );
+    manifest.as_object_mut().unwrap().remove("size");
+    others.next().unwrap()["name"] = serde_json::Value::Null;
+    others
+        .next()
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .remove("name");
+    for odd in [
+        serde_json::json!(7),
+        serde_json::json!("a file"),
+        serde_json::json!([]),
+    ] {
+        assets.push(odd);
+    }
+    let twice = description.to_string().replacen(
+        "\"name\":\"Clash.for.Mac_0.5.1_arm64.dmg.manifest.json\"",
+        "\"name\":\"other\",\"name\":\"Clash.for.Mac_0.5.1_arm64.dmg.manifest.json\"",
+        1,
+    );
+    assert_ne!(twice, description.to_string());
+    let read = CfmRelease::from_github(twice.as_bytes()).unwrap();
     assert_eq!(read.version().to_string(), "0.5.1");
     // A file whose name only contains the disk image's is another file.
     description["assets"]
