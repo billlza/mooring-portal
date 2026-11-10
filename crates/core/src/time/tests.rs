@@ -162,3 +162,66 @@ fn clocks_read_the_time() {
     assert_eq!(manual.advance(1), Err(TimeError::OutOfRange));
     assert_eq!(manual.now().unwrap(), UnixTime::MAX);
 }
+
+#[test]
+fn instants_parse_back_from_what_they_print() {
+    for secs in [
+        0,
+        59,
+        86_399,
+        86_400,
+        951_782_400,
+        1_793_880_000,
+        UnixTime::MAX.as_secs(),
+    ] {
+        let time = UnixTime::from_secs(secs).unwrap();
+        assert_eq!(UnixTime::parse_utc(&time.to_string()), Ok(time), "{time}");
+    }
+    assert_eq!(
+        UnixTime::parse_utc("2026-11-07T15:27:01Z")
+            .unwrap()
+            .as_secs(),
+        1_794_065_221
+    );
+    assert_eq!(
+        UnixTime::parse_utc("2000-02-29T23:59:59Z")
+            .unwrap()
+            .as_secs(),
+        951_868_799
+    );
+}
+
+#[test]
+fn only_utc_instants_to_the_second_are_read() {
+    for bad in [
+        "",
+        "2026-11-07",
+        "2026-11-07T15:27:01",
+        "2026-11-07 15:27:01Z",
+        "2026-11-07t15:27:01Z",
+        "2026-11-07T15:27:01z",
+        "2026-11-07T15:27:01+00:00",
+        "2026-11-07T23:27:01+08:00",
+        "2026-11-07T15:27:01.000Z",
+        "2026-11-07T15:27:1Z",
+        "2026-11-07T15-27-01Z",
+        "2026-11-07T24:00:00Z",
+        "2026-11-07T23:60:00Z",
+        "2026-11-07T23:59:60Z",
+        "2026-02-30T00:00:00Z",
+        "1969-12-31T23:59:59Z",
+        "10000-01-01T00:00:00Z",
+        " 2026-11-07T15:27:01Z",
+        "2026-11-07T15:27:01Z ",
+        "2026-11-07T+5:27:01Z",
+        "2026-11-07T１5:27:01Z",
+    ] {
+        assert_eq!(
+            UnixTime::parse_utc(bad),
+            Err(TimeError::InvalidInstant {
+                text: bad.to_owned()
+            }),
+            "{bad:?}"
+        );
+    }
+}

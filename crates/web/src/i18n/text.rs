@@ -80,6 +80,12 @@ pub(crate) struct Download {
     pub(crate) checksum_hint: &'static str,
     pub(crate) signed: &'static str,
     pub(crate) fallback: &'static str,
+    /// No release has been imported yet.
+    pub(crate) not_yet: &'static str,
+    /// When the release was last found to be the latest; takes the time.
+    pub(crate) checked: &'static str,
+    /// The release has not been checked for a day.
+    pub(crate) stale: &'static str,
     pub(crate) windows_title: &'static str,
     pub(crate) windows_status: &'static str,
     pub(crate) windows_body: &'static str,

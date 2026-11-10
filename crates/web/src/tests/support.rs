@@ -12,6 +12,7 @@ use axum::http::{HeaderMap, Request, StatusCode};
 use portal_core::account::AccountCode;
 use portal_core::auth::HashCost;
 use portal_core::profile::ProfileBundle;
+use portal_core::release::{CfmRelease, Version};
 use portal_core::snapshot::{MooringUserId, Snapshot};
 use portal_core::time::{ManualClock, UnixTime};
 use portal_store::{OpenMode, Store};
@@ -180,6 +181,21 @@ impl TestApp {
         let bundle = ProfileBundle::parse(text.as_bytes()).unwrap();
         let now = UnixTime::from_secs(NOW).unwrap();
         self.store(move |store| store.import_profiles(&bundle, now))
+            .await
+            .unwrap();
+    }
+
+    /// Puts CFM `version` on offer, published at `published` (as GitHub
+    /// writes times) and found to be the latest at the clock's time.
+    pub(crate) async fn offer_release(&self, version: &str, published: &str, sha256: &str) {
+        let release = CfmRelease::from_parts(
+            Version::parse(version).unwrap(),
+            UnixTime::parse_utc(published).unwrap(),
+            sha256,
+        )
+        .unwrap();
+        let now = self.state.now().unwrap();
+        self.store(move |store| store.offer_release(&release, now))
             .await
             .unwrap();
     }

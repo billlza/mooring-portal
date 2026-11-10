@@ -19,8 +19,10 @@ use crate::format::{beijing, beijing_date, bytes};
 use crate::i18n::{Strings, fill};
 
 mod cfm;
+mod release;
 
 pub(crate) use cfm::CfmPanel;
+pub(crate) use release::ReleaseView;
 
 /// A snapshot older than this is flagged as possibly out of date.
 pub(crate) const STALE_AFTER_SECS: u64 = 48 * 3600;

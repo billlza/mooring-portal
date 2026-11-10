@@ -1,0 +1,311 @@
+{
+  "url": "https://api.github.com/repos/billlza/cfw-rs/releases/437497762",
+  "assets_url": "https://api.github.com/repos/billlza/cfw-rs/releases/437497762/assets",
+  "upload_url": "https://uploads.github.com/repos/billlza/cfw-rs/releases/437497762/assets{?name,label}",
+  "html_url": "https://github.com/billlza/cfw-rs/releases/tag/v0.5.1",
+  "id": 437497762,
+  "author": {
+    "login": "billlza",
+    "type": "User"
+  },
+  "node_id": "RE_kwDOTd4ikc4aE6-i",
+  "tag_name": "v0.5.1",
+  "target_commitish": "5c6ffe1a1186e15046adfec6e4dde45d0a17ce44",
+  "name": "Clash for Mac 0.5.1",
+  "draft": true,
+  "immutable": false,
+  "prerelease": false,
+  "created_at": "2026-11-06T07:06:23Z",
+  "updated_at": "2026-11-07T15:27:01Z",
+  "published_at": "2026-11-07T15:27:01Z",
+  "assets": [
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/721073220",
+      "id": 721073220,
+      "node_id": "RA_kwDOTd4ikc4q-rRE",
+      "name": "Clash.for.Mac_0.5.1_aarch64.app.tar.gz",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/octet-stream",
+      "state": "uploaded",
+      "size": 46685135,
+      "digest": "sha256:dba66e82e28201b3653ff175f4eee0f9bbe616e4811e2ff4ab476194bf33b367",
+      "download_count": 0,
+      "created_at": "2026-11-07T15:25:19Z",
+      "updated_at": "2026-11-07T15:25:23Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_aarch64.app.tar.gz"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769799",
+      "id": 720769799,
+      "node_id": "RA_kwDOTd4ikc4q9hMH",
+      "name": "Clash.for.Mac_0.5.1_aarch64.app.tar.gz.sig",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/pgp-signature",
+      "state": "uploaded",
+      "size": 432,
+      "digest": "sha256:36c8e1ca60fed519354550a9bf3a051703bf71a39f456dd9685acf3958af79d1",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:52Z",
+      "updated_at": "2026-11-07T13:20:52Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_aarch64.app.tar.gz.sig"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720818634",
+      "id": 720818634,
+      "node_id": "RA_kwDOTd4ikc4q9tHK",
+      "name": "Clash.for.Mac_0.5.1_arm64.dmg",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/octet-stream",
+      "state": "uploaded",
+      "size": 47194801,
+      "digest": "sha256:c59907ad90eaad911e3660d3c27df982205c5b81cfde743f16dee5f7a985069f",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:42:05Z",
+      "updated_at": "2026-11-07T14:11:24Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_arm64.dmg"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769353",
+      "id": 720769353,
+      "node_id": "RA_kwDOTd4ikc4q9hFJ",
+      "name": "Clash.for.Mac_0.5.1_arm64.dmg.manifest.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 799,
+      "digest": "sha256:9e177f3d43edbe3532b32915c1c331b9cfb70291007bfa918b195b9841a6e1ff",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:42Z",
+      "updated_at": "2026-11-07T13:20:48Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_arm64.dmg.manifest.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769705",
+      "id": 720769705,
+      "node_id": "RA_kwDOTd4ikc4q9hKp",
+      "name": "Clash.for.Mac_0.5.1_arm64.gatekeeper.public.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 802,
+      "digest": "sha256:4d88ddfd02f248318291477006f6f1c1e19fa1b09a46521cc8997dcd8e871e4a",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:49Z",
+      "updated_at": "2026-11-07T13:20:50Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_arm64.gatekeeper.public.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769645",
+      "id": 720769645,
+      "node_id": "RA_kwDOTd4ikc4q9hJt",
+      "name": "Clash.for.Mac_0.5.1_arm64.notarization-log.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 3382,
+      "digest": "sha256:d5b784d586fa968de02a9b7aaabaed811e2d8ce6dec58ef14845364a7bd7a2fe",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:48Z",
+      "updated_at": "2026-11-07T13:20:49Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_arm64.notarization-log.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769795",
+      "id": 720769795,
+      "node_id": "RA_kwDOTd4ikc4q9hMD",
+      "name": "Clash.for.Mac_0.5.1_arm64.notarization.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 66,
+      "digest": "sha256:b63fabb599519a5e36d3e27729cbb05542cb26844147eabd023fd699ea226ad1",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:51Z",
+      "updated_at": "2026-11-07T13:20:52Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_arm64.notarization.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769794",
+      "id": 720769794,
+      "node_id": "RA_kwDOTd4ikc4q9hMC",
+      "name": "Clash.for.Mac_0.5.1_arm64.submission.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 590,
+      "digest": "sha256:f9ee5aa8ac6e16ae0b654b5c479f8f6fcc9aaa57be64ca5df55e6905c3e9c8b6",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:51Z",
+      "updated_at": "2026-11-07T13:20:52Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_arm64.submission.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/721075149",
+      "id": 721075149,
+      "node_id": "RA_kwDOTd4ikc4q-rvN",
+      "name": "Clash.for.Mac_0.5.1_publication.tar.gz",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/octet-stream",
+      "state": "uploaded",
+      "size": 116317434,
+      "digest": "sha256:42b45eeaed034002ba3545322de51a645f97fac6b2daaa1192319c1a7ff608a9",
+      "download_count": 0,
+      "created_at": "2026-11-07T15:26:05Z",
+      "updated_at": "2026-11-07T15:26:14Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_publication.tar.gz"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769646",
+      "id": 720769646,
+      "node_id": "RA_kwDOTd4ikc4q9hJu",
+      "name": "distribution-set.seal.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 6021,
+      "digest": "sha256:41ad5db3d41fefb4be3aba17ec2c33b79d3ce0bea668437f11e44b75ca3dfcdb",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:48Z",
+      "updated_at": "2026-11-07T13:20:50Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/distribution-set.seal.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769793",
+      "id": 720769793,
+      "node_id": "RA_kwDOTd4ikc4q9hMB",
+      "name": "dmg-set.seal.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 2189,
+      "digest": "sha256:0d5d675b4aa6568b3e273faf524024405b6d6a8b747f58392ba9bcc566179001",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:51Z",
+      "updated_at": "2026-11-07T13:20:52Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/dmg-set.seal.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769821",
+      "id": 720769821,
+      "node_id": "RA_kwDOTd4ikc4q9hMd",
+      "name": "embedded-pubkey-verification.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 624,
+      "digest": "sha256:80ebaf0d8b7a95d15807878087b90062cd8124c2382dba7babb0bdd0407b1daa",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:52Z",
+      "updated_at": "2026-11-07T13:20:53Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/embedded-pubkey-verification.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720640147",
+      "id": 720640147,
+      "node_id": "RA_kwDOTd4ikc4q9BiT",
+      "name": "latest.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 1314,
+      "digest": "sha256:db68706d0960c6446de20bea002d7f6e46fc6c7b40c8245a9b3b3730321da785",
+      "download_count": 0,
+      "created_at": "2026-11-07T12:25:09Z",
+      "updated_at": "2026-11-07T12:25:09Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/latest.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769356",
+      "id": 720769356,
+      "node_id": "RA_kwDOTd4ikc4q9hFM",
+      "name": "publication-bundle.manifest.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 158701,
+      "digest": "sha256:67470a407413a5751dd69cd7f705797e36425483b0a67b1c2af21272738b5d09",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:42Z",
+      "updated_at": "2026-11-07T13:20:52Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/publication-bundle.manifest.json"
+    },
+    {
+      "url": "https://api.github.com/repos/billlza/cfw-rs/releases/assets/720769822",
+      "id": 720769822,
+      "node_id": "RA_kwDOTd4ikc4q9hMe",
+      "name": "updater-set.seal.json",
+      "label": "",
+      "uploader": {
+        "login": "billlza",
+        "type": "User"
+      },
+      "content_type": "application/json",
+      "state": "uploaded",
+      "size": 13518,
+      "digest": "sha256:01457045cf2454a87cd79b28be422897f2779bd272fb1dd4bc5e35e6be3f8884",
+      "download_count": 0,
+      "created_at": "2026-11-07T13:20:52Z",
+      "updated_at": "2026-11-07T13:20:53Z",
+      "browser_download_url": "https://github.com/billlza/cfw-rs/releases/download/v0.5.1/updater-set.seal.json"
+    }
+  ],
+  "tarball_url": "https://api.github.com/repos/billlza/cfw-rs/tarball/v0.5.1",
+  "zipball_url": "https://api.github.com/repos/billlza/cfw-rs/zipball/v0.5.1",
+  "body": "Release notes are not read by the portal."
+}

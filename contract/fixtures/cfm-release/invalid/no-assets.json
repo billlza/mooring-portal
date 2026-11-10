@@ -1,0 +1,24 @@
+{
+  "url": "https://api.github.com/repos/billlza/cfw-rs/releases/437497762",
+  "assets_url": "https://api.github.com/repos/billlza/cfw-rs/releases/437497762/assets",
+  "upload_url": "https://uploads.github.com/repos/billlza/cfw-rs/releases/437497762/assets{?name,label}",
+  "html_url": "https://github.com/billlza/cfw-rs/releases/tag/v0.5.1",
+  "id": 437497762,
+  "author": {
+    "login": "billlza",
+    "type": "User"
+  },
+  "node_id": "RE_kwDOTd4ikc4aE6-i",
+  "tag_name": "v0.5.1",
+  "target_commitish": "5c6ffe1a1186e15046adfec6e4dde45d0a17ce44",
+  "name": "Clash for Mac 0.5.1",
+  "draft": false,
+  "immutable": false,
+  "prerelease": false,
+  "created_at": "2026-11-06T07:06:23Z",
+  "updated_at": "2026-11-07T15:27:01Z",
+  "published_at": "2026-11-07T15:27:01Z",
+  "tarball_url": "https://api.github.com/repos/billlza/cfw-rs/tarball/v0.5.1",
+  "zipball_url": "https://api.github.com/repos/billlza/cfw-rs/zipball/v0.5.1",
+  "body": "Release notes are not read by the portal."
+}

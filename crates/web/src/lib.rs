@@ -17,7 +17,6 @@ mod error;
 mod format;
 mod i18n;
 mod pages;
-mod release;
 mod security;
 mod state;
 mod view;

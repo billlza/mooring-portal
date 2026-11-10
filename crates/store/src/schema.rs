@@ -62,6 +62,15 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          email_digest BLOB PRIMARY KEY CHECK (length(email_digest) = 32),
          banned_at INTEGER NOT NULL
      ) STRICT;",
+    // 4: the CFM release the download page offers, and when it was last
+    // found to be the latest. One row, replaced whole.
+    "CREATE TABLE cfm_release (
+         id INTEGER PRIMARY KEY CHECK (id = 1),
+         version TEXT NOT NULL,
+         published_at INTEGER NOT NULL,
+         dmg_sha256 TEXT NOT NULL CHECK (length(dmg_sha256) = 64),
+         checked_at INTEGER NOT NULL
+     ) STRICT;",
 ];
 
 /// Applies the migrations the database lacks.

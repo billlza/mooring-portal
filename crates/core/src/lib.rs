@@ -7,7 +7,9 @@
 
 pub mod account;
 pub mod auth;
+pub mod json;
 pub mod profile;
 pub mod rate_limit;
+pub mod release;
 pub mod snapshot;
 pub mod time;

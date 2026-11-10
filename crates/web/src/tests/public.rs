@@ -8,7 +8,6 @@ use super::support::{Browser, TestApp};
 use crate::assets::{GEOMETRY, module};
 use crate::brand::brand;
 use crate::i18n::Lang;
-use crate::release::MAC;
 
 const PAGES: [&str; 6] = ["/", "/download", "/plans", "/help", "/login", "/register"];
 /// The policy of every response but the home page's.
@@ -323,17 +322,82 @@ async fn every_response_carries_the_security_headers() {
 }
 
 #[tokio::test]
-async fn the_download_page_offers_only_the_published_release() {
+async fn the_download_page_offers_the_release_the_host_last_imported() {
+    const FIRST: &str = "c59907ad90eaad911e3660d3c27df982205c5b81cfde743f16dee5f7a985069f";
+    const SECOND: &str = "fc9a1e62700a1b5f66ec42fcda0e5eb90efc052251321927f52b97c9223b7b93";
     let app = TestApp::new();
-    let body = Browser::new([203, 0, 113, 1])
-        .get(&app, "/download")
-        .await
-        .body;
-    assert!(body.contains(MAC.dmg_url) && body.contains(MAC.dmg_sha256));
-    assert!(body.contains("CFM 0.5.0"));
-    assert!(body.contains("即将推出"), "Windows is not released");
-    assert!(body.contains("中国大陆直连"));
-    assert!(!body.contains(".exe") && !body.contains(".msi"));
+    let mut browser = Browser::new([203, 0, 113, 1]);
+    // Before any import the page says so and points at the releases. It
+    // offers no file, and no release written into the program.
+    let body = browser.get(&app, "/download").await.body;
+    assert!(body.contains("本站还没有取得 CFM 的发布信息"));
+    assert!(body.contains("href=\"https://github.com/billlza/cfw-rs/releases/latest\""));
+    assert!(!body.contains(".dmg") && !body.contains("SHA-256") && !body.contains("0.5.0"));
+
+    // Published at two in the morning of the 5th, Beijing time.
+    app.offer_release("0.5.1", "2026-11-04T18:00:00Z", FIRST)
+        .await;
+    let body = browser.get(&app, "/download").await.body;
+    for shown in [
+        "<dd>CFM 0.5.1</dd>",
+        "<dd>2026-11-05</dd>",
+        "<code class=\"hash\">c59907ad90eaad911e3660d3c27df982205c5b81cfde743f16dee5f7a985069f</code>",
+        "<code class=\"hash\">Clash.for.Mac_0.5.1_arm64.dmg</code>",
+        "href=\"https://github.com/billlza/cfw-rs/releases/download/v0.5.1/Clash.for.Mac_0.5.1_arm64.dmg\"",
+        "href=\"https://github.com/billlza/cfw-rs/releases/tag/v0.5.1\"",
+        "发布信息核对于 2026-11-05 20:00 <span class=\"muted small\">北京时间</span>",
+    ] {
+        assert!(body.contains(shown), "{shown}");
+    }
+    assert!(!body.contains("本站还没有取得") && !body.contains("超过 24 小时"));
+    assert!(!body.contains("releases/latest"));
+
+    // The host imports the next release, and the page follows.
+    app.clock.advance(300).unwrap();
+    app.offer_release("0.5.2", "2026-11-05T11:00:00Z", SECOND)
+        .await;
+    let body = browser.get(&app, "/download").await.body;
+    assert!(body.contains("<dd>CFM 0.5.2</dd>") && body.contains(SECOND));
+    assert!(
+        body.contains("Clash.for.Mac_0.5.2_arm64.dmg") && body.contains("核对于 2026-11-05 20:05")
+    );
+    assert!(!body.contains("0.5.1") && !body.contains(FIRST));
+
+    // A day without a successful check passes unremarked; a second more
+    // and the page says its details may be out of date.
+    app.clock.advance(24 * 3600).unwrap();
+    assert!(
+        !browser
+            .get(&app, "/download")
+            .await
+            .body
+            .contains("超过 24 小时")
+    );
+    app.clock.advance(1).unwrap();
+    let stale = browser.get(&app, "/download").await.body;
+    assert!(
+        stale.contains("<p class=\"alert\" role=\"status\">这份发布信息已经超过 24 小时没有核对")
+    );
+    assert!(stale.contains("<dd>CFM 0.5.2</dd>"), "it is still offered");
+
+    // The rest of the page is as it was.
+    assert!(stale.contains("即将推出"), "Windows is not released");
+    assert!(stale.contains("中国大陆直连"));
+    assert!(!stale.contains(".exe") && !stale.contains(".msi"));
+
+    browser
+        .post(&app, "/lang", &[("to", "en"), ("back", "download")])
+        .await;
+    let english = browser.get(&app, "/download").await.body;
+    assert!(english.contains("Release details checked at 2026-11-05 20:05"));
+    assert!(english.contains("have not been checked for more than 24 hours"));
+    let fresh = TestApp::new();
+    browser.cookies.remove("__Host-session");
+    let english = browser.get(&fresh, "/download").await.body;
+    assert!(
+        english.contains("has not fetched CFM&#39;s release details yet"),
+        "{english}"
+    );
 }
 
 #[tokio::test]

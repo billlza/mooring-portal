@@ -7,8 +7,8 @@ use axum::response::Response;
 use super::{Chrome, Page, PageContext, render};
 use crate::assets::{AssetPaths, GEOMETRY};
 use crate::error::AppError;
-use crate::release::{MAC, MacRelease};
 use crate::state::AppState;
+use crate::view::ReleaseView;
 
 #[derive(Template)]
 #[template(path = "home.html")]
@@ -54,7 +54,7 @@ impl Scene {
 #[template(path = "download.html")]
 struct DownloadPage {
     chrome: Chrome,
-    mac: &'static MacRelease,
+    release: ReleaseView,
 }
 
 #[derive(Template)]
@@ -82,11 +82,21 @@ pub(crate) async fn home(
     })
 }
 
-/// `GET /download`.
-pub(crate) async fn download(ctx: PageContext) -> Result<Response, AppError> {
+/// `GET /download`: the CFM release the host last imported. A release that
+/// cannot be read is an error, never "none yet".
+pub(crate) async fn download(
+    State(state): State<AppState>,
+    ctx: PageContext,
+) -> Result<Response, AppError> {
+    let now = state.now()?;
+    let offered = state
+        .database()
+        .run(|store| store.offered_release())
+        .await?
+        .map_err(AppError::internal)?;
     render(&DownloadPage {
+        release: ReleaseView::of(offered, now, ctx.t()),
         chrome: ctx.chrome(Page::Download),
-        mac: &MAC,
     })
 }
 

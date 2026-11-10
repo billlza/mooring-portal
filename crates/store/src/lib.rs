@@ -2,8 +2,9 @@
 //!
 //! One file holds the accounts, their sessions, the bindings of accounts to
 //! Mooring users, the latest snapshot record and CFM profile of each bound
-//! user, the accounts' subscription links, and the ban list (digests of
-//! banned accounts' email addresses). The
+//! user, the accounts' subscription links, the ban list (digests of
+//! banned accounts' email addresses), and the CFM release the download
+//! page offers. The
 //! server and the operator's commands open the same file: SQLite's write
 //! lock serialises them (WAL journal, five-second busy timeout), and every
 //! operation that reads before it writes runs in an immediate transaction,
@@ -27,6 +28,7 @@ mod error;
 mod file;
 mod links;
 mod profiles;
+mod releases;
 mod rows;
 mod schema;
 mod sessions;
@@ -45,6 +47,7 @@ pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
 pub use profiles::{
     ProfileImportError, ProfileImportReport, StoredProfile, Withheld, WithheldLink,
 };
+pub use releases::{OfferedRelease, ReleaseChange};
 pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};
 

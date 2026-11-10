@@ -4,6 +4,7 @@ mod commands;
 mod erasure;
 mod import;
 mod profiles;
+mod release;
 mod usage;
 
 use std::path::{Path, PathBuf};

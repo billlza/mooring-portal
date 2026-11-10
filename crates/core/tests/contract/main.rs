@@ -4,7 +4,9 @@
 //! `invalid/` one document per rule, each refused for that rule; `stored/`
 //! the exact one-user documents the portal stores. The CFM profile bundle
 //! contract, version 2, is tested the same way against
-//! `contract/fixtures/cfm-profiles-v2/`.
+//! `contract/fixtures/cfm-profiles-v2/`, and what the portal reads of
+//! GitHub's description of a CFM release against
+//! `contract/fixtures/cfm-release/`.
 //!
 //! Every module is test code, including helpers that are not `#[test]`
 //! functions; `#[cfg(test)]` declares that, so the workspace's test-only
@@ -16,3 +18,5 @@ mod fixtures;
 mod golden;
 #[cfg(test)]
 mod profiles;
+#[cfg(test)]
+mod release;

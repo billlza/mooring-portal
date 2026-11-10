@@ -9,6 +9,9 @@
   <section class="panel">
     <h2>{{ chrome.t.download.mac_title }}</h2>
     <p class="muted">{{ chrome.t.download.mac_requirements }}</p>
+    {% match release %}
+    {% when ReleaseView::Offered with (mac) %}
+    {% if let Some(stale) = mac.stale %}<p class="alert" role="status">{{ stale }}</p>{% endif %}
     <dl class="facts">
       <div><dt>{{ chrome.t.download.version }}</dt><dd>CFM {{ mac.version }}</dd></div>
       <div><dt>{{ chrome.t.download.published }}</dt><dd>{{ mac.published }}</dd></div>
@@ -19,8 +22,15 @@
       <a class="link" href="{{ mac.page_url }}" rel="noopener noreferrer">{{ chrome.t.download.release_page }}</a>
     </div>
     <p class="small"><code class="hash">{{ mac.dmg_name }}</code></p>
+    <p class="small muted">{{ mac.checked }} <span class="muted small">{{ chrome.t.common.beijing_time }}</span></p>
     <p class="small muted">{{ chrome.t.download.checksum_hint }}</p>
     <p class="small muted">{{ chrome.t.download.signed }}</p>
+    {% when ReleaseView::NotYet with { releases_url } %}
+    <p>{{ chrome.t.download.not_yet }}</p>
+    <div class="actions-row">
+      <a class="button ghost" href="{{ releases_url }}" rel="noopener noreferrer">{{ chrome.t.download.release_page }}</a>
+    </div>
+    {% endmatch %}
     <p class="small">{{ chrome.t.download.fallback }}</p>
   </section>
   <section class="panel dim">

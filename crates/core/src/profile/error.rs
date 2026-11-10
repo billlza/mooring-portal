@@ -7,50 +7,10 @@
 
 use std::fmt;
 
-use serde_json::error::Category;
-
 use super::document::DocumentError;
 use super::{FORMAT, MAX_BUNDLE_BYTES, VERSION};
+pub use crate::json::Malformation;
 use crate::snapshot::{self, MooringUserId};
-
-/// What is wrong with a bundle that does not decode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Malformation {
-    /// It is not JSON.
-    Syntax,
-    /// It is JSON, but a key is missing or unknown, or a value is of the
-    /// wrong type or invalid.
-    Shape,
-    /// It ends too early.
-    Truncated,
-    /// The decoder failed to read it.
-    Unreadable,
-}
-
-impl Malformation {
-    /// The kind of `error`.
-    pub(super) fn of(error: &serde_json::Error) -> Self {
-        match error.classify() {
-            Category::Syntax => Self::Syntax,
-            Category::Data => Self::Shape,
-            Category::Eof => Self::Truncated,
-            Category::Io => Self::Unreadable,
-        }
-    }
-}
-
-impl fmt::Display for Malformation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Syntax => "it is not JSON",
-            Self::Shape => {
-                "a key is missing or unknown, or a value is of the wrong type or invalid"
-            }
-            Self::Truncated => "it ends too early",
-            Self::Unreadable => "it could not be read",
-        })
-    }
-}
 
 /// The format a bundle of the wrong format declares, as far as the portal
 /// names it: another format's text is not repeated.

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use portal_core::auth::HashError;
 use portal_core::profile::ProfileError;
+use portal_core::release::ReleaseError;
 use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
 use portal_store::{
@@ -68,6 +69,15 @@ pub enum CommandError {
         /// Why it was refused.
         #[source]
         source: ProfileError,
+    },
+    /// The file is not a release the download page can follow.
+    #[error("{path}: {source}")]
+    Release {
+        /// The file.
+        path: PathBuf,
+        /// Why it was refused.
+        #[source]
+        source: ReleaseError,
     },
     /// The origin given to `serve` is unusable.
     #[error(transparent)]

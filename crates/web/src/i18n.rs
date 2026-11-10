@@ -106,6 +106,7 @@ mod tests {
                 t.subscription.days_left_many,
                 t.subscription.as_of,
                 t.subscription.resets,
+                t.download.checked,
             ] {
                 assert_eq!(phrase.matches("{}").count(), 1, "{lang:?}: {phrase}");
             }

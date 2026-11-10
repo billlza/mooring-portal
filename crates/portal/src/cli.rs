@@ -59,6 +59,14 @@ pub(crate) enum Command {
         #[arg(value_name = "FILE")]
         file: PathBuf,
     },
+    /// Put GitHub's latest CFM release on the download page. The file is
+    /// GitHub's description of the release, as its API answers for
+    /// `releases/latest`; the host fetches it on a timer.
+    ImportRelease {
+        /// The description file.
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+    },
     /// Delete an account with its sessions, binding, record, profile and
     /// link.
     DeleteAccount {

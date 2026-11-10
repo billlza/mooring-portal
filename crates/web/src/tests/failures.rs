@@ -29,6 +29,32 @@ async fn signed_in_pages_report_a_broken_database() {
 }
 
 #[tokio::test]
+async fn the_download_page_reports_a_release_it_cannot_read() {
+    // A release that cannot be read is an error, not "none imported yet".
+    let (app, file) = TestApp::on_disk();
+    app.offer_release(
+        "0.5.1",
+        "2026-11-04T18:00:00Z",
+        "c59907ad90eaad911e3660d3c27df982205c5b81cfde743f16dee5f7a985069f",
+    )
+    .await;
+    let mut browser = Browser::new([203, 0, 113, 41]);
+    assert_eq!(browser.get(&app, "/download").await.status, StatusCode::OK);
+    let conn = rusqlite::Connection::open(file.path()).unwrap();
+    conn.execute("UPDATE cfm_release SET version = 'latest'", [])
+        .unwrap();
+    let reply = browser.get(&app, "/download").await;
+    assert_eq!(reply.status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(reply.body.contains("服务器出错了"));
+    assert!(!reply.body.contains("还没有取得") && !reply.body.contains(".dmg"));
+    conn.execute_batch("DROP TABLE cfm_release").unwrap();
+    assert_eq!(
+        browser.get(&app, "/download").await.status,
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+}
+
+#[tokio::test]
 async fn forms_report_a_broken_database() {
     let (app, file) = TestApp::on_disk();
     let mut browser = Browser::new([203, 0, 113, 40]);

@@ -24,6 +24,12 @@ pub enum TimeError {
         /// The refused text.
         text: String,
     },
+    /// Text that is not an instant in UTC, written to the second.
+    #[error("{text:?} is not an instant written YYYY-MM-DDTHH:MM:SSZ")]
+    InvalidInstant {
+        /// The refused text.
+        text: String,
+    },
     /// The system clock reads before 1970.
     #[error("the system clock reads before 1970-01-01")]
     ClockBeforeEpoch,
@@ -47,6 +53,28 @@ impl UnixTime {
         } else {
             Err(TimeError::OutOfRange)
         }
+    }
+
+    /// Parses `YYYY-MM-DDTHH:MM:SSZ` exactly, as [`fmt::Display`] writes
+    /// an instant: UTC, to the second, with no offset and no fraction.
+    pub fn parse_utc(text: &str) -> Result<Self, TimeError> {
+        let invalid = || TimeError::InvalidInstant {
+            text: text.to_owned(),
+        };
+        let (date, time) = text.split_once('T').ok_or_else(invalid)?;
+        let date = CalendarDate::parse(date).map_err(|_| invalid())?;
+        let [h0, h1, b':', m0, m1, b':', s0, s1, b'Z'] = *time.as_bytes() else {
+            return Err(invalid());
+        };
+        let hour = decimal(&[h0, h1]).filter(|hour| *hour < 24);
+        let minute = decimal(&[m0, m1]).filter(|minute| *minute < 60);
+        let second = decimal(&[s0, s1]).filter(|second| *second < 60);
+        let (Some(hour), Some(minute), Some(second)) = (hour, minute, second) else {
+            return Err(invalid());
+        };
+        date.midnight()
+            .checked_add_secs(u64::from(hour * 3600 + minute * 60 + second))
+            .map_err(|_| invalid())
     }
 
     /// Seconds since the epoch.

@@ -9,6 +9,7 @@ mod file;
 mod links;
 mod migration;
 mod profiles;
+mod releases;
 mod sessions;
 mod sharing;
 mod subscriptions;

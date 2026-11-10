@@ -7,9 +7,10 @@ use std::path::Path;
 use portal_core::account::{AccountCode, Email};
 use portal_core::auth::BanDigest;
 use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
+use portal_core::release::{CfmRelease, MAX_RELEASE_BYTES};
 use portal_core::snapshot::{MAX_DOCUMENT_BYTES, MooringUserId, Snapshot};
 use portal_core::time::Clock;
-use portal_store::{Store, WithheldLink};
+use portal_store::{ReleaseChange, Store, WithheldLink};
 
 use crate::CommandError;
 
@@ -170,6 +171,52 @@ pub(crate) fn import_profiles(
     })
 }
 
+/// Puts the release a file describes on the download page. The file is
+/// GitHub's description of CFM's latest release, fetched by the host. A
+/// description that is refused changes nothing, not even the time the
+/// page's release was last found to be the latest: a check that keeps
+/// failing must come to show on the page. Nothing private is replaced, so
+/// nothing is erased.
+pub(crate) fn import_release(
+    store: &mut Store,
+    clock: &dyn Clock,
+    file: &Path,
+    out: &mut dyn Write,
+) -> Result<(), CommandError> {
+    let description = read_bounded(file, RELEASE_READ_LIMIT)?;
+    let release =
+        CfmRelease::from_github(&description).map_err(|source| CommandError::Release {
+            path: file.to_owned(),
+            source,
+        })?;
+    let (version, published) = (release.version(), release.published_at());
+    match store.offer_release(&release, clock.now()?)? {
+        ReleaseChange::First => writeln!(
+            out,
+            "CFM {version} (published {published}) is now on the download page"
+        ),
+        ReleaseChange::Unchanged => writeln!(
+            out,
+            "CFM {version} is still the latest release; the download page is unchanged"
+        ),
+        ReleaseChange::Newer { from } => writeln!(
+            out,
+            "CFM {version} (published {published}) replaces {from} on the download page"
+        ),
+        ReleaseChange::Older { from } => writeln!(
+            out,
+            "warning: CFM {version} (published {published}) replaces {from} on the download \
+             page: {from} is no longer the latest release"
+        ),
+        ReleaseChange::Republished => writeln!(
+            out,
+            "warning: CFM {version} was published again, with another disk image or time of \
+             publication (now {published}); the download page follows it"
+        ),
+    }?;
+    Ok(())
+}
+
 /// Prints, on one line in id order, `--user <id>` for every bound account's
 /// Mooring user: the arguments that name them to Mooring's exports. Ids
 /// are lowercase base32, so the line is safe to paste or substitute
@@ -258,6 +305,8 @@ pub(crate) fn unban(
 const SNAPSHOT_READ_LIMIT: u64 = MAX_DOCUMENT_BYTES as u64 + 1;
 /// One byte more than a profile bundle may have, for the same reason.
 const BUNDLE_READ_LIMIT: u64 = MAX_BUNDLE_BYTES as u64 + 1;
+/// One byte more than a release description may have, for the same reason.
+const RELEASE_READ_LIMIT: u64 = MAX_RELEASE_BYTES as u64 + 1;
 
 /// Reads at most `limit` bytes of `file`; the parser refuses a document
 /// that fills them.
