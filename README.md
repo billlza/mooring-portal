@@ -81,7 +81,7 @@ node --check crates/web/assets/js/hero.mjs
 
 ### 依赖
 
-依赖从少：axum、tokio、askama、rusqlite（内置 SQLite）、argon2、blake2、getrandom、subtle、serde、thiserror、clap、tracing。版本取 crates.io 上**发布满 14 天**的最新兼容版本（2026-11-06 核对；因此 rusqlite 用 0.40.2，没有用 10 月下旬才发布的 0.41）。`cargo deny check` 要求：每个依赖只有一个版本；只用 Apache-2.0、BSD-3-Clause、MIT、Unicode-3.0 许可；只从 crates.io 获取；公告库中无未处理的漏洞、无人维护或不健全的 crate。
+依赖从少：axum、tokio、askama、rusqlite（内置 SQLite）、argon2、blake2、getrandom、subtle、serde、thiserror、clap、tracing。版本取 crates.io 上**发布满 14 天**的最新兼容版本（2026-11-06 核对；rusqlite 于 2026-11-10 升到 0.41.0：它内置的 SQLite 3.54 修掉了 RUSTSEC-2026-0459，而 0.41.1 发布还不满 14 天）。`cargo deny check` 要求：每个依赖只有一个版本；只用 Apache-2.0、BSD-3-Clause、MIT、Unicode-3.0 许可；只从 crates.io 获取；公告库中无未处理的漏洞、无人维护或不健全的 crate。
 
 ## 本地运行与演示
 
