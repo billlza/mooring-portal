@@ -2,7 +2,7 @@
 
 Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里停泊的船上，那盏一直亮着的灯。品牌名、标语和释义只写在 `crates/web/src/brand.rs` 一个文件里；crate、二进制和路径都不带品牌名，改名只改这一个文件。
 
-门户是一个服务端渲染、不依赖 JavaScript 的网站，供少数受信任的 Mooring 用户查看自己的账户和订阅：
+门户是一个服务端渲染的网站，每个页面不开 JavaScript 都能用，供少数受信任的 Mooring 用户查看自己的账户和订阅。唯一的脚本是首页主图上那层会动的场景，只有首页运行它（2026-11-10，`docs/security.md` 第 6 节）：
 
 - 公开页面：首页、下载（CFM 客户端）、订阅说明、帮助；
 - 账号：注册、登录、退出、修改密码；中英文切换，默认中文；
@@ -14,7 +14,7 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里停泊的
 
 ## 当前状态
 
-2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。只在本地运行过，没有部署。许可证尚未选定。
+2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。2026-11-10：重做全站样式，首页主图加上会动的场景（分支 `feature/ui-refresh`，接在前一个分支之后）。只在本地运行过，没有部署。许可证尚未选定。
 
 ## 仓库结构
 
@@ -23,6 +23,7 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里停泊的
 | `crates/core` | 纯领域逻辑：时间与日期、账号（邮箱、账号编号、密码策略）、Argon2id 与令牌、限流器、快照契约、CFM 配置包契约 |
 | `crates/store` | SQLite 持久化：表结构与迁移、账号、会话、绑定、快照导入、配置包导入、订阅链接；文件以 0600 创建 |
 | `crates/web` | HTTP 层（axum）：页面与模板（askama，编译期检查）、会话、CSRF、限流、安全响应头、中英文文案、品牌、样式与程序生成的主图 |
+| `crates/web/assets/js` | 首页场景的脚本（ES 模块，不经打包，编进二进制）；它们的测试在 `test/` 子目录里，不随站点提供 |
 | `crates/portal` | 二进制 `mooring-portal`：`serve` 与运营者命令 |
 | `contract/fixtures/v1/` | 快照契约的合成样例与金样 |
 | `contract/fixtures/cfm-profiles-v2/` | 配置包契约的合成样例与金样（凭据都是假的，地址都在文档保留网段） |
@@ -63,6 +64,18 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-it
 ```
 
 覆盖率要求 95% 以上（区域、函数、行三项）。编译输出只写仓库内的 `target/`，用完执行 `cargo clean`。
+
+首页场景的脚本另有两条检查，要用 Node 22 或更新的版本（只在开发时用，构建和运行门户都不需要它）。第一条跑脚本的测试，并要求行覆盖率 95% 以上；测试用一个假的页面和假的显卡驱动脚本，不需要浏览器。第二条检查入口文件能被解析，它只有一行调用，测试不导入它：
+
+```bash
+node --test --experimental-test-coverage --test-coverage-lines=95 "crates/web/assets/js/test/*.test.mjs"
+```
+
+```bash
+node --check crates/web/assets/js/hero.mjs
+```
+
+着色器能不能在显卡上编译、画出来对不对，这两条都检查不了。改了 `crates/web/assets/js/shader.mjs` 之后，要在浏览器里打开首页，确认场景出现（左下角有暂停按钮）、控制台没有报错。
 
 工作区 lint 禁止 `unsafe`、`unwrap`、`expect`、`panic`、`print`。集成测试的入口文件用 `#[cfg(test)] mod` 声明各模块，以表明它们都是测试代码，`clippy.toml` 里对测试的放宽才能覆盖其中的辅助函数。
 
@@ -127,6 +140,7 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 ## 部署前提（尚未部署）
 
 - 门户只监听回环地址，由同机反向代理（如 Caddy、nginx）终止 TLS 后转发；代理须追加 `X-Forwarded-For`，门户以 `--behind-proxy` 启动。代理不得压缩 `/sub/` 的响应（CFM 0.5.1 只接受 identity 编码），也不得记录请求路径：路径里是订阅链接的令牌。
+- 代理可以压缩 `/assets/` 下的响应（样式、图片和脚本都是公开的固定内容，压缩后小得多），不要压缩页面（`docs/security.md` 第 6 节）。代理不得改写或去掉门户的 `Content-Security-Policy`；代理自己生成的错误页要带 `X-Content-Type-Options: nosniff`。
 - `--origin` 写浏览器实际使用的 `https://` 地址；只有 localhost 可以用 `http://`。订阅链接就建在这个地址上，CFM 只接受公网 HTTPS 域名或公网 IP。
 - 数据库文件及其备份保持 0600，并当作节点凭据保管。删号和封禁抹不到已经做好的备份，备份要定期轮换。
 - `serve` 收到 SIGINT 或 SIGTERM 后会处理完进行中的请求再退出（有测试）。
@@ -145,3 +159,4 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 8. **Mooring 导出器**：已合并（Mooring PR #24，main `d478e91`）；《使用约定》第 2 版落地之前，导出命令对任何用户都拒绝。其中的配置包导出器写的是配置包契约第 1 版，要按第 2 版更新（见第 9 条）。
 9. **配置包的范围**：已决定只导出已绑定用户（2026-11-06，运营者原话「只导出已绑定用户」）。配置包契约因此升为第 2 版（`docs/contract/cfm-profiles-v2.md`）：运营者在 Mooring 里点名全部已绑定用户，Mooring 不交付的写进 `withheld` 并注明原因（暂停、作废、未确认约定）；漏列的配置包整份拒绝。Mooring 导出器要按第 2 版改（契约第 7 节），改好之前门户不接受它写出的第 1 版配置包。
 10. **暂停中的用户的订阅链接**：已决定（2026-11-06，运营者原话："额度用尽当然只暂停直到下一个计费周期"，"你用我的网从事非法活动被我抓了，我当然要封禁涉事账号"）。被暂停（包括超额、到期）或还没确认新版《使用约定》的已绑定用户，订阅链接只暂停，恢复交付后同一条链接照常「更新」；被作废的永久停用。恢复不是到点自动发生的：要等 Mooring 解除暂停，运营者再导出、导入一次配置包。按 Mooring 的设计，新计费周期的第一次 apply 会自动解除超额暂停（Mooring `docs/design.md` §13.6），这一步属于 M5，还没实现。Mooring 的作废不记原因，分不清违法被封和自己不用了，所以"封禁并不得重复注册"用门户的 `ban` 命令单独操作，不从配置包推断。它现在只按规范化后的邮箱拦，换邮箱拦不住；付款上线后还要记下被封者付款用过的银行卡的指纹，用这些卡付的款不开通（运营者 2026-11-07 决定，`docs/payments.md` 第 1 节）；真正的关口是运营者绑定这一步（`docs/security.md` 第 10 节）。被封禁的人预付但没用完的时长或流量不退（运营者 2026-11-06 决定）。
+11. **界面与首页的动画**：运营者 2026-11-10 要求把界面做得更好看，并说可以用 three.js。全站样式已重做；首页主图上加了一层用 WebGL 2 画的场景，这是本站的第一段脚本，只有首页运行它，安全上的说明和代价见 `docs/security.md` 第 6 节。没有引入 three.js，理由也在那里；运营者若仍要用，可以再换。场景只在 Chromium 里实际运行过。

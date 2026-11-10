@@ -3,7 +3,13 @@
 //!
 //! Nothing is fetched from another host: no web fonts, scripts or images
 //! from CDNs, which are slow or blocked in mainland China. The hero image
-//! is drawn by [`hero`] at startup.
+//! and its layers are drawn by [`hero`] at startup.
+//!
+//! The one script is the home page's live scene, a handful of ES modules
+//! that import each other by relative address. They are therefore served
+//! from one directory, named by the content of all of them. The scene is an
+//! ornament: every page works without it (`security::headers` lets only the
+//! home page run it).
 
 mod hero;
 
@@ -15,6 +21,8 @@ use axum::extract::{Path, State};
 use axum::http::HeaderValue;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
+
+pub(crate) use hero::GEOMETRY;
 
 use crate::error::AppError;
 use crate::state::AppState;
@@ -33,8 +41,21 @@ const STYLESHEET: &str = concat!(
 );
 const MARK: &str = include_str!("../assets/mark.svg");
 
+/// The module the home page loads; it imports the others.
+const ENTRY: &str = "hero.mjs";
+/// The live scene's modules, by file name: every file in `assets/js`.
+/// Their tests are in `assets/js/test` and are not served.
+const MODULES: [(&str, &str); 5] = [
+    (ENTRY, include_str!("../assets/js/hero.mjs")),
+    ("measure.mjs", include_str!("../assets/js/measure.mjs")),
+    ("scene.mjs", include_str!("../assets/js/scene.mjs")),
+    ("shader.mjs", include_str!("../assets/js/shader.mjs")),
+    ("stage.mjs", include_str!("../assets/js/stage.mjs")),
+];
+
 const CSS: &str = "text/css; charset=utf-8";
 const SVG: &str = "image/svg+xml";
+const SCRIPT: &str = "text/javascript; charset=utf-8";
 const IMMUTABLE: &str = "public, max-age=31536000, immutable";
 const SHORT: &str = "public, max-age=300";
 
@@ -43,7 +64,16 @@ const SHORT: &str = "public, max-age=300";
 pub(crate) struct AssetPaths {
     pub(crate) css: String,
     pub(crate) mark: String,
+    /// The hero image.
     pub(crate) hero: String,
+    /// The hero's land layer, for the live scene.
+    pub(crate) land: String,
+    /// The hero's ring layer, for the live scene.
+    pub(crate) ring: String,
+    /// The live scene's entry module.
+    pub(crate) script: String,
+    /// The modules the entry imports, which a page may fetch ahead of it.
+    pub(crate) imported: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -53,7 +83,7 @@ struct Asset {
     cache: &'static str,
 }
 
-/// Every asset, by file name.
+/// Every asset, by the part of its address after `/assets/`.
 pub(crate) struct Assets {
     files: HashMap<String, Asset>,
     paths: AssetPaths,
@@ -91,7 +121,21 @@ impl Assets {
             CSS,
         );
         let mark = add("mark", "svg", Bytes::from_static(MARK.as_bytes()), SVG);
-        let hero = add("hero", "svg", Bytes::from(hero::svg()), SVG);
+        let drawn = hero::draw();
+        let hero = add("hero", "svg", Bytes::from(drawn.image), SVG);
+        let land = add("hero-land", "svg", Bytes::from(drawn.land), SVG);
+        let ring = add("hero-ring", "svg", Bytes::from(drawn.ring), SVG);
+        let directory = script_directory(&MODULES);
+        for (name, source) in MODULES {
+            files.insert(
+                format!("{directory}/{name}"),
+                Asset {
+                    body: Bytes::from_static(source.as_bytes()),
+                    content_type: SCRIPT,
+                    cache: IMMUTABLE,
+                },
+            );
+        }
         files.insert(
             "site.css".to_owned(),
             Asset {
@@ -102,7 +146,19 @@ impl Assets {
         );
         Self {
             files,
-            paths: AssetPaths { css, mark, hero },
+            paths: AssetPaths {
+                css,
+                mark,
+                hero,
+                land,
+                ring,
+                script: format!("/assets/{directory}/{ENTRY}"),
+                imported: MODULES
+                    .iter()
+                    .filter(|(name, _)| *name != ENTRY)
+                    .map(|(name, _)| format!("/assets/{directory}/{name}"))
+                    .collect(),
+            },
         }
     }
 
@@ -111,7 +167,33 @@ impl Assets {
     }
 }
 
-/// `GET /assets/{file}`.
+/// The directory `modules` are served from: named by all their names and
+/// contents, so that a change to any one of them gives every one a new
+/// address, and a module never imports a stale copy of another.
+fn script_directory(modules: &[(&str, &str)]) -> String {
+    let mut all = Vec::new();
+    for (name, source) in modules {
+        // A zero byte ends each part, so that where one ends matters.
+        for part in [name, source] {
+            all.extend_from_slice(part.as_bytes());
+            all.push(0);
+        }
+    }
+    format!("js.{:016x}", fnv1a(&all))
+}
+
+/// The source of the live scene's module `name`, for tests of what the
+/// page and the script agree on.
+#[cfg(test)]
+pub(crate) fn module(name: &str) -> &'static str {
+    MODULES
+        .iter()
+        .find(|(module, _)| *module == name)
+        .map(|(_, source)| *source)
+        .unwrap()
+}
+
+/// `GET /assets/{*file}`.
 pub(crate) async fn serve(
     State(state): State<AppState>,
     Path(file): Path<String>,
@@ -153,29 +235,4 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fnv1a_matches_its_reference_values() {
-        assert_eq!(fnv1a(b""), 0xcbf2_9ce4_8422_2325);
-        assert_eq!(fnv1a(b"a"), 0xaf63_dc4c_8601_ec8c);
-        assert_eq!(fnv1a(b"foobar"), 0x8594_4171_f739_67e8);
-    }
-
-    #[test]
-    fn assets_are_named_by_their_content() {
-        let assets = Assets::build();
-        let paths = assets.paths();
-        for path in [&paths.css, &paths.mark, &paths.hero] {
-            let name = path.strip_prefix("/assets/").unwrap();
-            assert!(assets.files.contains_key(name), "{path}");
-        }
-        assert_eq!(
-            paths.css,
-            format!("/assets/site.{:016x}.css", fnv1a(STYLESHEET.as_bytes()))
-        );
-        assert!(assets.files.contains_key("site.css"));
-        assert!(format!("{assets:?}").starts_with("Assets { paths"));
-    }
-}
+mod tests;

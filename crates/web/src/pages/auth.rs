@@ -9,7 +9,7 @@
 use std::net::SocketAddr;
 
 use askama::Template;
-use axum::extract::{ConnectInfo, Query, State};
+use axum::extract::{ConnectInfo, State};
 use axum::http::header::SET_COOKIE;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
@@ -18,7 +18,7 @@ use portal_core::auth::Verification;
 use portal_store::{NewAccount, RegisterError};
 use serde::Deserialize;
 
-use super::{Chrome, Page, PageContext, render, render_status, see_other};
+use super::{Chrome, Page, PageContext, PageQuery, render, render_status, see_other};
 use crate::error::AppError;
 use crate::i18n::{Strings, fill};
 use crate::security::client_ip::client_network;
@@ -86,7 +86,7 @@ pub(crate) fn password_problem(t: &Strings, error: PasswordError) -> &'static st
 /// `GET /login`.
 pub(crate) async fn login_page(
     ctx: PageContext,
-    Query(query): Query<LoginQuery>,
+    PageQuery(query): PageQuery<LoginQuery>,
 ) -> Result<Response, AppError> {
     if ctx.account.is_some() {
         return Ok(see_other(target(query.next)));

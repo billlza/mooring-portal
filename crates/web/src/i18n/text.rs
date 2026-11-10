@@ -53,8 +53,12 @@ pub(crate) struct Home {
     pub(crate) points: [&'static str; 3],
     pub(crate) download: &'static str,
     pub(crate) learn_more: &'static str,
+    /// The button that stops and restarts the live scene.
+    pub(crate) pause_motion: &'static str,
     pub(crate) intro_title: &'static str,
     pub(crate) intro_body: &'static str,
+    /// What the service promises, in the order the home page draws their
+    /// icons: steady, clear to see, discreet, mainland sites direct.
     pub(crate) features: [Item; 4],
     pub(crate) steps_title: &'static str,
     pub(crate) steps: [Item; 4],

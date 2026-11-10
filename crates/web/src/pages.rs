@@ -8,14 +8,14 @@ pub(crate) mod public;
 pub(crate) mod subscription;
 
 use askama::Template;
-use axum::extract::FromRequestParts;
+use axum::extract::{FromRequestParts, Query};
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use portal_store::Account;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
-use crate::assets::AssetPaths;
 use crate::brand::{Brand, brand};
 use crate::error::AppError;
 use crate::i18n::{Lang, Strings};
@@ -121,7 +121,8 @@ pub(crate) struct PageContext {
     pub(crate) lang: Lang,
     pub(crate) account: Option<Account>,
     csrf: String,
-    paths: AssetPaths,
+    css: String,
+    mark: String,
 }
 
 impl FromRequestParts<AppState> for PageContext {
@@ -135,11 +136,13 @@ impl FromRequestParts<AppState> for PageContext {
             .ok_or_else(|| AppError::internal_message("the CSRF middleware did not run"))?
             .form_value();
         let Viewer(account) = Viewer::from_request_parts(parts, state).await?;
+        let paths = state.assets().paths();
         Ok(Self {
             lang,
             account,
             csrf,
-            paths: state.assets().paths().clone(),
+            css: paths.css.clone(),
+            mark: paths.mark.clone(),
         })
     }
 }
@@ -159,15 +162,26 @@ impl PageContext {
             csrf: self.csrf.clone(),
             signed_in: self.account.is_some(),
             page,
-            css: self.paths.css.clone(),
-            mark: self.paths.mark.clone(),
+            css: self.css.clone(),
+            mark: self.mark.clone(),
             language_switch: true,
         }
     }
+}
 
-    /// The hero image's address.
-    pub(crate) fn hero(&self) -> &str {
-        &self.paths.hero
+/// A page's query string. One that does not parse is refused with this
+/// site's own error page: the framework's refusal would quote the request
+/// back to whoever sent it.
+pub(crate) struct PageQuery<T>(pub(crate) T);
+
+impl<T: DeserializeOwned, S: Send + Sync> FromRequestParts<S> for PageQuery<T> {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, AppError> {
+        Query::<T>::from_request_parts(parts, state)
+            .await
+            .map(|Query(query)| Self(query))
+            .map_err(|_| AppError::BadRequest("the query string does not parse"))
     }
 }
 

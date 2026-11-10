@@ -89,6 +89,9 @@ async fn assets_are_served_by_content_name_and_cached() {
         (&paths.css, "text/css; charset=utf-8"),
         (&paths.mark, "image/svg+xml"),
         (&paths.hero, "image/svg+xml"),
+        (&paths.land, "image/svg+xml"),
+        (&paths.ring, "image/svg+xml"),
+        (&paths.script, "text/javascript; charset=utf-8"),
     ] {
         let reply = browser.get(&app, path).await;
         assert_eq!(reply.status, StatusCode::OK, "{path}");
@@ -108,6 +111,41 @@ async fn assets_are_served_by_content_name_and_cached() {
         browser.get(&app, "/assets/site.0000.css").await.status,
         StatusCode::NOT_FOUND
     );
+    // The script's modules import each other from its own directory, and
+    // from no other.
+    let (directory, entry) = paths.script.rsplit_once('/').unwrap();
+    assert_eq!(entry, "hero.mjs");
+    assert_eq!(
+        paths.imported,
+        ["measure.mjs", "scene.mjs", "shader.mjs", "stage.mjs"]
+            .map(|name| format!("{directory}/{name}"))
+    );
+    for module in &paths.imported {
+        let reply = browser.get(&app, module).await;
+        assert_eq!(reply.status, StatusCode::OK, "{module}");
+        assert_eq!(
+            reply.headers[CONTENT_TYPE],
+            "text/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            reply.headers[CACHE_CONTROL],
+            "public, max-age=31536000, immutable"
+        );
+    }
+    for missing in [
+        format!("{directory}/measure.test.mjs"),
+        format!("{directory}/hero.mjs/hero.mjs"),
+        format!("{directory}/"),
+        "/assets/js.0000000000000000/hero.mjs".to_owned(),
+        "/assets/hero.mjs".to_owned(),
+        "/assets/".to_owned(),
+    ] {
+        assert_eq!(
+            browser.get(&app, &missing).await.status,
+            StatusCode::NOT_FOUND,
+            "{missing}"
+        );
+    }
     let home = browser.get(&app, "/").await.body;
     assert!(home.contains(&paths.css) && home.contains(&paths.hero));
     let robots = browser.get(&app, "/robots.txt").await;

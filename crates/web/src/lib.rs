@@ -1,11 +1,13 @@
 //! The HTTP front end of the Mooring portal.
 //!
-//! Server-rendered pages without JavaScript: the public pages (home,
-//! download, how it works, help), registration, login and logout, and the
-//! signed-in account and subscription pages, from which a user downloads
-//! their CFM profile or makes the subscription link CFM fetches it from.
-//! Every state-changing request is a form protected against CSRF; every
-//! response carries security headers; no asset comes from another host.
+//! Server-rendered pages that work without JavaScript: the public pages
+//! (home, download, how it works, help), registration, login and logout,
+//! and the signed-in account and subscription pages, from which a user
+//! downloads their CFM profile or makes the subscription link CFM fetches
+//! it from. Every state-changing request is a form protected against CSRF;
+//! every response carries security headers; no asset comes from another
+//! host. The one script is an ornament, the home page's live scene, and
+//! only that page may run it.
 
 mod assets;
 mod brand;
@@ -32,13 +34,13 @@ use tokio::net::TcpListener;
 pub use config::{ClientIpSource, OriginError, PublicOrigin, SESSION_TTL_SECS, WebConfig};
 pub use state::{AppState, StartupError};
 
-use pages::{account, auth, cfm, lang, public, subscription};
+use pages::{Page, account, auth, cfm, lang, public, subscription};
 use security::{csrf, headers};
 
 /// The portal's routes.
 pub fn router(state: AppState) -> Router {
     let pages = Router::new()
-        .route("/", get(public::home))
+        .route(Page::Home.path(), get(public::home))
         .route("/download", get(public::download))
         .route("/plans", get(public::plans))
         .route("/help", get(public::help))
@@ -57,7 +59,7 @@ pub fn router(state: AppState) -> Router {
         .route("/lang", post(lang::switch))
         .layer(middleware::from_fn(csrf::ensure_token));
     let files = Router::new()
-        .route("/assets/{file}", get(assets::serve))
+        .route("/assets/{*file}", get(assets::serve))
         .route("/robots.txt", get(assets::robots));
     // What CFM fetches carries no cookie and gets none back. Every address
     // under /sub/ is answered there, in plain text when it fails, so that
@@ -67,7 +69,10 @@ pub fn router(state: AppState) -> Router {
         .merge(files)
         .merge(links)
         .fallback(public::not_found)
-        .layer(middleware::from_fn(headers::add))
+        // Only the home page may run this site's scripts.
+        .layer(middleware::from_fn(|request, next| {
+            headers::add(Page::Home.path(), request, next)
+        }))
         .with_state(state)
 }
 

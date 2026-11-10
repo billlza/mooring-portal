@@ -29,6 +29,7 @@ pub(super) const STRINGS: Strings = Strings {
         points: ["少数受信任用户共享", "英国移动网络出口", "国内网站直连"],
         download: "立即下载",
         learn_more: "了解服务",
+        pause_motion: "暂停动画",
         intro_title: "这是一项什么样的服务",
         intro_body: "运营者用自己在英国的移动线路，为少数信任的朋友提供一条上网通道：流量经伦敦中转，\
                      最后从英国的移动网络出去。它不对外销售；用的人少，线路就不挤。",

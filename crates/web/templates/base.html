@@ -9,6 +9,7 @@
 <title>{% block title %}{% endblock %} · {{ chrome.brand.name }}</title>
 <link rel="stylesheet" href="{{ chrome.css }}">
 <link rel="icon" href="{{ chrome.mark }}" type="image/svg+xml">
+{% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}inner{% endblock %}">
 <a class="skip" href="#main">{{ chrome.t.common.skip }}</a>

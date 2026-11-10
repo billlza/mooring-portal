@@ -1,7 +1,7 @@
 //! The account page and changing the password.
 
 use askama::Template;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::http::header::SET_COOKIE;
 use axum::response::Response;
@@ -10,7 +10,7 @@ use portal_core::auth::Verification;
 use serde::Deserialize;
 
 use super::auth::password_problem;
-use super::{Chrome, Page, PageContext, login_first, render, render_status, see_other};
+use super::{Chrome, Page, PageContext, PageQuery, login_first, render, render_status, see_other};
 use crate::error::AppError;
 use crate::format::{beijing, beijing_date};
 use crate::i18n::fill;
@@ -62,7 +62,7 @@ pub(crate) struct PasswordForm {
 pub(crate) async fn account(
     State(state): State<AppState>,
     ctx: PageContext,
-    Query(query): Query<AccountQuery>,
+    PageQuery(query): PageQuery<AccountQuery>,
 ) -> Result<Response, AppError> {
     let Some(account) = ctx.account.clone() else {
         return Ok(login_first(Page::Account));

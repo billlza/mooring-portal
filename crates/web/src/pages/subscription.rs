@@ -1,12 +1,12 @@
 //! The subscription page.
 
 use askama::Template;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::response::Response;
 use portal_store::{StoreError, Subscription};
 use serde::Deserialize;
 
-use super::{Chrome, Page, PageContext, login_first, render};
+use super::{Chrome, Page, PageContext, PageQuery, login_first, render};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::view::{CfmPanel, SubscriptionView};
@@ -40,7 +40,7 @@ pub(crate) struct SubscriptionQuery {
 pub(crate) async fn subscription(
     State(state): State<AppState>,
     ctx: PageContext,
-    Query(query): Query<SubscriptionQuery>,
+    PageQuery(query): PageQuery<SubscriptionQuery>,
 ) -> Result<Response, AppError> {
     let Some(account) = &ctx.account else {
         return Ok(login_first(Page::Subscription));

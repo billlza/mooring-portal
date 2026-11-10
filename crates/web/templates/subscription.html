@@ -22,7 +22,7 @@
 {% when SubscriptionView::Ready with (details) %}
   {% for alert in details.alerts %}<p class="alert" role="status">{{ alert }}</p>{% endfor %}
   <div class="facts-grid">
-    <section class="panel fact">
+    <section class="panel fact fact-status">
       <p class="label">{{ chrome.t.subscription.status }}</p>
       <p class="value {{ details.status.tone.class() }}">{{ details.status.value }}</p>
       {% if let Some(note) = details.status.note %}<p class="small muted">{{ note }}</p>{% endif %}

@@ -33,6 +33,7 @@ pub(super) const STRINGS: Strings = Strings {
         ],
         download: "Download",
         learn_more: "How it works",
+        pause_motion: "Pause animation",
         intro_title: "What this service is",
         intro_body: "The operator shares their own UK mobile line with a few friends they trust: \
                      traffic is relayed through London and leaves through a UK mobile network. \
