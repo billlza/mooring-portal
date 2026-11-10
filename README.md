@@ -67,7 +67,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-it
 
 覆盖率要求 95% 以上（区域、函数、行三项）。编译输出只写仓库内的 `target/`，用完执行 `cargo clean`。
 
-首页场景的脚本另有两条检查，要用 Node 22 或更新的版本（只在开发时用，构建和运行门户都不需要它）。第一条跑脚本的测试，并要求行覆盖率 95% 以上；测试用一个假的页面和假的显卡驱动脚本，不需要浏览器。第二条检查入口文件能被解析，它只有一行调用，测试不导入它：
+首页场景的脚本另有两条检查，要用 Node 22.8 或更新的版本（只在开发时用，构建和运行门户都不需要它）。第一条跑脚本的测试，并要求行覆盖率 95% 以上；测试用一个假的页面和假的显卡驱动脚本，不需要浏览器。第二条检查入口文件能被解析，它只有一行调用，测试不导入它：
 
 ```bash
 node --test --experimental-test-coverage --test-coverage-lines=95 "crates/web/assets/js/test/*.test.mjs"

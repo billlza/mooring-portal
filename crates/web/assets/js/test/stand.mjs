@@ -41,14 +41,67 @@ const CONSTANTS = new Set([
   "UNPACK_PREMULTIPLY_ALPHA_WEBGL", "UNSIGNED_BYTE", "VERTEX_SHADER",
 ]);
 
+/** The error WebGL keeps for a call that its state does not allow. */
+const INVALID_OPERATION = 0x502;
+
+function needsProgram(own) {
+  if (own.program === null) {
+    own.refuse();
+  }
+}
+
+/**
+ * The state that decides whether a call is allowed, kept as WebGL keeps
+ * it: the program in use, the texture bound on each unit, and which
+ * textures hold an image. A call made out of order is refused the way a
+ * graphics card refuses it: nothing happens, and an error waits to be
+ * asked for.
+ */
+const STATE = {
+  useProgram(own, program) {
+    own.program = program;
+  },
+  activeTexture(own, unit) {
+    own.unit = unit;
+  },
+  bindTexture(own, _target, texture) {
+    own.bound.set(own.unit, texture);
+  },
+  texImage2D(own) {
+    own.filled.add(own.bound.get(own.unit));
+  },
+  generateMipmap(own) {
+    if (!own.filled.has(own.bound.get(own.unit))) {
+      own.refuse();
+    }
+  },
+  uniform1f: needsProgram,
+  uniform1i: needsProgram,
+  uniform2f: needsProgram,
+  drawArrays: needsProgram,
+};
+
 /** A WebGL context that records what it is asked and refuses on request. */
 function graphics(settings) {
   const own = {
     calls: [],
     lost: false,
     error: 0,
+    program: null,
+    unit: "TEXTURE0",
+    bound: new Map(),
+    filled: new Set(),
+    refuse() {
+      own.error ||= INVALID_OPERATION;
+    },
     isContextLost: () => own.lost,
-    getError: () => own.error,
+    // As WebGL answers: the error kept, which is then forgotten.
+    getError() {
+      own.calls.push(["getError"]);
+      const kept = own.error;
+      own.error = 0;
+      return kept;
+    },
     getParameter: (name) => (name === "MAX_TEXTURE_SIZE" ? settings.largest : null),
     getShaderParameter: () => settings.compiles,
     getProgramParameter: () => settings.links,
@@ -69,6 +122,7 @@ function graphics(settings) {
       }
       return (...given) => {
         target.calls.push([name, ...given]);
+        STATE[name]?.(target, ...given);
         settings.during?.[name]?.(target);
         return {};
       };
@@ -132,6 +186,7 @@ export function stand(options = {}) {
   const art = {};
   const parts = { ".hero-art": art, "canvas.hero-scene": canvas, ".hero-pause": pause };
   const hero = {
+    dataset: {},
     classList: {
       toggle(name, on) {
         if (on) {
@@ -162,10 +217,16 @@ export function stand(options = {}) {
       return sheet;
     },
   });
-  class Image {
-    decode() {
-      loaded.push(this.src);
-      return settings.arrive();
+  // A picture that loads when `arrive` settles well, and fails otherwise.
+  class Image extends Target {
+    set src(url) {
+      loaded.push(url);
+      this.from = url;
+      settings.arrive().then(() => this.emit("load"), () => this.emit("error"));
+    }
+
+    get src() {
+      return this.from;
     }
   }
   class IntersectionObserver {
@@ -217,6 +278,10 @@ export function stand(options = {}) {
     win, gl, canvas, pause, media, document, observers, loaded, sheets, scratch,
     get live() {
       return classes.has("is-live");
+    },
+    /** What the hero says of its scene. */
+    get why() {
+      return hero.dataset.scene;
     },
     /** How many frames the page is waiting for. */
     get waiting() {

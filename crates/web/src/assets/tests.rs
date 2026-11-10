@@ -6,10 +6,11 @@ use std::collections::BTreeSet;
 use super::*;
 
 /// What a script of this site has no business with: connections, turning
-/// text into code or markup, other windows, and anything kept in the
-/// browser. The home page's policy already refuses a script any
-/// connection; this keeps the source honest about it.
-const FORBIDDEN: [&str; 23] = [
+/// text into code or markup, other windows, anything kept in the browser,
+/// and addresses on other hosts, however they are written. The home
+/// page's policy already refuses a script any connection; this keeps the
+/// source honest about it.
+const FORBIDDEN: [&str; 26] = [
     "fetch(",
     "XMLHttpRequest",
     "WebSocket",
@@ -32,18 +33,28 @@ const FORBIDDEN: [&str; 23] = [
     ".open(",
     "http://",
     "https://",
+    "\"//",
+    "'//",
+    "`//",
     "sourceMappingURL",
 ];
 
 /// What `source` holds that a script here may not: forbidden words, and
-/// imports written any other way than one whole statement to a line.
+/// another file brought in by anything but an `import` that is one whole
+/// statement to a line. `export … from` brings one in as well, so `from`
+/// before a quotation mark counts wherever it stands.
 fn offences(source: &str) -> Vec<&str> {
     let mut found: Vec<&str> = FORBIDDEN
         .into_iter()
         .filter(|word| source.contains(word))
         .collect();
     found.extend(source.lines().filter(|line| {
-        line.contains("import") && !(line.starts_with("import ") && line.ends_with("\";"))
+        let close: String = line.split_whitespace().collect();
+        let brings_in = line.contains("import")
+            || ["from\"", "from'", "from`"]
+                .iter()
+                .any(|from| close.contains(from));
+        brings_in && !(line.starts_with("import ") && line.ends_with("\";"))
     }));
     found
 }
@@ -60,28 +71,35 @@ fn imports(source: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Every colour `shader` names, as the image writes it: `#rrggbb`.
-fn colours(shader: &str) -> BTreeSet<String> {
-    shader
-        .match_indices("rgb(")
-        .filter_map(|(at, _)| {
-            let inside = &shader[at + 4..];
-            let parts: Vec<f64> = inside[..inside.find(')')?]
-                .split(", ")
-                .map(str::parse)
-                .collect::<Result<_, _>>()
-                .ok()?;
-            let [r, g, b] = parts[..] else {
-                panic!("a colour is three numbers: {inside:.30}");
-            };
-            assert!(
-                [r, g, b]
-                    .iter()
-                    .all(|part| part.fract() == 0.0 && (0.0..=255.0).contains(part))
-            );
-            Some(format!("#{:02x}{:02x}{:02x}", r as u8, g as u8, b as u8))
-        })
-        .collect()
+/// Every colour `shader` names, as the image writes it: `#rrggbb`. A
+/// colour is `rgb(r, g, b)` with three whole numbers from 0 to 255.
+/// Whatever else stands between `rgb(` and `)` is an error, the function's
+/// own definition apart, so that no colour goes unread.
+fn colours(shader: &str) -> Result<BTreeSet<String>, String> {
+    let mut found = BTreeSet::new();
+    for (at, _) in shader.match_indices("rgb(") {
+        let inside = &shader[at + 4..];
+        let inside = &inside[..inside.find(')').ok_or("a colour is not closed")?];
+        if inside == "float r, float g, float b" {
+            continue;
+        }
+        let parts: Vec<f64> = inside
+            .split(", ")
+            .map(|part| {
+                part.parse()
+                    .map_err(|_| format!("rgb({inside}) names no colour"))
+            })
+            .collect::<Result<_, _>>()?;
+        let [r, g, b] = parts[..] else {
+            return Err(format!("rgb({inside}) is not three numbers"));
+        };
+        let whole = |part: f64| part.fract() == 0.0 && (0.0..=255.0).contains(&part);
+        if !(whole(r) && whole(g) && whole(b)) {
+            return Err(format!("rgb({inside}) is not whole numbers up to 255"));
+        }
+        found.insert(format!("#{:02x}{:02x}{:02x}", r as u8, g as u8, b as u8));
+    }
+    Ok(found)
 }
 
 #[test]
@@ -230,7 +248,10 @@ fn the_scripts_reach_for_nothing_beyond_the_page_they_draw_on() {
     for hidden in [
         "const a = await import\n(\"./a.mjs\");",
         "import { a }\n  from \"./a.mjs\";",
-        "export { a } from \"./a.mjs\"; // an import by another name",
+        "export { a } from \"./a.mjs\";",
+        "export * from './a.mjs';",
+        "export {\n  a,\n}from`./a.mjs`;",
+        "const picture = \"//elsewhere.example/x.svg\";",
     ] {
         assert!(!offences(hidden).is_empty(), "{hidden}");
     }
@@ -241,7 +262,7 @@ fn the_scripts_reach_for_nothing_beyond_the_page_they_draw_on() {
 fn the_shader_paints_in_the_images_colours_and_with_whole_integers() {
     let shader = module("shader.mjs");
     let image = hero::draw().image;
-    let named = colours(shader);
+    let named = colours(shader).unwrap();
     assert!(named.len() >= 10, "{named:?}");
     for colour in &named {
         assert!(
@@ -250,15 +271,80 @@ fn the_shader_paints_in_the_images_colours_and_with_whole_integers() {
         );
     }
     assert_eq!(
-        colours("mix(rgb(1.0, 3.0, 11.0), rgb(255.0, 196.0, 107.0), t); vec3 rgb(float r) {}"),
-        BTreeSet::from(["#01030b".to_owned(), "#ffc46b".to_owned()])
+        colours(
+            "mix(rgb(1.0, 3.0, 11.0), rgb(255.0, 196.0, 107.0), t); \
+             vec3 rgb(float r, float g, float b) {}"
+        ),
+        Ok(BTreeSet::from(["#01030b".to_owned(), "#ffc46b".to_owned()]))
     );
+    // A colour the check cannot read is a failure, not a colour let pass.
+    for unread in [
+        "rgb(13.0,36.0,255.0)",
+        "rgb(c.r, c.g, c.b)",
+        "rgb(1.0, 2.0)",
+        "rgb(1.0, 2.0, 3.0, 4.0)",
+        "rgb(1.5, 2.0, 3.0)",
+        "rgb(1.0, 2.0, 256.0)",
+        "rgb(-1.0, 2.0, 3.0)",
+        "rgb(1.0, 2.0, 3.0",
+        "vec3 rgb(float r) {}",
+    ] {
+        assert!(colours(unread).is_err(), "{unread}");
+    }
     // Its hash needs 32-bit integers, which a fragment shader must ask for,
     // and it takes no power of a number that may be negative.
     assert!(
         shader.contains("precision highp float;\n") && shader.contains("precision highp int;\n")
     );
     assert!(!shader.contains("pow("));
+}
+
+#[test]
+fn the_shader_repeats_the_images_shapes() {
+    // Where the Milky Way lies, how the lantern glows and how large a star
+    // is are written twice: in the drawing, and in the shader that paints
+    // the same sky in motion. Each pair is the two writings of one thing;
+    // change one, and this fails until the other follows.
+    let shader = module("shader.mjs");
+    let image = hero::draw().image;
+    for (drawn, painted) in [
+        (
+            "<ellipse cx=\"820\" cy=\"300\" rx=\"900\" ry=\"130\" fill=\"url(#milky)\" \
+             transform=\"rotate(-16 820 300)\"/>",
+            "turned(slid - vec2(820.0, 300.0), radians(16.0)) / vec2(900.0, 130.0)",
+        ),
+        (
+            "r=\"36\" fill=\"url(#lantern)\"/>",
+            "float r = d / (36.0 * (1.0 + 0.04 * waver));",
+        ),
+        (
+            "r=\"2.4\" fill=\"#fff1c8\"/>",
+            "smoothstep(2.4 - u_unit, 2.4 + u_unit, d)",
+        ),
+        (
+            "<stop offset=\"0\" stop-color=\"#ffd27a\" stop-opacity=\"0.9\"/>\
+             <stop offset=\"0.35\" stop-color=\"#ffb347\" stop-opacity=\"0.32\"/>\
+             <stop offset=\"1\" stop-color=\"#ffb347\" stop-opacity=\"0\"/>",
+            "float alpha = r < 0.35 ? mix(0.9, 0.32, r / 0.35) : mix(0.32, 0.0, (r - 0.35) / 0.65);",
+        ),
+    ] {
+        assert!(image.contains(drawn), "the image no longer draws {drawn}");
+        assert!(
+            shader.contains(painted),
+            "the shader no longer paints {painted}"
+        );
+    }
+    // A star's size and tint are a rule in the drawing's code, not a
+    // figure in what it draws.
+    let drawing = include_str!("hero.rs");
+    for rule in [
+        "radius = 0.35 + 1.3 * size * size * size;",
+        "tint < 0.12",
+        "tint < 0.2",
+    ] {
+        assert!(drawing.contains(rule), "the drawing: {rule}");
+        assert!(shader.contains(rule), "the shader: {rule}");
+    }
 }
 
 #[test]

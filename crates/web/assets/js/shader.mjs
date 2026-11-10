@@ -2,9 +2,13 @@
 // in motion: the sky turns about the pole, stars twinkle, the lantern
 // flickers, and the harbour mirrors all of it in moving water. The land and
 // the ring of star trails are the drawn image's own layers, so the scene
-// and the image it is painted over cannot drift apart. The sky, the water
-// and the lantern's light are painted here, in the image's own colours:
-// every colour named below is one the image uses (`assets.rs` checks).
+// and the image it is painted over cannot drift apart there. The sky, the
+// water and the lantern's light are painted here, in the image's own
+// colours: every colour given to `rgb` below is one the image uses
+// (`assets.rs` checks). Where the Milky Way lies, how large a star is and
+// how the lantern glows are written here a second time, after
+// `assets/hero.rs`; a test there fails when one of the two is changed
+// without the other.
 //
 // Positions are in the picture's own units, y downwards, as in the SVG.
 
@@ -68,6 +72,13 @@ float noise(vec2 p) {
   return mix(mix(a, b, ease.x), mix(c, d, ease.x), ease.y);
 }
 
+// The sine of an angle that grows with the time. The angle is brought
+// within one turn first: a graphics card may lose its sine's accuracy far
+// from zero, and the scene may run for hours.
+float wave(float angle) {
+  return sin(TAU * fract(angle / TAU));
+}
+
 // A vector turned by an angle, clockwise on the screen as SVG turns.
 vec2 turned(vec2 v, float angle) {
   float c = cos(angle);
@@ -104,7 +115,7 @@ vec3 stars(vec3 c, vec2 s) {
   vec3 light = tint < 0.12 ? rgb(207.0, 224.0, 255.0)
     : tint < 0.2 ? rgb(255.0, 231.0, 194.0)
     : vec3(1.0);
-  float twinkle = 0.68 + 0.32 * sin(u_time * mix(0.5, 2.3, hash(cell, 6u)) + TAU * hash(cell, 7u));
+  float twinkle = 0.68 + 0.32 * wave(u_time * mix(0.5, 2.3, hash(cell, 6u)) + TAU * hash(cell, 7u));
   // A star smaller than a pixel is drawn a pixel wide and dimmer, so that
   // it neither vanishes nor flashes as the sky carries it across pixels.
   float drawn = max(radius, 0.6 * u_unit);
@@ -155,7 +166,7 @@ vec3 shooting(vec3 c, vec2 p) {
 
 // The lantern: a warm glow that is never quite still.
 vec3 lantern(vec3 c, vec2 p) {
-  float waver = 0.5 * sin(u_time * 6.1) + 0.3 * sin(u_time * 9.7 + 1.7) + 0.2 * sin(u_time * 17.3 + 0.4);
+  float waver = 0.5 * wave(u_time * 6.1) + 0.3 * wave(u_time * 9.7 + 1.7) + 0.2 * wave(u_time * 17.3 + 0.4);
   float d = length(p - u_lantern);
   float r = d / (36.0 * (1.0 + 0.04 * waver));
   if (r < 1.0) {
@@ -204,10 +215,10 @@ vec3 water(vec2 p) {
   float calm = smoothstep(0.0, 0.06, depth);
   // Each row of water slides what it mirrors to one side, and no two rows
   // agree.
-  float sway = 0.6 * sin(row * 4.3 + t * 1.05 + across * 0.12)
-    + 0.3 * sin(row * 9.7 - t * 1.6 + across * 0.35)
+  float sway = 0.6 * wave(row * 4.3 + t * 1.05 + across * 0.12)
+    + 0.3 * wave(row * 9.7 - t * 1.6 + across * 0.35)
     + 0.4 * (noise(vec2(across * 0.16 + t * 0.05, row * 1.4 - t * 0.2)) - 0.5);
-  float lift = sin(row * 6.1 + t * 0.8 + across * 0.5);
+  float lift = wave(row * 6.1 + t * 0.8 + across * 0.5);
   vec2 mirrored = vec2(
     p.x + sway * ripple * 0.42 * calm,
     min(2.0 * u_shore - p.y + lift * ripple * 0.16 * calm, u_shore - 0.5));

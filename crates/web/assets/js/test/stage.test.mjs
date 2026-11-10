@@ -12,6 +12,7 @@ test("a visitor who asked for less motion gets the drawn image and no downloads"
   const page = stand({ reduced: true });
   await enliven(page.win);
   assert.equal(page.live, false);
+  assert.equal(page.why, "reduced-motion");
   assert.equal(page.pause.hidden, true);
   assert.deepEqual(page.canvas.asked, []);
   assert.deepEqual(page.loaded, []);
@@ -22,6 +23,7 @@ test("a visitor who asked for less motion gets the drawn image and no downloads"
   await settle();
   page.tick();
   assert.equal(page.live, true);
+  assert.equal(page.why, "live");
 });
 
 test("a browser without WebGL 2 keeps the drawn image and downloads no layer", async () => {
@@ -36,6 +38,7 @@ test("a browser without WebGL 2 keeps the drawn image and downloads no layer", a
   }]]);
   assert.deepEqual(page.loaded, []);
   assert.equal(page.waiting, 0);
+  assert.equal(page.why, "no-webgl2");
   // It is not asked again.
   page.media.emit("change");
   page.canvas.emit("webglcontextrestored");
@@ -48,8 +51,10 @@ test("the scene goes live with its first frame, fitted to the picture", async ()
   const page = stand();
   await enliven(page.win);
   assert.deepEqual(page.loaded.toSorted(), ["/assets/land.svg", "/assets/ring.svg"]);
-  // Made and fitted, but not shown before a frame is painted.
+  // Made and fitted, but not shown before a frame is painted; until then
+  // the hero says nothing of its scene.
   assert.equal(page.live, false);
+  assert.equal(page.why, undefined);
   assert.equal(page.pause.hidden, true);
   assert.deepEqual([page.canvas.width, page.canvas.height], [1000, 600]);
   // The picture covers the box as the drawn image does: 0.625 pixels to
@@ -70,10 +75,14 @@ test("the scene goes live with its first frame, fitted to the picture", async ()
   assert.deepEqual(page.uploads(), ["TEXTURE0", "TEXTURE1"]);
   assert.deepEqual([page.told("u_land"), page.told("u_ring")], [[0], [1]]);
   assert.equal(page.called("generateMipmap").length, 2);
-  assert.equal(
-    page.called("texParameteri").filter(([, , , value]) => value === "LINEAR_MIPMAP_LINEAR").length,
-    2,
-  );
+  // Neither layer repeats past its edge, and both are smoothed.
+  const kept = [
+    ["texParameteri", "TEXTURE_2D", "TEXTURE_MIN_FILTER", "LINEAR_MIPMAP_LINEAR"],
+    ["texParameteri", "TEXTURE_2D", "TEXTURE_MAG_FILTER", "LINEAR"],
+    ["texParameteri", "TEXTURE_2D", "TEXTURE_WRAP_S", "CLAMP_TO_EDGE"],
+    ["texParameteri", "TEXTURE_2D", "TEXTURE_WRAP_T", "CLAMP_TO_EDGE"],
+  ];
+  assert.deepEqual(page.called("texParameteri"), [...kept, ...kept]);
   assert.deepEqual(page.called("pixelStorei"), [
     ["pixelStorei", "UNPACK_PREMULTIPLY_ALPHA_WEBGL", true],
   ]);
@@ -87,6 +96,9 @@ test("the scene goes live with its first frame, fitted to the picture", async ()
   assert.deepEqual(page.called("drawArrays"), [["drawArrays", "TRIANGLES", 0, 3]]);
   page.tick();
   assert.equal(page.called("drawArrays").length, 2);
+  // The graphics card is asked what it refused once the layers are
+  // painted, and not again with every frame: the answer is waited for.
+  assert.equal(page.called("getError").length, 1);
 });
 
 test("frames closer together than a screen's are skipped, and time stops while away", async () => {
@@ -141,12 +153,15 @@ test("less motion, asked for while the scene runs, shows the drawn image", async
   page.media.matches = true;
   page.media.emit("change");
   assert.equal(page.live, false);
+  assert.equal(page.why, "reduced-motion");
   assert.equal(page.pause.hidden, true);
   assert.equal(page.waiting, 0);
-  // A change of box then is left for later.
+  // A change of box then is left for later: no frame is asked for.
   page.canvas.clientWidth = 800;
   page.observers.resized();
+  assert.equal(page.waiting, 0);
   assert.equal(page.canvas.width, 1000);
+  assert.equal(page.live, false);
   page.media.matches = false;
   page.media.emit("change");
   page.tick();
@@ -172,22 +187,79 @@ test("a new box is fitted just before the next frame, never between frames", asy
   assert.equal(page.sheets.length, 2);
   page.tick(200);
   assert.deepEqual(page.sheets.slice(2).map((sheet) => sheet.width), [800, 380]);
+  // And the graphics card is asked again what it made of them.
+  assert.equal(page.called("getError").length, 2);
 });
 
-test("a paused scene is fitted and repainted at once when its box changes", async () => {
+test("a paused scene follows its box, and asks for no frame once it fits", async () => {
   const page = await running();
   page.pause.emit("click");
+  const stopped = page.told("u_time");
+  const slid = page.told("u_drift");
+  page.win.emit("pointermove", { pointerType: "mouse", clientX: 1000, clientY: 0 });
   page.canvas.clientWidth = 500;
   page.canvas.clientHeight = 300;
   page.observers.resized();
+  // As when it runs, it is fitted by the frame that paints it.
+  assert.equal(page.canvas.width, 1000);
+  assert.equal(page.waiting, 1);
+  page.tick();
   assert.deepEqual([page.canvas.width, page.canvas.height], [500, 300]);
   assert.equal(page.called("drawArrays").length, 2);
+  // The layers wait for the box to hold still, however often it changes.
+  page.tick(200);
+  assert.equal(page.sheets.length, 2);
+  assert.equal(page.waiting, 1);
+  page.tick(200);
+  assert.deepEqual(page.sheets.slice(2).map((sheet) => sheet.width), [640, 256]);
+  assert.equal(page.called("drawArrays").length, 4);
   assert.equal(page.waiting, 0);
+  // Nothing in the picture has moved: not the sky, and not after the mouse.
+  assert.deepEqual(page.told("u_time"), stopped);
+  assert.deepEqual(page.told("u_drift"), slid);
   // A box that is gone is left alone.
   page.canvas.clientWidth = 0;
   page.observers.resized();
+  page.tick();
   assert.equal(page.canvas.width, 500);
-  assert.equal(page.called("drawArrays").length, 2);
+  assert.equal(page.waiting, 0);
+});
+
+test("a paused scene that had to leave the page comes back paused, with its button", async () => {
+  // The graphics card went away and came back.
+  const lost = await running();
+  lost.pause.emit("click");
+  const stopped = lost.told("u_time");
+  lost.gl.lost = true;
+  lost.canvas.emit("webglcontextlost", { preventDefault() {} });
+  assert.equal(lost.pause.hidden, true);
+  lost.gl.lost = false;
+  lost.canvas.emit("webglcontextrestored");
+  lost.tick();
+  assert.equal(lost.live, true);
+  assert.equal(lost.pause.hidden, false);
+  assert.equal(lost.pause.pressed, "true");
+  assert.deepEqual(lost.told("u_time"), stopped);
+  assert.equal(lost.waiting, 0);
+  // The visitor asked for less motion, and then for it back.
+  const calmed = await running();
+  calmed.pause.emit("click");
+  calmed.media.matches = true;
+  calmed.media.emit("change");
+  assert.equal(calmed.live, false);
+  calmed.media.matches = false;
+  calmed.media.emit("change");
+  calmed.tick();
+  assert.equal(calmed.live, true);
+  assert.equal(calmed.pause.hidden, false);
+  assert.equal(calmed.pause.pressed, "true");
+  assert.equal(calmed.waiting, 0);
+  // Its button still starts it again.
+  calmed.pause.emit("click");
+  calmed.tick();
+  calmed.tick();
+  assert.equal(calmed.pause.pressed, "false");
+  assert.equal(calmed.waiting, 1);
 });
 
 test("a canvas with no box yet is painted only once it has one", async () => {

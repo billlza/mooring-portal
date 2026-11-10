@@ -107,10 +107,14 @@ async fn assets_are_served_by_content_name_and_cached() {
     }
     let stable = browser.get(&app, "/assets/site.css").await;
     assert_eq!(stable.headers[CACHE_CONTROL], "public, max-age=300");
-    assert_eq!(
-        browser.get(&app, "/assets/site.0000.css").await.status,
-        StatusCode::NOT_FOUND
-    );
+    let missing = browser.get(&app, "/assets/site.0000.css").await;
+    assert_eq!(missing.status, StatusCode::NOT_FOUND);
+    // A path that is not even text is answered the same way, by this
+    // site's own page.
+    let unreadable = browser.get(&app, "/assets/%ff").await;
+    assert_eq!(unreadable.status, StatusCode::NOT_FOUND);
+    assert_eq!(unreadable.body, missing.body);
+    assert!(unreadable.body.contains("<html lang=\"zh-CN\">"));
     // The script's modules import each other from its own directory, and
     // from no other.
     let (directory, entry) = paths.script.rsplit_once('/').unwrap();

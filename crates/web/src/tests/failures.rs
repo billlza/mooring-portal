@@ -2,8 +2,9 @@
 //! state or a guess.
 
 use axum::http::StatusCode;
+use axum::http::header::CONTENT_SECURITY_POLICY;
 
-use super::support::{Browser, ORIGIN_URL, PASSWORD, TestApp};
+use super::support::{Browser, ORIGIN_URL, PASSWORD, STRICT_POLICY, TestApp};
 
 /// Breaks the database of `file` behind the portal's back.
 fn break_database(path: &std::path::Path) {
@@ -25,6 +26,11 @@ async fn signed_in_pages_report_a_broken_database() {
         assert_eq!(reply.status, StatusCode::INTERNAL_SERVER_ERROR, "{path}");
         assert!(reply.body.contains("服务器出错了"), "{path}");
         assert!(!reply.body.contains("暂无订阅"), "{path}");
+        // An error page runs no script, at the home page's address too.
+        assert_eq!(
+            reply.headers[CONTENT_SECURITY_POLICY], STRICT_POLICY,
+            "{path}"
+        );
     }
 }
 

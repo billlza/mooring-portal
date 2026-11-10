@@ -4,15 +4,12 @@ use axum::body::Body;
 use axum::http::StatusCode;
 use axum::http::header::{CACHE_CONTROL, CONTENT_SECURITY_POLICY, CONTENT_TYPE, SET_COOKIE};
 
-use super::support::{Browser, TestApp};
+use super::support::{Browser, STRICT_POLICY, TestApp};
 use crate::assets::{GEOMETRY, module};
 use crate::brand::brand;
 use crate::i18n::Lang;
 
 const PAGES: [&str; 6] = ["/", "/download", "/plans", "/help", "/login", "/register"];
-/// The policy of every response but the home page's.
-const STRICT_POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; \
-                             form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
 /// Attributes such as `onclick=`, which no policy here lets run. Only
 /// tags are read: the pages escape `<` in text.
@@ -131,7 +128,16 @@ async fn only_the_home_page_may_run_this_sites_scripts() {
             "{path}"
         );
     }
+    // A browser asking only for the page's headers is told the same.
+    let request = browser.request("HEAD", "/").body(Body::empty()).unwrap();
+    let headers_only = app.send(request).await;
+    assert_eq!(headers_only.status, StatusCode::OK);
+    assert_eq!(
+        headers_only.headers[CONTENT_SECURITY_POLICY],
+        format!("{STRICT_POLICY}; script-src 'self'; worker-src 'none'")
+    );
     // Only the page itself: another method at its address gets no script.
+    // (The page that fails is in `failures`.)
     let request = browser.request("POST", "/").body(Body::empty()).unwrap();
     let refused = app.send(request).await;
     assert_eq!(refused.status, StatusCode::METHOD_NOT_ALLOWED);
@@ -180,7 +186,13 @@ async fn the_home_page_shows_nothing_a_request_chose() {
     let mut browser = Browser::new([203, 0, 113, 1]);
     let plain = browser.get(&app, "/").await.body;
     let token = browser.cookies["__Host-csrf"].clone();
-    // The same browser, now sending what a hostile link or page could.
+    // The same browser, now sending what a hostile link or page could:
+    // a cookie of this site's with a value it never set, and a stray one.
+    for name in ["__Host-lang", "zq9marker"] {
+        browser
+            .cookies
+            .insert(name.to_owned(), "zq9<script>marker()</script>".to_owned());
+    }
     let marker = "zq9\"><script>marker()</script>";
     let request = browser
         .request("GET", "/?next=%22%3E%3Cscript%3Ezq9marker&zq9marker=1")

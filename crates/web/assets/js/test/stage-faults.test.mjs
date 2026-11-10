@@ -24,6 +24,7 @@ test("the watchdog lowers a slow scene, then gives it up for the drawn image", a
   // Each lowering drew the layers afresh, smaller, once it had settled.
   assert.deepEqual(page.sheets.map((sheet) => sheet.width), [1000, 475, 750, 357, 640, 256]);
   assert.equal(page.live, false);
+  assert.equal(page.why, "too-slow");
   assert.equal(page.pause.hidden, true);
   assert.equal(page.waiting, 0);
   assert.equal(page.called("deleteProgram").length, 1);
@@ -35,6 +36,18 @@ test("the watchdog lowers a slow scene, then gives it up for the drawn image", a
   await settle();
   assert.equal(page.waiting, 0);
   assert.equal(page.called("createProgram").length, 1);
+});
+
+test("a paused scene is not judged for speed, however slowly its frames come", async () => {
+  const page = await running();
+  page.pause.emit("click");
+  for (let step = 0; step < 2 * (WARM_UP + WINDOW); step += 1) {
+    page.canvas.clientWidth = 900 + (step % 2);
+    page.observers.resized();
+    page.tick(60);
+  }
+  assert.equal(page.canvas.width, page.canvas.clientWidth);
+  assert.equal(page.live, true);
 });
 
 test("a lost context shows the drawn image until it is restored", async () => {
@@ -49,6 +62,7 @@ test("a lost context shows the drawn image until it is restored", async () => {
   page.canvas.emit("webglcontextlost", event);
   assert.equal(event.prevented, true);
   assert.equal(page.live, false);
+  assert.equal(page.why, "context-lost");
   assert.equal(page.waiting, 0);
   page.gl.lost = false;
   page.canvas.emit("webglcontextrestored");
@@ -103,6 +117,7 @@ test("a browser that will not hand a drawn SVG to WebGL keeps the drawn image", 
   });
   await enliven(page.win);
   assert.equal(page.live, false);
+  assert.equal(page.why, "layers-barred");
   assert.equal(page.waiting, 0);
   assert.equal(page.called("deleteProgram").length, 1, "what was made is given back");
   page.canvas.emit("webglcontextrestored");
@@ -110,14 +125,25 @@ test("a browser that will not hand a drawn SVG to WebGL keeps the drawn image", 
 });
 
 test("a layer that does not arrive leaves the drawn image", async () => {
-  const page = stand({ arrive: () => Promise.reject(new DOMException("no picture", "EncodingError")) });
-  await enliven(page.win);
-  assert.equal(page.live, false);
-  assert.equal(page.called("createProgram").length, 0);
-  page.media.emit("change");
-  page.canvas.emit("webglcontextrestored");
-  await settle();
-  assert.equal(page.called("createProgram").length, 0);
+  // Either layer, whichever comes first.
+  for (const missing of [0, 1]) {
+    let asked = 0;
+    const page = stand({
+      arrive() {
+        asked += 1;
+        return asked - 1 === missing ? Promise.reject(new Error("no picture")) : Promise.resolve();
+      },
+    });
+    await enliven(page.win);
+    assert.equal(page.loaded.length, 2);
+    assert.equal(page.live, false);
+    assert.equal(page.why, "no-layers");
+    assert.equal(page.called("createProgram").length, 0);
+    page.media.emit("change");
+    page.canvas.emit("webglcontextrestored");
+    await settle();
+    assert.equal(page.called("createProgram").length, 0);
+  }
 });
 
 test("a fault in the page or the scene is thrown, not hidden", async () => {
@@ -144,24 +170,66 @@ test("a fault in the page or the scene is thrown, not hidden", async () => {
   });
   await assert.rejects(enliven(broken.win), /a fault of our own/);
   assert.equal(broken.called("deleteProgram").length, 0);
-  await assert.rejects(
-    enliven(stand({ arrive: () => Promise.reject(new RangeError("something else")) }).win),
-    /something else/,
-  );
 });
 
-test("a first frame the graphics card refused is thrown, and the drawn image stays", async () => {
+test("only the browser's own refusal of a drawn SVG is taken for a browser that will not play", async () => {
+  // A layer the graphics card is not given for another reason, or with
+  // another kind of error that happens to carry the name, is a fault.
+  for (const other of [
+    new DOMException("another refusal", "InvalidStateError"),
+    Object.assign(new Error("another refusal"), { name: "SecurityError" }),
+  ]) {
+    const page = stand({
+      during: {
+        texImage2D() {
+          throw other;
+        },
+      },
+    });
+    await assert.rejects(enliven(page.win), /another refusal/);
+    assert.equal(page.called("deleteProgram").length, 1, "what was made is given back");
+    assert.equal(page.live, false);
+    assert.equal(page.why, undefined);
+  }
+});
+
+test("a frame the graphics card refused is thrown, and the drawn image stays", async () => {
   const page = stand();
   await enliven(page.win);
   page.gl.error = 0x502;
-  assert.throws(() => page.tick(), /first frame failed: WebGL error 0x502/);
+  assert.throws(() => page.tick(), /the graphics card refused the scene: WebGL error 0x502/);
   assert.equal(page.live, false);
+  assert.equal(page.why, "refused");
   assert.equal(page.waiting, 0);
   assert.equal(page.called("deleteProgram").length, 1);
-  // A lost context is told by its event, not taken for a refusal.
-  const lost = stand();
-  await enliven(lost.win);
-  lost.gl.error = "CONTEXT_LOST_WEBGL";
-  lost.tick();
-  assert.equal(lost.live, true);
+  // So is one refused later, when the layers are sent again for a new box.
+  const later = await running();
+  later.canvas.clientWidth = 800;
+  later.observers.resized();
+  later.tick();
+  later.tick(200);
+  later.gl.error = 0x505;
+  assert.throws(() => later.tick(200), /WebGL error 0x505/);
+  assert.equal(later.live, false);
+  assert.equal(later.pause.hidden, true);
+  assert.equal(later.waiting, 0);
+});
+
+test("a frame on a context that has just been lost shows nothing", async () => {
+  const page = stand();
+  await enliven(page.win);
+  // Lost between the making and the first frame; its event has yet to come.
+  page.gl.lost = true;
+  page.gl.error = "CONTEXT_LOST_WEBGL";
+  page.tick();
+  assert.equal(page.live, false);
+  assert.equal(page.pause.hidden, true);
+  // The loss is told by its event; it is not taken for a refusal.
+  assert.equal(page.called("deleteProgram").length, 0);
+  page.canvas.emit("webglcontextlost", { preventDefault() {} });
+  assert.equal(page.waiting, 0);
+  page.gl.lost = false;
+  page.canvas.emit("webglcontextrestored");
+  page.tick();
+  assert.equal(page.live, true);
 });

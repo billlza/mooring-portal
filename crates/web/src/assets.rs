@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use axum::body::Bytes;
+use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
 use axum::http::HeaderValue;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
@@ -193,16 +194,15 @@ pub(crate) fn module(name: &str) -> &'static str {
         .unwrap()
 }
 
-/// `GET /assets/{*file}`.
+/// `GET /assets/{*file}`. A path that is not text names no asset, like
+/// any other that names none.
 pub(crate) async fn serve(
     State(state): State<AppState>,
-    Path(file): Path<String>,
+    file: Result<Path<String>, PathRejection>,
 ) -> Result<Response, AppError> {
-    let asset = state
-        .assets()
-        .files
-        .get(&file)
-        .cloned()
+    let asset = file
+        .ok()
+        .and_then(|Path(file)| state.assets().files.get(&file).cloned())
         .ok_or(AppError::NotFound)?;
     Ok((
         [

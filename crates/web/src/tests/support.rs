@@ -227,6 +227,11 @@ impl TestApp {
     }
 }
 
+/// The policy of every response but the home page's.
+pub(crate) const STRICT_POLICY: &str = "default-src 'none'; style-src 'self'; img-src 'self'; \
+                                        form-action 'self'; frame-ancestors 'none'; \
+                                        base-uri 'none'";
+
 impl Browser {
     pub(crate) fn new(address: [u8; 4]) -> Self {
         Self {

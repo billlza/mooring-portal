@@ -3,7 +3,13 @@
 // and the scene is painted over it only where the browser has WebGL 2 and
 // the visitor has not asked for less motion. Where the scene cannot be
 // made, or runs too slowly, the drawn image stays. A fault in the page or
-// in this code is thrown, not hidden.
+// in this code is thrown, not hidden. Why the scene is not showing is left
+// on the hero as `data-scene`, for whoever wonders: one of the `WHY` below.
+//
+// Everything that reaches the canvas goes through `frame`: it alone fits
+// the buffer, draws the layers and paints. A paused scene is the same
+// scene with time standing still: it is given a frame whenever the one it
+// shows is missing or no longer fits, and no others.
 //
 // Everything is reached through the window handed to `enliven`, so the
 // whole of it can be run against a stand-in (`test/stand.mjs`).
@@ -20,6 +26,17 @@ const REACH = { x: 8, y: 3 };
 /** The sizes the layers may be drawn at, in pixels across. */
 const LAND = { least: 640, most: 2400 };
 const RING = { least: 256, most: 1536 };
+/** What the hero says of its scene: that it shows, or why it does not. */
+const WHY = Object.freeze({
+  live: "live",
+  calm: "reduced-motion",
+  unable: "no-webgl2",
+  bare: "no-layers",
+  barred: "layers-barred",
+  slow: "too-slow",
+  refused: "refused",
+  lost: "context-lost",
+});
 
 function need(root, selector) {
   const found = root.querySelector(selector);
@@ -72,7 +89,8 @@ export function enliven(win) {
     begun: false,
     /** The scene was made and given up; it is not made again. */
     over: false,
-    live: false,
+    /** What the hero was last told of the scene: one of `WHY`, or nothing. */
+    told: "",
     seen: true,
     paused: false,
     request: 0,
@@ -86,25 +104,37 @@ export function enliven(win) {
     unfit: false,
     fittedAt: 0,
     stale: false,
-    /** The first frame since the scene was made has yet to be checked. */
-    unproven: true,
+    /**
+     * Layers have gone to the graphics card since it was last asked what
+     * it refused.
+     */
+    unproven: false,
     aim: { x: 0, y: 0 },
     slid: { x: 0, y: 0 },
   };
 
+  /** The picture at `url` once it has loaded, or `null` if it does not. */
   function picture(url) {
-    const image = new win.Image();
-    image.decoding = "async";
-    image.src = url;
-    return image.decode().then(() => image);
+    return new Promise((resolve) => {
+      const image = new win.Image();
+      image.decoding = "async";
+      image.addEventListener("load", () => resolve(image));
+      image.addEventListener("error", () => resolve(null));
+      image.src = url;
+    });
   }
 
-  /** Shows the scene over the drawn image, or the drawn image alone. */
-  function show(live) {
-    if (state.live !== live) {
-      state.live = live;
+  /**
+   * Shows the scene over the drawn image when `why` is that it is live,
+   * and the drawn image alone for any other.
+   */
+  function show(why) {
+    if (state.told !== why) {
+      state.told = why;
+      const live = why === WHY.live;
       hero.classList.toggle("is-live", live);
       pause.hidden = !live;
+      hero.dataset.scene = why;
     }
   }
 
@@ -153,6 +183,7 @@ export function enliven(win) {
         sheet.width = 0;
         sheet.height = 0;
         state.sizes[name] = key;
+        state.unproven = true;
       }
     }
   }
@@ -170,11 +201,11 @@ export function enliven(win) {
     state.request = 0;
   }
 
-  /** The scene has proved too slow, or cannot be made here. */
-  function giveUp() {
+  /** The scene has proved too slow, or cannot be made here: `why`. */
+  function giveUp(why) {
     state.over = true;
     halt();
-    show(false);
+    show(why);
     if (state.scene) {
       state.scene.dispose();
       state.scene = null;
@@ -191,13 +222,17 @@ export function enliven(win) {
       return;
     }
     state.last = now;
-    const { state: watchdog, verdict } = watch(state.watchdog, gap);
-    if (verdict === "stop") {
-      giveUp();
-      return;
+    let lowered = false;
+    if (!state.paused) {
+      // Only a scene that moves is judged for its speed.
+      const { state: watchdog, verdict } = watch(state.watchdog, gap);
+      if (verdict === "stop") {
+        giveUp(WHY.slow);
+        return;
+      }
+      lowered = verdict === "lower";
+      state.watchdog = watchdog;
     }
-    const lowered = verdict === "lower";
-    state.watchdog = watchdog;
     // The buffer is sized here, just before it is painted, and never
     // between frames: sizing it clears it.
     if (state.unfit || lowered || state.ratio !== win.devicePixelRatio) {
@@ -211,28 +246,42 @@ export function enliven(win) {
     if (state.stale && (undressed || now - state.fittedAt > SETTLE_MS)) {
       dress();
     }
-    // Time stands still while the page is away, so the sky does not jump.
-    const step = Math.min(gap, 100);
-    state.seconds += step / 1000;
-    const ease = 1 - Math.exp(-step / 600);
-    state.slid.x += (state.aim.x - state.slid.x) * ease;
-    state.slid.y += (state.aim.y - state.slid.y) * ease;
+    if (!state.paused) {
+      // Time stands still while the page is away, so the sky does not jump.
+      const step = Math.min(gap, 100);
+      state.seconds += step / 1000;
+      const ease = 1 - Math.exp(-step / 600);
+      state.slid.x += (state.aim.x - state.slid.x) * ease;
+      state.slid.y += (state.aim.y - state.slid.y) * ease;
+    }
     paint();
     if (state.unproven) {
+      // Asked once for each time layers are sent, not once a frame: the
+      // answer has to be waited for.
       state.unproven = false;
       const fault = state.scene.fault();
       if (fault !== null) {
-        giveUp();
-        throw new Error(`the scene's first frame failed: WebGL error ${fault}`);
+        giveUp(WHY.refused);
+        throw new Error(`the graphics card refused the scene: WebGL error ${fault}`);
       }
     }
-    show(true);
+    if (state.gl.isContextLost()) {
+      // Nothing was painted. The event that says so is on its way, and
+      // stops the frames.
+      return;
+    }
+    show(WHY.live);
+    // A paused scene asks for no more once the frame it shows is right.
+    run();
   }
 
   /** Starts or stops the frames to match what the page and visitor want. */
   function run() {
-    const wanted = state.scene !== null && !still.matches && !state.paused && state.seen
-      && !win.document.hidden;
+    const inView = state.scene !== null && !still.matches && state.seen && !win.document.hidden;
+    // A paused scene is still owed a frame when it shows none, or when its
+    // box has changed under the one it shows.
+    const owed = state.told !== WHY.live || state.unfit || state.stale;
+    const wanted = inView && (!state.paused || owed);
     if (wanted && state.request === 0) {
       state.last = 0;
       state.request = win.requestAnimationFrame(frame);
@@ -246,7 +295,6 @@ export function enliven(win) {
     try {
       state.scene = createScene(state.gl, shape);
       state.sizes = { land: "", ring: "" };
-      state.unproven = true;
       if (fit()) {
         dress();
       }
@@ -261,7 +309,7 @@ export function enliven(win) {
       made?.dispose();
       if (error instanceof win.DOMException && error.name === "SecurityError") {
         // This browser treats a drawn SVG as another site's picture.
-        giveUp();
+        giveUp(WHY.barred);
         return;
       }
       throw error;
@@ -270,7 +318,11 @@ export function enliven(win) {
   }
 
   async function begin() {
-    if (state.begun || still.matches) {
+    if (state.begun) {
+      return;
+    }
+    if (still.matches) {
+      show(WHY.calm);
       return;
     }
     state.begun = true;
@@ -284,18 +336,16 @@ export function enliven(win) {
       failIfMajorPerformanceCaveat: true,
     });
     if (!state.gl) {
+      show(WHY.unable);
       return;
     }
-    try {
-      const [land, ring] = await Promise.all([picture(sources.land), picture(sources.ring)]);
-      state.images = { land, ring };
-    } catch (error) {
-      if (error instanceof win.DOMException && error.name === "EncodingError") {
-        // A layer did not arrive, or could not be read.
-        return;
-      }
-      throw error;
+    const [land, ring] = await Promise.all([picture(sources.land), picture(sources.ring)]);
+    if (!land || !ring) {
+      // A layer did not arrive, or is no picture.
+      show(WHY.bare);
+      return;
     }
+    state.images = { land, ring };
     if (!state.gl.isContextLost()) {
       build();
     }
@@ -306,7 +356,7 @@ export function enliven(win) {
     event.preventDefault();
     halt();
     state.scene = null;
-    show(false);
+    show(WHY.lost);
   });
   canvas.addEventListener("webglcontextrestored", () => {
     if (!state.over && state.images) {
@@ -323,7 +373,7 @@ export function enliven(win) {
   still.addEventListener("change", () => {
     if (still.matches) {
       halt();
-      show(false);
+      show(WHY.calm);
     } else {
       run();
       void begin();
@@ -338,12 +388,9 @@ export function enliven(win) {
   }).observe(hero);
 
   new win.ResizeObserver(() => {
+    // The next frame fits it; a paused scene is owed that frame.
     state.unfit = true;
-    if (state.scene && state.request === 0 && !still.matches && fit()) {
-      // Paused or out of sight: keep the still frame fitting its box.
-      dress();
-      paint();
-    }
+    run();
   }).observe(canvas);
 
   win.addEventListener("pointermove", (event) => {
