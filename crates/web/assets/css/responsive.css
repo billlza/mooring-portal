@@ -32,7 +32,8 @@
     display: none;
   }
 
-  .actions {
+  /* With the links folded into the menu, the buttons go to the far side. */
+  .nav + .actions {
     gap: 10px;
     margin-left: auto;
   }
@@ -146,7 +147,7 @@
     padding-inline: 12px;
   }
 
-  .actions {
+  .nav + .actions {
     gap: 6px;
   }
 
@@ -212,15 +213,33 @@
   }
 }
 
-/* On paper there is no night: headings drawn in a gradient would print as
-   nothing. */
+/* On paper there is no night. A browser leaves backgrounds off the page,
+   so the screen's light text would print as nothing: everything is set in
+   black, and what is only there to be looked at or pressed is left out. */
 @media print {
-  .slogan,
-  .page-head h1,
-  .logo-name,
-  .error-code {
-    background: none;
-    color: #000;
-    filter: none;
+  :root {
+    color-scheme: light;
+  }
+
+  *,
+  *::before,
+  *::after {
+    background: none !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+
+  .hero {
+    min-height: 0;
+  }
+
+  .hero-art,
+  .hero-scene,
+  .hero-twinkle,
+  .hero-pause,
+  .help-float {
+    display: none !important;
   }
 }
