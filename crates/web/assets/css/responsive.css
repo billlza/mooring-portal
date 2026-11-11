@@ -116,11 +116,11 @@
   }
 
   .slogan {
-    font-size: clamp(2.6rem, 13.2vw, 4.6rem);
+    font-size: clamp(2.1rem, 10vw, 3.6rem);
   }
 
   :lang(en) .slogan {
-    font-size: clamp(2rem, 9vw, 3.4rem);
+    font-size: clamp(1.7rem, 7.2vw, 2.8rem);
   }
 
   .hero-lead {

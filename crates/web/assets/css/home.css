@@ -109,7 +109,7 @@
 }
 
 .hero-inner {
-  padding: calc(11.1 * var(--u)) var(--gutter) 0 calc(7.46 * var(--u));
+  padding: calc(12.9 * var(--u)) var(--gutter) 0 calc(7.46 * var(--u));
 }
 
 /* The service's name and kind, with the lamp's colour beside them. */
@@ -139,17 +139,17 @@
 .slogan {
   margin: 0;
   color: #f7f9f8;
-  font-size: clamp(2.5rem, 7.18 * var(--u), 10rem);
+  font-size: clamp(2.2rem, 5.2 * var(--u), 6.6rem);
   font-weight: 700;
-  line-height: 1.07;
-  letter-spacing: 0.02em;
+  line-height: 1.16;
+  letter-spacing: 0.04em;
   text-shadow: 0 2px 30px rgba(3, 10, 18, 0.45);
 }
 
 /* Latin letters run much longer than the same words in Chinese. */
 :lang(en) .slogan {
-  font-size: clamp(2.1rem, 4.7 * var(--u), 6.6rem);
-  line-height: 1.16;
+  font-size: clamp(1.9rem, 3.6 * var(--u), 4.6rem);
+  line-height: 1.2;
   letter-spacing: 0;
 }
 

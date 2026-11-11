@@ -174,37 +174,25 @@ fn the_image_holds_every_part_of_the_picture_in_its_order() {
     // The tower's plaster is lit along its left edge, and its door is dark.
     assert!(count(&format!("fill=\"{}\"", PLASTER_LIT.hex())) >= 2);
     assert_eq!(count(&format!("fill=\"{}\"", DOOR.hex())), 1);
-    // The stars by their hundreds, the town's lamps twice each with their
-    // paths on the water, and the lamp's path in dashes.
+    // The stars by their hundreds, and the town's lamps twice each with
+    // their paths on the water.
     let stars = count("<circle") - 2 * sky::lamps().len() - 2;
     assert!(stars > 400, "{stars} stars");
     assert_eq!(count("r=\"1.3\""), sky::lamps().len());
     assert_eq!(count("rx=\"1.2\" ry=\"11\""), sky::lamps().len());
-    // The glitter takes the sea's sheen from its group; each dash of the
-    // lamp's path has its own gold, and they lie under the lighthouse.
-    let dashes: Vec<&str> = image
-        .split('<')
-        .filter(|tag| {
-            tag.starts_with("rect ") && tag.contains(" rx=\"") && tag.contains(" fill=\"#")
-        })
-        .collect();
-    assert!(dashes.len() > 25, "{} dashes", dashes.len());
-    assert!(count("\" rx=\"") > dashes.len() + 40, "the glitter as well");
-    for dash in &dashes {
-        let x: f64 = dash["rect x=\"".len()..]
-            .split('"')
-            .next()
-            .unwrap()
-            .parse()
-            .unwrap();
-        assert!((x - AXIS).abs() < 130.0, "{dash}");
-    }
+    // The sky's light along the water's ripples, its glitter, and the
+    // lamp's path in three layers (`water::tests` looks into each).
+    assert_eq!(count("stroke-linecap=\"round\""), 1);
+    assert_eq!(count(&format!("<g fill=\"{}\">", SEA_SHEEN.hex())), 1);
+    assert_eq!(count("z\" fill=\"#"), 3);
     // Back to front: the sky, the sea, the shore, the rocks, the light.
     let order = [
         "fill=\"url(#sky)\"",
         "fill=\"url(#far)\"",
         "fill=\"url(#sea)\"",
+        "stroke-linecap=\"round\"",
         "fill=\"url(#lee)\"",
+        "z\" fill=\"#",
         "clip-path=\"url(#pier)\"/>",
         "fill=\"url(#plinth)\"",
         "fill=\"url(#glass)\"",
@@ -313,14 +301,14 @@ fn the_shader_and_the_drawing_share_their_rules() {
     // What is a rule and not a figure is written twice as well: where a
     // star or a lamp or a boulder goes, and how a round wall is lit. Each
     // line here stands in the drawing's code and in the shader's; change
-    // one, and this fails until the other follows.
+    // one, and this fails until the other follows. The water's rules are
+    // in `water::tests`.
     let shader = shader();
     let drawing = [
         include_str!("field.rs"),
         include_str!("sky.rs"),
         include_str!("shore.rs"),
         include_str!("rocks.rs"),
-        include_str!("water.rs"),
         include_str!("light.rs"),
     ]
     .concat();
@@ -367,15 +355,8 @@ fn the_shader_and_the_drawing_share_their_rules() {
         "+0.22+0.56*",
         "smoothstep(-0.35,0.95,",
         "smoothstep(-300.0,-40.0,",
-        // The water's rows and the lamp's path.
-        "1.4",
-        "8.5*depth",
-        "28.8*",
-        "(0.05+0.55*lit)",
         // A line's easing between its points.
         "mix(t,t*t*(3.0-2.0*t),0.5)",
-        "9.0+0.17*under",
-        "smoothstep(2.0,26.0,under)*(1.0-0.6*smoothstep(80.0,200.0,under))",
     ] {
         assert!(drawing.contains(rule), "the drawing: {rule}");
         assert!(shader.contains(rule), "the shader: {rule}");
@@ -387,7 +368,6 @@ fn the_shader_and_the_drawing_share_their_rules() {
         ("hash(cell,42)>settled(x)", "hash(cell,42u)>settled(x)"),
         ("hash(cell,81)", "hash(cell,81u)"),
         ("hash(cell,84)", "hash(id,84u)"),
-        ("hash(id,93)", "hash(id,93u)"),
         (
             "along(ROCKS,point.0)+5.0",
             "along(ROCKS,ROCKS_POINTS,point.x)+5.0",
