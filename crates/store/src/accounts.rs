@@ -3,9 +3,10 @@
 use portal_core::account::{AccountCode, Email};
 use portal_core::auth::{DigestedEmail, StoredPasswordHash};
 use portal_core::time::UnixTime;
-use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension as _, TransactionBehavior, params};
 
 use crate::bindings::{Binding, binding_from_sql};
+use crate::orders::{ORDER_TABLES, RENEWAL_TABLES, RENEWS, UNSETTLED};
 use crate::rows::{code_from_sql, email_from_sql, time_from_sql, time_to_sql};
 use crate::{AccountId, Store, StoreError, UnknownAccount};
 
@@ -195,15 +196,52 @@ impl Store {
     }
 
     /// Deletes the account with `code`, with its sessions, binding,
-    /// subscription record, CFM profile and subscription link. Copies of
-    /// the rows stay in the database files until [`Store::erase_deleted`].
+    /// subscription record, CFM profile, subscription link and orders, and
+    /// with what Stripe said of those orders' payments. Copies of the rows
+    /// stay in the database files until [`Store::erase_deleted`].
+    ///
+    /// Refused while money is in the air: while Stripe may still charge a
+    /// subscription of the account, which no one could then stop from
+    /// here; and while an order of it is paid but Mooring does not have
+    /// it yet, or waits for the operator without its payment having gone
+    /// back (refunded in full, or disputed).
     pub fn delete_account(&mut self, code: &AccountCode) -> Result<(), DeleteError> {
-        let deleted = self
+        let tx = self
             .conn
-            .execute("DELETE FROM accounts WHERE code = ?1", [code.to_string()])?;
-        if deleted == 0 {
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let account: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM accounts WHERE code = ?1",
+                [code.to_string()],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(account) = account else {
             return Err(DeleteError::Unknown(UnknownAccount(*code)));
+        };
+        let subscriptions = open_subscriptions(&tx, account)?;
+        if !subscriptions.is_empty() {
+            return Err(DeleteError::Renewing {
+                account: *code,
+                subscriptions: subscriptions.join(", "),
+            });
         }
+        let orders: Vec<String> = tx
+            .prepare(&format!(
+                "SELECT o.id FROM {ORDER_TABLES} WHERE o.account_id = ?1 AND {UNSETTLED}
+                 ORDER BY o.created_at, o.id"
+            ))?
+            .query_map([account], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        if !orders.is_empty() {
+            return Err(DeleteError::Unsettled {
+                account: *code,
+                orders: orders.join(", "),
+            });
+        }
+        forget_payments(&tx, account)?;
+        tx.execute("DELETE FROM accounts WHERE id = ?1", [account])?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -236,12 +274,73 @@ impl Store {
     }
 }
 
+/// The subscriptions of the account with row id `account` that Stripe
+/// may charge again, in id order.
+pub(crate) fn open_subscriptions(
+    conn: &Connection,
+    account: i64,
+) -> Result<Vec<String>, StoreError> {
+    Ok(conn
+        .prepare(&format!(
+            "SELECT DISTINCT o.subscription FROM {RENEWAL_TABLES}
+             WHERE o.account_id = ?1 AND {RENEWS}
+             ORDER BY o.subscription"
+        ))?
+        .query_map([account], |row| row.get(0))?
+        .collect::<Result<_, _>>()?)
+}
+
+/// Forgets what Stripe said of the payments, invoices and subscriptions
+/// of the orders of the account with row id `account`: the orders are
+/// about to go, and nothing else names them.
+pub(crate) fn forget_payments(conn: &Connection, account: i64) -> Result<(), StoreError> {
+    for (table, key) in [
+        ("stripe_payments", "payment_intent"),
+        ("stripe_invoice_payments", "invoice"),
+        ("stripe_subscriptions", "subscription"),
+    ] {
+        conn.execute(
+            &format!(
+                "DELETE FROM {table} WHERE {key} IN
+                     (SELECT {key} FROM orders WHERE account_id = ?1 AND {key} IS NOT NULL)"
+            ),
+            [account],
+        )?;
+    }
+    Ok(())
+}
+
 /// Why an account was not deleted.
 #[derive(Debug, thiserror::Error)]
 pub enum DeleteError {
     /// No account has the code.
     #[error(transparent)]
     Unknown(#[from] UnknownAccount),
+    /// Stripe may still charge a subscription of the account.
+    #[error(
+        "account {account} has a subscription that Stripe may charge again ({subscriptions}): \
+         cancel it at Stripe, and delete the account once Stripe has told the portal that it \
+         ended (`orders` shows when)"
+    )]
+    Renewing {
+        /// The account.
+        account: AccountCode,
+        /// Its subscriptions that have not ended, comma-separated.
+        subscriptions: String,
+    },
+    /// An order of the account is paid and not yet with Mooring, or waits
+    /// for the operator.
+    #[error(
+        "account {account} has orders that are not settled ({orders}): a paid order is settled \
+         once Mooring has pulled it, one in review by a full refund at Stripe or by \
+         `approve-order` (`orders` shows where each stands)"
+    )]
+    Unsettled {
+        /// The account.
+        account: AccountCode,
+        /// The orders, comma-separated.
+        orders: String,
+    },
     /// The database failed.
     #[error(transparent)]
     Store(#[from] StoreError),

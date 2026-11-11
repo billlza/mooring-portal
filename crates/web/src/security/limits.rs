@@ -1,4 +1,6 @@
-//! The portal's rate limits on logins, registrations and link fetches.
+//! The portal's rate limits on logins, registrations, link fetches, and
+//! the two addresses machines call: Stripe's deliveries and Mooring's
+//! pulls.
 //!
 //! A network may attempt [`LOGIN_PER_NETWORK`] logins and
 //! [`REGISTRATIONS_PER_NETWORK`] registrations per window, and fetch
@@ -54,6 +56,22 @@ pub(crate) const FETCHES_PER_LINK: RatePolicy = RatePolicy {
     limit: 60,
     window_secs: 60 * 60,
 };
+/// Deliveries to the webhook per client network, whoever sends them,
+/// counted before the signature is checked. A delivery without Stripe's
+/// signature costs one hash and touches no database; this bounds how many
+/// of those a client can ask for. It is far above what Stripe sends: a
+/// payment is told of in fewer than ten events.
+pub(crate) const WEBHOOKS_PER_NETWORK: RatePolicy = RatePolicy {
+    limit: 1_200,
+    window_secs: 60 * 60,
+};
+/// Pulls of the entitlements per client network, counted before the token
+/// is read. The token cannot be guessed; this bounds the load. Mooring
+/// pulls every few minutes, and again at once while there is more.
+pub(crate) const PULLS_PER_NETWORK: RatePolicy = RatePolicy {
+    limit: 600,
+    window_secs: 60 * 60,
+};
 /// Keys each limiter tracks at most.
 const TRACKED_KEYS: usize = 10_000;
 
@@ -95,6 +113,8 @@ pub(crate) struct Limits {
     registrations: Mutex<RateLimiter<Network>>,
     link_fetches: Mutex<RateLimiter<Network>>,
     fetches_per_link: Mutex<RateLimiter<TokenDigest>>,
+    webhooks: Mutex<RateLimiter<Network>>,
+    pulls: Mutex<RateLimiter<Network>>,
 }
 
 impl Limits {
@@ -105,6 +125,8 @@ impl Limits {
             registrations: Mutex::new(RateLimiter::new(REGISTRATIONS_PER_NETWORK, TRACKED_KEYS)),
             link_fetches: Mutex::new(RateLimiter::new(LINK_FETCHES_PER_NETWORK, TRACKED_KEYS)),
             fetches_per_link: Mutex::new(RateLimiter::new(FETCHES_PER_LINK, TRACKED_KEYS)),
+            webhooks: Mutex::new(RateLimiter::new(WEBHOOKS_PER_NETWORK, TRACKED_KEYS)),
+            pulls: Mutex::new(RateLimiter::new(PULLS_PER_NETWORK, TRACKED_KEYS)),
         }
     }
 
@@ -153,6 +175,26 @@ impl Limits {
         Ok(match lock(&self.fetches_per_link)?.acquire(link, now) {
             Ok(decision) => Throttle::of(decision),
             Err(_) => Throttle::saturated(FETCHES_PER_LINK),
+        })
+    }
+
+    /// Counts a delivery to the webhook from `network`.
+    pub(crate) fn webhook_from(
+        &self,
+        network: Network,
+        now: UnixTime,
+    ) -> Result<Throttle, AppError> {
+        Ok(match lock(&self.webhooks)?.acquire(network, now) {
+            Ok(decision) => Throttle::of(decision),
+            Err(_) => Throttle::saturated(WEBHOOKS_PER_NETWORK),
+        })
+    }
+
+    /// Counts a pull of the entitlements from `network`.
+    pub(crate) fn pull_from(&self, network: Network, now: UnixTime) -> Result<Throttle, AppError> {
+        Ok(match lock(&self.pulls)?.acquire(network, now) {
+            Ok(decision) => Throttle::of(decision),
+            Err(_) => Throttle::saturated(PULLS_PER_NETWORK),
         })
     }
 
@@ -300,6 +342,41 @@ mod tests {
     }
 
     #[test]
+    fn deliveries_and_pulls_are_limited_per_network_each_on_its_own() {
+        let limits = Limits::new();
+        let home = Network::V4([203, 0, 113, 1]);
+        let other = Network::V4([203, 0, 113, 2]);
+        for _ in 0..WEBHOOKS_PER_NETWORK.limit {
+            assert_eq!(limits.webhook_from(home, at(0)).unwrap(), Throttle::Allowed);
+        }
+        assert_eq!(
+            limits.webhook_from(home, at(0)).unwrap(),
+            Throttle::Wait { minutes: 60 }
+        );
+        assert_eq!(
+            limits.webhook_from(other, at(0)).unwrap(),
+            Throttle::Allowed
+        );
+        // Deliveries count nothing against pulls, nor pulls against them.
+        for _ in 0..PULLS_PER_NETWORK.limit {
+            assert_eq!(limits.pull_from(home, at(0)).unwrap(), Throttle::Allowed);
+        }
+        assert_eq!(
+            limits.pull_from(home, at(0)).unwrap(),
+            Throttle::Wait { minutes: 60 }
+        );
+        assert_eq!(limits.pull_from(other, at(0)).unwrap(), Throttle::Allowed);
+        assert_eq!(
+            limits.webhook_from(other, at(0)).unwrap(),
+            Throttle::Allowed
+        );
+        assert_eq!(
+            (WEBHOOKS_PER_NETWORK.limit, PULLS_PER_NETWORK.limit),
+            (1_200, 600)
+        );
+    }
+
+    #[test]
     fn a_full_limiter_refuses_new_networks_and_emails() {
         let limits = Limits::new();
         let now = at(0);
@@ -317,6 +394,11 @@ mod tests {
                 limits.link_fetch_from(network, now).unwrap(),
                 Throttle::Allowed
             );
+            assert_eq!(
+                limits.webhook_from(network, now).unwrap(),
+                Throttle::Allowed
+            );
+            assert_eq!(limits.pull_from(network, now).unwrap(), Throttle::Allowed);
             let mut link = [0_u8; 32];
             link[..4].copy_from_slice(&index.to_be_bytes());
             assert_eq!(
@@ -342,6 +424,14 @@ mod tests {
         );
         assert_eq!(
             limits.link_fetch_from(stranger, now).unwrap(),
+            Throttle::Wait { minutes: 60 }
+        );
+        assert_eq!(
+            limits.webhook_from(stranger, now).unwrap(),
+            Throttle::Wait { minutes: 60 }
+        );
+        assert_eq!(
+            limits.pull_from(stranger, now).unwrap(),
             Throttle::Wait { minutes: 60 }
         );
         assert_eq!(

@@ -39,6 +39,9 @@ axum = { version = "0.8.9", default-features = false, features = ["form", "http1
 blake2 = { version = "0.11.0", default-features = false }
 clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 getrandom = { version = "0.4.3", default-features = false, features = ["std"] }
+# Stripe signs each webhook delivery with HMAC-SHA256 (docs/payments.md);
+# added 2026-11-11, both at least 14 days old then.
+hmac = { version = "0.13.0", default-features = false }
 # 0.41.0 since 2026-11-10: its bundled SQLite (3.54) fixes RUSTSEC-2026-0459.
 # The lock file holds it there; 0.41.1 was not yet 14 days old.
 rusqlite = { version = "0.41.0", default-features = false, features = ["bundled"] }
@@ -46,6 +49,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 # `raw_value` keeps each CFM profile as the exact text Mooring wrote.
 serde_json = { version = "1.0.154", features = ["raw_value"] }
 serde_urlencoded = "0.7.1"
+sha2 = { version = "0.11.1", default-features = false }
 subtle = { version = "2.6.1", default-features = false, features = ["std"] }
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", default-features = false, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }

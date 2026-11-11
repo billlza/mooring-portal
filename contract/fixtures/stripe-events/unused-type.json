@@ -1,0 +1,23 @@
+{
+  "id": "evt_1SynthUnusedType",
+  "object": "event",
+  "api_version": "2026-10-28.endive",
+  "created": 1794355256,
+  "data": {
+    "object": {
+      "id": "pi_3SynthPayment",
+      "object": "payment_intent",
+      "amount": 800,
+      "currency": "gbp",
+      "receipt_email": "payer@example.test",
+      "status": "succeeded"
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "payment_intent.succeeded"
+}

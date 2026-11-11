@@ -1,8 +1,12 @@
 //! Tests of the command line against database files.
 
+mod approving;
 mod commands;
 mod erasure;
 mod import;
+mod orders_list;
+mod paying;
+mod payments;
 mod profiles;
 mod release;
 mod usage;

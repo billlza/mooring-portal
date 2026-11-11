@@ -1,11 +1,12 @@
 //! The `mooring-portal` command: `serve` runs the portal, and the operator
 //! commands manage accounts, bindings, snapshot and CFM profile imports,
-//! and the CFM release on offer, in the same database file, while the
-//! server runs or not.
+//! the CFM release on offer, and what payments need of the operator, in
+//! the same database file, while the server runs or not.
 
 mod cli;
 mod error;
 mod operator;
+mod payments;
 mod serve;
 
 use std::ffi::OsString;
@@ -85,10 +86,27 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
         Command::DeleteAccount { account } => {
             with_store(&mut |store| operator::delete_account(store, &account, out))
         }
-        Command::Ban { account } => {
-            with_store(&mut |store| operator::ban(store, clock, &account, out))
+        Command::Ban { account, cards } => {
+            with_store(&mut |store| operator::ban(store, clock, &account, &cards, out))
+        }
+        Command::BanCards { email, cards } => {
+            with_store(&mut |store| payments::ban_cards(store, &email, &cards, out))
         }
         Command::Unban { email } => with_store(&mut |store| operator::unban(store, &email, out)),
+        Command::Orders => with_store(&mut |store| payments::orders(store, out)),
+        Command::ApproveOrder { order } => {
+            with_store(&mut |store| payments::approve_order(store, clock, &order, out))
+        }
+        Command::DismissPayment { id } => {
+            with_store(&mut |store| payments::dismiss_payment(store, id, out))
+        }
+        Command::DiscardTestPayments => {
+            with_store(&mut |store| payments::discard_test_payments(store, out))
+        }
+        Command::PullToken => with_store(&mut |store| payments::pull_token(store, clock, out)),
+        Command::RevokePullToken => {
+            with_store(&mut |store| payments::revoke_pull_token(store, out))
+        }
         Command::EraseDeleted => with_store(&mut |store| operator::erase_deleted(store, out)),
     }
 }

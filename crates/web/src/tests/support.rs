@@ -18,7 +18,7 @@ use portal_core::time::{ManualClock, UnixTime};
 use portal_store::{OpenMode, Store};
 use tower::ServiceExt as _;
 
-use crate::config::{ClientIpSource, PublicOrigin, WebConfig};
+use crate::config::{ClientIpSource, Payments, PublicOrigin, WebConfig};
 use crate::state::AppState;
 
 /// The origin the test portal is configured with.
@@ -80,27 +80,65 @@ impl TestApp {
     }
 
     pub(crate) fn with(client_ip: ClientIpSource, max_accounts: u32) -> Self {
-        Self::over(Store::open_in_memory().unwrap(), client_ip, max_accounts)
+        Self::over(
+            Store::open_in_memory().unwrap(),
+            client_ip,
+            max_accounts,
+            None,
+        )
+    }
+
+    /// A portal that sells what `payments` holds.
+    pub(crate) fn selling(payments: Payments, client_ip: ClientIpSource) -> Self {
+        Self::over(
+            Store::open_in_memory().unwrap(),
+            client_ip,
+            100,
+            Some(payments),
+        )
     }
 
     /// A portal over a database file, which the test may also open.
     pub(crate) fn on_disk() -> (Self, DatabaseFile) {
+        Self::on_disk_with(None)
+    }
+
+    /// [`Self::on_disk`], selling what `payments` holds if any.
+    pub(crate) fn on_disk_with(payments: Option<Payments>) -> (Self, DatabaseFile) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("portal.db");
         let app = Self::over(
             Store::open(&path, OpenMode::CreateIfMissing).unwrap(),
             ClientIpSource::Peer,
             100,
+            payments,
         );
         (app, DatabaseFile { _dir: dir, path })
     }
 
-    fn over(store: Store, client_ip: ClientIpSource, max_accounts: u32) -> Self {
+    /// A portal over the database `file`, as a server started again,
+    /// selling what `payments` holds if any.
+    pub(crate) fn reopened(file: &DatabaseFile, payments: Option<Payments>) -> Self {
+        Self::over(
+            Store::open(file.path(), OpenMode::Existing).unwrap(),
+            ClientIpSource::Peer,
+            100,
+            payments,
+        )
+    }
+
+    fn over(
+        store: Store,
+        client_ip: ClientIpSource,
+        max_accounts: u32,
+        payments: Option<Payments>,
+    ) -> Self {
         let clock = Arc::new(ManualClock::new(UnixTime::from_secs(NOW).unwrap()));
         let config = WebConfig {
             origin: PublicOrigin::parse(ORIGIN_URL).unwrap(),
             client_ip,
             max_accounts,
+            payments,
         };
         let state =
             AppState::new(store, config, HashCost::MINIMUM_FOR_TESTS, clock.clone()).unwrap();

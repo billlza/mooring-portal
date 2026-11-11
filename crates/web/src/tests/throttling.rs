@@ -84,7 +84,9 @@ async fn every_sign_up_hashes_twice_whether_its_address_is_new_taken_or_banned()
     let (_, code) = app.signed_up("banned@qq.com").await;
     app.signed_up("taken@qq.com").await;
     let now = portal_core::time::UnixTime::from_secs(super::support::NOW).unwrap();
-    app.store(move |store| store.ban(&code, now)).await.unwrap();
+    app.store(move |store| store.ban(&code, &[], now))
+        .await
+        .unwrap();
     for (last, email, status) in [
         (61, "new@qq.com", StatusCode::SEE_OTHER),
         (62, "taken@qq.com", StatusCode::CONFLICT),

@@ -141,11 +141,14 @@ fn serve_options_become_the_web_configuration() {
         origin: "https://Portal.Example".to_owned(),
         behind_proxy,
         max_accounts: 7,
+        payments: None,
+        stripe_webhook_secret: None,
     };
     let direct = config(&args(false)).unwrap();
     assert_eq!(direct.origin.as_str(), "https://portal.example");
     assert_eq!(direct.client_ip, portal_web::ClientIpSource::Peer);
     assert_eq!(direct.max_accounts, 7);
+    assert!(direct.payments.is_none());
     let proxied = config(&args(true)).unwrap();
     assert_eq!(proxied.client_ip, portal_web::ClientIpSource::ForwardedFor);
 }

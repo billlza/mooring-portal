@@ -111,7 +111,7 @@ fn unbinding_and_deleting_report_what_went() {
     assert_eq!(deleted.code, ExitCode::SUCCESS);
     assert_eq!(
         deleted.out,
-        "deleted account 0000-0000-0001 with its sessions, binding, subscription record, CFM profile and subscription link\n\
+        "deleted account 0000-0000-0001 with its sessions, binding, subscription record, CFM profile, subscription link and orders\n\
          erased the deleted rows from the database files\n"
     );
     assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
@@ -235,7 +235,7 @@ fn every_failing_line_of_output_is_an_error() {
     // The deletion's line, then the erasure's.
     let bob = fixture.account("bob@163.com", 2).to_string();
     let deletion = "deleted account 0000-0000-0002 with its sessions, binding, subscription \
-                    record, CFM profile and subscription link\n";
+                    record, CFM profile, subscription link and orders\n";
     for (account, budget) in [(&alice, 0), (&bob, deletion.len())] {
         assert_eq!(
             run(&["delete-account", "--account", account], budget).1,
@@ -296,7 +296,8 @@ fn ban_deletes_the_account_and_unban_lets_its_address_register_again() {
     assert_eq!(
         banned.out,
         "banned account 0000-0000-0001: deleted it with its sessions, binding, subscription \
-         record, CFM profile and subscription link; its email address cannot register again\n\
+         record, CFM profile, subscription link and orders; its email address cannot register \
+         again\n\
          it was bound to Mooring user pilotusera: revoke that user in Mooring too, since the \
          nodes serve it until then\n\
          erased the deleted rows from the database files\n"
@@ -305,7 +306,8 @@ fn ban_deletes_the_account_and_unban_lets_its_address_register_again() {
     assert_eq!(
         unbound.out,
         "banned account 0000-0000-0002: deleted it with its sessions, binding, subscription \
-         record, CFM profile and subscription link; its email address cannot register again\n\
+         record, CFM profile, subscription link and orders; its email address cannot register \
+         again\n\
          erased the deleted rows from the database files\n"
     );
     assert!(fixture.run(&["accounts"]).out.ends_with("0 account(s)\n"));
@@ -335,8 +337,8 @@ fn a_ban_report_line_that_cannot_be_written_is_an_error() {
     let fixture = Fixture::new();
     let db = fixture.db();
     let banned = "banned account 0000-0000-0001: deleted it with its sessions, binding, \
-                  subscription record, CFM profile and subscription link; its email address \
-                  cannot register again\n"
+                  subscription record, CFM profile, subscription link and orders; its email \
+                  address cannot register again\n"
         .len();
     let bound = "it was bound to Mooring user pilotusera: revoke that user in Mooring too, \
                  since the nodes serve it until then\n"

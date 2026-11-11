@@ -24,6 +24,22 @@
       {% for step in chrome.t.plans.how_steps %}<li>{{ step }}</li>{% endfor %}
     </ol>
   </section>
+  {% if let Some(prices) = prices %}
+  <section class="panel shop">
+    <h2>{{ chrome.t.pay.plans_title }}</h2>
+    {% if prices.test_mode %}<p class="alert" role="note">{{ chrome.t.pay.test_mode }}</p>{% endif %}
+    <p class="muted">{{ chrome.t.pay.plans_lead }}</p>
+    <ul class="rows" role="list">
+      {% for plan in prices.plans %}
+      <li>
+        <div>{{ plan.name }}<span class="block muted small">{{ plan.terms }}</span></div>
+        <span class="figure">{{ plan.price }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p><a class="button ghost" href="/subscription">{{ chrome.t.pay.to_buy }}</a></p>
+  </section>
+  {% endif %}
   <div class="grid-2">
     {% for section in chrome.t.plans.sections %}
     <section class="panel">
@@ -31,6 +47,10 @@
       <p class="muted">{{ section.body }}</p>
     </section>
     {% endfor %}
+    <section class="panel">
+      <h2>{{ payment.title }}</h2>
+      <p class="muted">{{ payment.body }}</p>
+    </section>
   </div>
   <p class="note">{{ chrome.t.plans.note }}</p>
 </div>

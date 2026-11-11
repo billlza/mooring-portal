@@ -2,9 +2,11 @@
 //!
 //! One file holds the accounts, their sessions, the bindings of accounts to
 //! Mooring users, the latest snapshot record and CFM profile of each bound
-//! user, the accounts' subscription links, the ban list (digests of
-//! banned accounts' email addresses), and the CFM release the download
-//! page offers. The
+//! user, the accounts' subscription links, their orders with what Stripe
+//! has said of each payment and the journal Mooring pulls (of one mode,
+//! Stripe's test mode or real money, never both), the ban list
+//! (digests of banned accounts' email addresses and of their cards'
+//! fingerprints), and the CFM release the download page offers. The
 //! server and the operator's commands open the same file: SQLite's write
 //! lock serialises them (WAL journal, five-second busy timeout), and every
 //! operation that reads before it writes runs in an immediate transaction,
@@ -24,14 +26,20 @@ compile_error!("the portal store supports Unix hosts only (it sets file modes)")
 mod accounts;
 mod bans;
 mod bindings;
+mod entitlements;
 mod error;
 mod file;
 mod links;
+mod orders;
+mod payment_mode;
+mod payment_review;
 mod profiles;
 mod releases;
 mod rows;
 mod schema;
 mod sessions;
+mod settle;
+mod stripe_events;
 mod subscriptions;
 
 use std::path::Path;
@@ -42,13 +50,20 @@ use rusqlite::{Connection, OpenFlags};
 pub use accounts::{Account, AccountSummary, Credentials, DeleteError, NewAccount, RegisterError};
 pub use bans::{Ban, BanError};
 pub use bindings::{BindError, Binding, BoundAccount, UnbindError};
+pub use entitlements::{PullError, PullState, Pulled};
 pub use error::{StoreError, UnknownAccount};
 pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
+pub use orders::{AutoRenewal, Order, OrderError, Progress};
+pub use payment_mode::{DiscardError, Discarded, ModeError};
+pub use payment_review::{
+    ApproveError, Approved, OpenRenewal, OperatorOrder, StrayPayment, UnmatchedPayment,
+};
 pub use profiles::{
     ProfileImportError, ProfileImportReport, StoredProfile, Withheld, WithheldLink,
 };
 pub use releases::{OfferedRelease, ReleaseChange};
 pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
+pub use stripe_events::{Recorded, StrayReason};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};
 
 /// How long a writer waits for another's lock before failing.

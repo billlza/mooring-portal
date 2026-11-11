@@ -148,11 +148,41 @@
   margin-top: 8px;
 }
 
-.cfm h3 {
+.cfm h3,
+.shop h3 {
   margin: 26px 0 6px;
   padding-top: 20px;
   border-top: 1px solid rgba(159, 214, 241, 0.1);
   font-size: 1.02rem;
+}
+
+/* Plans to order and orders placed: each row says what it is, what it
+   costs or where it stands, and what can be done about it. */
+.rows {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(159, 214, 241, 0.1);
+}
+
+.rows .figure {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rows .wide {
+  grid-column: 2 / -1;
+  max-width: 22em;
+  text-align: right;
 }
 
 .link-field {

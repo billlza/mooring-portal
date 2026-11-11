@@ -20,9 +20,11 @@ use crate::i18n::{Strings, fill};
 
 mod cfm;
 mod release;
+mod shop;
 
 pub(crate) use cfm::CfmPanel;
 pub(crate) use release::ReleaseView;
+pub(crate) use shop::{OrderView, PayAction, PlanView, ShopView};
 
 /// A snapshot older than this is flagged as possibly out of date.
 pub(crate) const STALE_AFTER_SECS: u64 = 48 * 3600;

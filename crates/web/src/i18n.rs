@@ -10,7 +10,7 @@ mod zh;
 
 use serde::Deserialize;
 
-pub(crate) use text::Strings;
+pub(crate) use text::{Item, Strings};
 
 /// A page language.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -107,8 +107,18 @@ mod tests {
                 t.subscription.as_of,
                 t.subscription.resets,
                 t.download.checked,
+                t.pay.note_refunded_part,
             ] {
                 assert_eq!(phrase.matches("{}").count(), 1, "{lang:?}: {phrase}");
+            }
+            // A plan's terms take its days, then its traffic.
+            for phrase in [
+                t.pay.terms_month,
+                t.pay.terms_month_auto,
+                t.pay.terms_traffic,
+            ] {
+                assert_eq!(phrase.matches("{}").count(), 2, "{lang:?}: {phrase}");
+                assert_eq!(fill(&fill(phrase, 30), "5 GB").matches("{}").count(), 0);
             }
         }
     }

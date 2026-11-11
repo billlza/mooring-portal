@@ -240,7 +240,9 @@ async fn a_banned_address_is_signed_out_and_refused_as_a_taken_one() {
     let (mut banned, code) = app.signed_up("lilei@qq.com").await;
     app.signed_up("hanmeimei@qq.com").await;
     let now = portal_core::time::UnixTime::from_secs(super::support::NOW).unwrap();
-    app.store(move |store| store.ban(&code, now)).await.unwrap();
+    app.store(move |store| store.ban(&code, &[], now))
+        .await
+        .unwrap();
     // The banned browser's session is gone, and so is the login.
     assert_eq!(
         banned.get(&app, "/account").await.location(),

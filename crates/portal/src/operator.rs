@@ -6,6 +6,7 @@ use std::path::Path;
 
 use portal_core::account::{AccountCode, Email};
 use portal_core::auth::BanDigest;
+use portal_core::payment::stripe::CardFingerprint;
 use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
 use portal_core::release::{CfmRelease, MAX_RELEASE_BYTES};
 use portal_core::snapshot::{MAX_DOCUMENT_BYTES, MooringUserId, Snapshot};
@@ -60,12 +61,28 @@ pub(crate) fn unbind(
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
     let user = store.unbind(account)?;
+    // Its orders stay, and with them its subscriptions at Stripe.
+    let renewals: Vec<_> = store
+        .open_renewals()?
+        .into_iter()
+        .filter(|renewal| renewal.account == *account)
+        .collect();
     erase_then_report(store, out, |out| {
         writeln!(
             out,
             "unbound account {account} from Mooring user {user}; its subscription record, CFM \
              profile and subscription link were deleted"
-        )
+        )?;
+        for renewal in &renewals {
+            writeln!(
+                out,
+                "warning: Stripe may still charge subscription {} of this account, which no \
+                 longer has a Mooring user to grant it to; cancel it at Stripe unless the \
+                 account is to be bound to {user} again",
+                renewal.subscription
+            )?;
+        }
+        Ok(())
     })
 }
 
@@ -252,7 +269,7 @@ pub(crate) fn delete_account(
         writeln!(
             out,
             "deleted account {account} with its sessions, binding, subscription record, CFM \
-             profile and subscription link"
+             profile, subscription link and orders"
         )
     })
 }
@@ -262,20 +279,38 @@ pub(crate) fn ban(
     store: &mut Store,
     clock: &dyn Clock,
     account: &AccountCode,
+    cards: &[CardFingerprint],
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
-    let ban = store.ban(account, clock.now()?)?;
+    let digests: Vec<_> = cards.iter().map(CardFingerprint::digest).collect();
+    let ban = store.ban(account, &digests, clock.now()?)?;
     erase_then_report(store, out, |out| {
         writeln!(
             out,
             "banned account {account}: deleted it with its sessions, binding, subscription \
-             record, CFM profile and subscription link{}; its email address cannot register again",
+             record, CFM profile, subscription link{} and orders; its email address cannot \
+             register again",
             if ban.link_ended {
                 " (the link has ended for good)"
             } else {
                 ""
             }
         )?;
+        if !cards.is_empty() {
+            writeln!(
+                out,
+                "kept {} card fingerprint(s) with the ban: payments made with them will not be \
+                 granted",
+                cards.len()
+            )?;
+        }
+        for subscription in &ban.subscriptions {
+            writeln!(
+                out,
+                "Stripe may still charge subscription {subscription}: cancel it at Stripe, and \
+                 delete the card saved with it"
+            )?;
+        }
         if let Some(user) = &ban.user {
             writeln!(
                 out,
@@ -336,7 +371,7 @@ pub(crate) fn erase_deleted(store: &mut Store, out: &mut dyn Write) -> Result<()
 /// erasure; then writes `report`, and says the copies are gone. What the
 /// command did stays done either way. A failed erasure is the error even
 /// when the output failed too: it is the one the operator must act on.
-fn erase_then_report(
+pub(crate) fn erase_then_report(
     store: &mut Store,
     out: &mut dyn Write,
     report: impl FnOnce(&mut dyn Write) -> io::Result<()>,

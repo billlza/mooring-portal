@@ -13,6 +13,7 @@ pub(crate) struct Strings {
     pub(crate) account: AccountText,
     pub(crate) subscription: SubscriptionText,
     pub(crate) cfm: CfmText,
+    pub(crate) pay: PayText,
 }
 
 /// Text on every page.
@@ -110,7 +111,10 @@ pub(crate) struct Plans {
     pub(crate) promises: [Item; 4],
     pub(crate) how_title: &'static str,
     pub(crate) how_steps: [&'static str; 4],
-    pub(crate) sections: [Item; 5],
+    pub(crate) sections: [Item; 4],
+    /// How one pays: while the portal sells nothing, and once it does.
+    pub(crate) payment_closed: Item,
+    pub(crate) payment_open: Item,
     /// What it is not.
     pub(crate) note: &'static str,
 }
@@ -258,4 +262,62 @@ pub(crate) struct CfmText {
     pub(crate) made_label: &'static str,
     pub(crate) made_warning: &'static str,
     pub(crate) back: &'static str,
+}
+
+/// Plans, orders and payment: the plans page's price list, the
+/// subscription page's shop, and an order's page.
+#[derive(Debug)]
+pub(crate) struct PayText {
+    pub(crate) plans_title: &'static str,
+    pub(crate) plans_lead: &'static str,
+    pub(crate) kind_month: &'static str,
+    pub(crate) kind_month_auto: &'static str,
+    pub(crate) kind_traffic: &'static str,
+    /// What each kind of plan buys; each takes the days, then the traffic.
+    pub(crate) terms_month: &'static str,
+    pub(crate) terms_month_auto: &'static str,
+    pub(crate) terms_traffic: &'static str,
+    pub(crate) to_buy: &'static str,
+    /// The catalogue's payment pages take no real payments.
+    pub(crate) test_mode: &'static str,
+    pub(crate) buy_title: &'static str,
+    pub(crate) buy_intro: &'static str,
+    pub(crate) buy: &'static str,
+    pub(crate) renewing_active: &'static str,
+    pub(crate) renewing_ending: &'static str,
+    pub(crate) manage: &'static str,
+    pub(crate) manage_hint: &'static str,
+    /// Why a renewing plan cannot be ordered now.
+    pub(crate) auto_blocked: &'static str,
+    pub(crate) orders_title: &'static str,
+    pub(crate) order_view: &'static str,
+    pub(crate) order_title: &'static str,
+    pub(crate) order_id: &'static str,
+    pub(crate) order_plan: &'static str,
+    pub(crate) order_price: &'static str,
+    pub(crate) order_placed: &'static str,
+    pub(crate) order_paid: &'static str,
+    pub(crate) order_state: &'static str,
+    pub(crate) pay: &'static str,
+    pub(crate) pay_hint: &'static str,
+    /// The order's terms are no longer the catalogue's.
+    pub(crate) pay_stale: &'static str,
+    pub(crate) renewal_note: &'static str,
+    pub(crate) state_pending: &'static str,
+    pub(crate) state_checking: &'static str,
+    pub(crate) state_granted: &'static str,
+    pub(crate) state_pulled: &'static str,
+    pub(crate) state_review: &'static str,
+    pub(crate) state_returned: &'static str,
+    pub(crate) note_checking: &'static str,
+    pub(crate) note_granted: &'static str,
+    pub(crate) note_pulled: &'static str,
+    pub(crate) note_review: &'static str,
+    pub(crate) note_returned: &'static str,
+    /// Takes the amount refunded.
+    pub(crate) note_refunded_part: &'static str,
+    pub(crate) note_refunded_full: &'static str,
+    pub(crate) note_disputed: &'static str,
+    pub(crate) notice_unbound: &'static str,
+    pub(crate) notice_plan_gone: &'static str,
 }

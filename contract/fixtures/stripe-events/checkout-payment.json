@@ -1,0 +1,55 @@
+{
+  "id": "evt_1SynthCheckoutPayment",
+  "object": "event",
+  "api_version": "2026-10-28.endive",
+  "created": 1794355260,
+  "data": {
+    "object": {
+      "id": "cs_test_a1SynthPayment",
+      "object": "checkout.session",
+      "amount_subtotal": 800,
+      "amount_total": 800,
+      "client_reference_id": "0123456789abcdefghjk",
+      "created": 1794355200,
+      "currency": "gbp",
+      "customer": null,
+      "customer_details": {
+        "address": {
+          "city": null,
+          "country": "GB",
+          "line1": null,
+          "line2": null,
+          "postal_code": "ZZ1 1ZZ",
+          "state": null
+        },
+        "email": "payer@example.test",
+        "name": "Synthetic Payer",
+        "phone": null,
+        "tax_exempt": "none",
+        "tax_ids": []
+      },
+      "invoice": null,
+      "livemode": false,
+      "locale": "zh",
+      "metadata": {},
+      "mode": "payment",
+      "payment_intent": "pi_3SynthPayment",
+      "payment_link": "plink_1SynthMonth",
+      "payment_method_types": [
+        "card"
+      ],
+      "payment_status": "paid",
+      "status": "complete",
+      "subscription": null,
+      "success_url": "https://stripe.com",
+      "url": null
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "checkout.session.completed"
+}

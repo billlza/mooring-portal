@@ -72,7 +72,7 @@ fn writes_fail_loudly() {
         Err(DeleteError::Store(StoreError::Sqlite(_)))
     ));
     assert!(matches!(
-        store.ban(&account.code, at(NOW)),
+        store.ban(&account.code, &[], at(NOW)),
         Err(BanError::Store(StoreError::Sqlite(_)))
     ));
     sqlite(store.unban(&ban_digest("a@qq.com")));

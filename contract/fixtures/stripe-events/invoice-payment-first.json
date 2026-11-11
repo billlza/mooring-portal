@@ -1,0 +1,35 @@
+{
+  "id": "evt_1SynthInvoicePaymentFirst",
+  "object": "event",
+  "api_version": "2026-10-28.endive",
+  "created": 1794355264,
+  "data": {
+    "object": {
+      "id": "inpay_1SynthFirst",
+      "object": "invoice_payment",
+      "amount_paid": 800,
+      "amount_requested": 800,
+      "created": 1794355259,
+      "currency": "gbp",
+      "invoice": "in_1SynthFirst",
+      "is_default": true,
+      "livemode": false,
+      "payment": {
+        "payment_intent": "pi_3SynthFirstInvoice",
+        "type": "payment_intent"
+      },
+      "status": "paid",
+      "status_transitions": {
+        "canceled_at": null,
+        "paid_at": 1794355259
+      }
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "invoice_payment.paid"
+}

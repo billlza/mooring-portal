@@ -4,6 +4,7 @@ pub(crate) mod account;
 pub(crate) mod auth;
 pub(crate) mod cfm;
 pub(crate) mod lang;
+pub(crate) mod orders;
 pub(crate) mod public;
 pub(crate) mod subscription;
 

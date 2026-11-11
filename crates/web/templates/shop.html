@@ -1,0 +1,42 @@
+<section class="panel shop">
+  <h2>{{ chrome.t.pay.buy_title }}</h2>
+  {% if shop.test_mode %}<p class="alert" role="note">{{ chrome.t.pay.test_mode }}</p>{% endif %}
+  <p class="small muted">{{ chrome.t.pay.buy_intro }}</p>
+  {% if let Some(renewal) = shop.renewal %}
+  <p>{{ renewal }}</p>
+  {% if let Some(url) = shop.manage_url %}
+  <p><a class="button ghost" href="{{ url }}" rel="noopener noreferrer">{{ chrome.t.pay.manage }}</a></p>
+  <p class="small muted">{{ chrome.t.pay.manage_hint }}</p>
+  {% endif %}
+  {% endif %}
+  <ul class="rows" role="list">
+    {% for plan in shop.plans %}
+    <li>
+      <div>{{ plan.name }}<span class="block muted small">{{ plan.terms }}</span></div>
+      {% if plan.blocked %}
+      <span class="figure">{{ plan.price }}</span>
+      <span class="wide small muted">{{ chrome.t.pay.auto_blocked }}</span>
+      {% else %}
+      <span class="figure">{{ plan.price }}</span>
+      <form class="inline" method="post" action="/subscription/orders">
+        <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+        <input type="hidden" name="plan" value="{{ plan.id }}">
+        <button class="button" type="submit">{{ chrome.t.pay.buy }}</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if !shop.orders.is_empty() %}
+  <h3>{{ chrome.t.pay.orders_title }}</h3>
+  <ul class="rows" role="list">
+    {% for order in shop.orders %}
+    <li>
+      <div>{{ order.name }} · {{ order.price }}<span class="block muted small">{{ order.placed }} {{ chrome.t.common.beijing_time }}</span></div>
+      <span class="{{ order.tone.class() }}">{{ order.state }}</span>
+      <a class="link" href="/subscription/orders/{{ order.id }}">{{ chrome.t.pay.order_view }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>

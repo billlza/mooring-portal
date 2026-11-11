@@ -1,0 +1,41 @@
+{
+  "id": "evt_1SynthInvoicePaidFirst",
+  "object": "event",
+  "api_version": "2026-10-28.endive",
+  "created": 1794355263,
+  "data": {
+    "object": {
+      "id": "in_1SynthFirst",
+      "object": "invoice",
+      "amount_due": 800,
+      "amount_paid": 800,
+      "amount_remaining": 0,
+      "billing_reason": "subscription_create",
+      "collection_method": "charge_automatically",
+      "created": 1794355200,
+      "currency": "gbp",
+      "customer": "cus_SynthPayer",
+      "customer_email": "payer@example.test",
+      "customer_name": "Synthetic Payer",
+      "livemode": false,
+      "metadata": {},
+      "parent": {
+        "quote_details": null,
+        "subscription_details": {
+          "metadata": {},
+          "subscription": "sub_1SynthAuto"
+        },
+        "type": "subscription_details"
+      },
+      "status": "paid",
+      "total": 800
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "invoice.paid"
+}

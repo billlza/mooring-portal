@@ -11,19 +11,27 @@ use portal_web::{AppState, ClientIpSource, PublicOrigin, WebConfig};
 use tokio::net::TcpListener;
 use tokio::signal::unix::{SignalKind, signal};
 
-use crate::CommandError;
 use crate::cli::ServeArgs;
+use crate::{CommandError, payments};
 
-/// The configuration `args` describe.
+/// The configuration `args` describe. The catalogue and the signing
+/// secrets are read here, once: a change to either takes a restart.
 pub(crate) fn config(args: &ServeArgs) -> Result<WebConfig, CommandError> {
+    let origin = PublicOrigin::parse(&args.origin)?;
+    // The command line asks for both files or neither.
+    let payments = match (&args.payments, &args.stripe_webhook_secret) {
+        (Some(catalogue), Some(secrets)) => Some(payments::load(catalogue, secrets)?),
+        _ => None,
+    };
     Ok(WebConfig {
-        origin: PublicOrigin::parse(&args.origin)?,
+        origin,
         client_ip: if args.behind_proxy {
             ClientIpSource::ForwardedFor
         } else {
             ClientIpSource::Peer
         },
         max_accounts: args.max_accounts,
+        payments,
     })
 }
 
@@ -57,6 +65,7 @@ pub(crate) fn serve(db: &Path, args: &ServeArgs) -> Result<(), CommandError> {
         tracing::info!(
             address = %listener.local_addr().map_err(CommandError::Server)?,
             origin = %config.origin,
+            selling = config.payments.is_some(),
             "serving the portal"
         );
         let shutdown = async move {

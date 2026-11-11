@@ -1,0 +1,31 @@
+{
+  "id": "evt_1SynthSubscriptionResumed",
+  "object": "event",
+  "api_version": "2026-10-28.endive",
+  "created": 1795000500,
+  "data": {
+    "object": {
+      "id": "sub_1SynthAuto",
+      "object": "subscription",
+      "cancel_at": null,
+      "cancel_at_period_end": false,
+      "canceled_at": null,
+      "collection_method": "charge_automatically",
+      "created": 1794355200,
+      "currency": "gbp",
+      "customer": "cus_SynthPayer",
+      "ended_at": null,
+      "livemode": false,
+      "metadata": {},
+      "start_date": 1794355200,
+      "status": "active"
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "customer.subscription.updated"
+}

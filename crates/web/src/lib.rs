@@ -8,6 +8,11 @@
 //! every response carries security headers; no asset comes from another
 //! host. The one script is an ornament, the home page's live scene, and
 //! only that page may run it.
+//!
+//! Once the operator has given it a catalogue, the portal also takes
+//! orders: a bound account orders a plan and is sent to pay on Stripe's
+//! site, Stripe tells the portal what was paid, and Mooring pulls what to
+//! grant. The portal holds no key that could move money (`machines`).
 
 mod assets;
 mod brand;
@@ -16,6 +21,7 @@ mod db;
 mod error;
 mod format;
 mod i18n;
+mod machines;
 mod pages;
 mod security;
 mod state;
@@ -30,15 +36,20 @@ use axum::middleware;
 use axum::routing::{get, post};
 use tokio::net::TcpListener;
 
-pub use config::{ClientIpSource, OriginError, PublicOrigin, SESSION_TTL_SECS, WebConfig};
+pub use config::{
+    ClientIpSource, OriginError, Payments, PublicOrigin, SESSION_TTL_SECS, SecretCount, WebConfig,
+};
 pub use state::{AppState, StartupError};
 
-use pages::{Page, account, auth, cfm, lang, public, subscription};
+use pages::{Page, account, auth, cfm, lang, orders, public, subscription};
 use security::{csrf, headers};
 
-/// The portal's routes.
+/// The portal's routes. The addresses of ordering and paying exist only
+/// for a portal that sells: without a catalogue they are answered like
+/// any address that was never one, whatever the method.
 pub fn router(state: AppState) -> Router {
-    let pages = Router::new()
+    let selling = state.payments().is_some();
+    let mut pages = Router::new()
         .route(Page::Home.path(), get(public::home))
         .route("/download", get(public::download))
         .route("/plans", get(public::plans))
@@ -55,8 +66,13 @@ pub fn router(state: AppState) -> Router {
         .route("/subscription/profile.json", get(cfm::download))
         .route("/subscription/link", post(cfm::create_link))
         .route("/subscription/link/revoke", post(cfm::revoke_link))
-        .route("/lang", post(lang::switch))
-        .layer(middleware::from_fn(csrf::ensure_token));
+        .route("/lang", post(lang::switch));
+    if selling {
+        pages = pages
+            .route("/subscription/orders", post(orders::place))
+            .route("/subscription/orders/{*id}", get(orders::show));
+    }
+    let pages = pages.layer(middleware::from_fn(csrf::ensure_token));
     let files = Router::new()
         .route("/assets/{*file}", get(assets::serve))
         .route("/robots.txt", get(assets::robots));
@@ -64,9 +80,19 @@ pub fn router(state: AppState) -> Router {
     // under /sub/ is answered there, in plain text when it fails, so that
     // no error page sends a token on as the referrer.
     let links = Router::new().route("/sub/{*token}", get(cfm::fetch));
+    // What machines call: Stripe with its deliveries, Mooring for the
+    // entitlements. No cookie either way, and plain text when they fail.
+    let machines = if selling {
+        Router::new()
+            .route("/stripe/webhook", post(machines::deliver))
+            .route("/api/mooring/entitlements", get(machines::pull))
+    } else {
+        Router::new()
+    };
     pages
         .merge(files)
         .merge(links)
+        .merge(machines)
         .fallback(public::not_found)
         // Only the home page may run this site's scripts.
         .layer(middleware::from_fn(|request, next| {

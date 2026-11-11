@@ -6,7 +6,9 @@
 //! contract, version 2, is tested the same way against
 //! `contract/fixtures/cfm-profiles-v2/`, and what the portal reads of
 //! GitHub's description of a CFM release against
-//! `contract/fixtures/cfm-release/`.
+//! `contract/fixtures/cfm-release/`. The payment contracts (the
+//! catalogue, Stripe's events and the entitlements Mooring pulls) have
+//! theirs in `payments`.
 //!
 //! Every module is test code, including helpers that are not `#[test]`
 //! functions; `#[cfg(test)]` declares that, so the workspace's test-only
@@ -16,6 +18,8 @@
 mod fixtures;
 #[cfg(test)]
 mod golden;
+#[cfg(test)]
+mod payments;
 #[cfg(test)]
 mod profiles;
 #[cfg(test)]

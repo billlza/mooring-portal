@@ -34,7 +34,7 @@ impl io::Write for ThreadLog {
 /// events: with a single subscriber registered, tracing decides once per
 /// log statement whether anyone listens, by asking the subscriber of
 /// whichever thread reaches it first, and that may be another test's.
-fn capture_logs() {
+pub(super) fn capture_logs() {
     static INSTALL: Once = Once::new();
     INSTALL.call_once(|| {
         tracing_subscriber::fmt()
@@ -47,7 +47,7 @@ fn capture_logs() {
 }
 
 /// What this thread has logged since [`capture_logs`].
-fn logged() -> String {
+pub(super) fn logged() -> String {
     LOGGED.with_borrow(|log| String::from_utf8(log.clone()).unwrap())
 }
 

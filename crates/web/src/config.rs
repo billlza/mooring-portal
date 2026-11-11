@@ -1,6 +1,10 @@
 //! The server's configuration as the web layer needs it.
 
 use std::fmt;
+use std::sync::Arc;
+
+use portal_core::payment::stripe::SigningSecret;
+use portal_core::payment::{Catalogue, OrderTerms};
 
 /// The longest a login session lasts.
 pub const SESSION_TTL_SECS: u64 = 30 * 86_400;
@@ -15,6 +19,57 @@ pub struct WebConfig {
     pub client_ip: ClientIpSource,
     /// Registration closes once the portal holds this many accounts.
     pub max_accounts: u32,
+    /// What the portal sells and how it knows Stripe's word; without it
+    /// the portal sells nothing, and none of the payment addresses exist.
+    pub payments: Option<Payments>,
+}
+
+/// What the portal needs to take orders: the operator's catalogue, and
+/// the secrets Stripe signs its deliveries with. The portal holds no key
+/// of Stripe's that could charge, refund or look anything up.
+#[derive(Debug, Clone)]
+pub struct Payments {
+    catalogue: Catalogue,
+    on_sale: Arc<[OrderTerms]>,
+    secrets: Vec<SigningSecret>,
+}
+
+/// The signing secrets given are not one or two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("give one signing secret, or two while one is being rolled, not {0}")]
+pub struct SecretCount(pub usize);
+
+impl Payments {
+    /// Payments on `catalogue`, with Stripe's deliveries believed under
+    /// any of `secrets`: the endpoint's one, or its old and its new while
+    /// the operator rolls it.
+    pub fn new(catalogue: Catalogue, secrets: Vec<SigningSecret>) -> Result<Self, SecretCount> {
+        if matches!(secrets.len(), 1 | 2) {
+            Ok(Self {
+                on_sale: catalogue.plans().iter().map(OrderTerms::of).collect(),
+                catalogue,
+                secrets,
+            })
+        } else {
+            Err(SecretCount(secrets.len()))
+        }
+    }
+
+    /// What the portal sells.
+    pub(crate) const fn catalogue(&self) -> &Catalogue {
+        &self.catalogue
+    }
+
+    /// The terms of every plan on sale: a payment for an order placed on
+    /// other terms is not granted unseen.
+    pub(crate) fn on_sale(&self) -> Arc<[OrderTerms]> {
+        Arc::clone(&self.on_sale)
+    }
+
+    /// The secrets Stripe's deliveries are believed under.
+    pub(crate) fn secrets(&self) -> &[SigningSecret] {
+        &self.secrets
+    }
 }
 
 /// Where the client address used for rate limits comes from.
@@ -184,6 +239,40 @@ mod tests {
                 "{bad:?}"
             );
         }
+    }
+
+    #[test]
+    fn payments_take_one_signing_secret_or_two() {
+        let catalogue = || {
+            Catalogue::parse(
+                r#"{"format":"mooring-portal-payments","version":1,"livemode":false,
+                "currency":"gbp","plans":[{"id":"month","kind":"month","days":30,
+                "traffic_gb":100,"amount":800,"payment_link":"https://buy.stripe.com/test_a",
+                "payment_link_id":"plink_1a"}],"manage_subscription_url":null}"#,
+            )
+            .unwrap()
+        };
+        let secret =
+            |n: u8| SigningSecret::parse(&format!("whsec_{}", n.to_string().repeat(20))).unwrap();
+        for count in [1_u8, 2] {
+            let payments = Payments::new(catalogue(), (0..count).map(secret).collect()).unwrap();
+            assert_eq!(payments.secrets().len(), usize::from(count));
+            assert_eq!(payments.catalogue().plans().len(), 1);
+            assert_eq!(
+                *payments.on_sale(),
+                [OrderTerms::of(&payments.catalogue().plans()[0])]
+            );
+            // A secret is not printed with the rest.
+            assert!(!format!("{payments:?}").contains("whsec_"));
+        }
+        for count in [0_u8, 3] {
+            let refused = Payments::new(catalogue(), (0..count).map(secret).collect());
+            assert_eq!(refused.err(), Some(SecretCount(usize::from(count))));
+        }
+        assert_eq!(
+            SecretCount(0).to_string(),
+            "give one signing secret, or two while one is being rolled, not 0"
+        );
     }
 
     #[test]

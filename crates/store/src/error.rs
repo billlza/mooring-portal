@@ -60,6 +60,12 @@ pub enum StoreError {
         /// Why it is invalid.
         detail: String,
     },
+    /// A count is too large for the database to hold.
+    #[error("the {what} is too large to store")]
+    OutOfRange {
+        /// What was being written.
+        what: &'static str,
+    },
     /// Another connection kept reading or writing for the whole busy
     /// timeout, so the copies of deleted rows could not all be erased.
     #[error(

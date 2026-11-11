@@ -1,0 +1,35 @@
+{
+  "id": "evt_1SynthDisputeCreated",
+  "object": "event",
+  "api_version": "2026-10-28.endive",
+  "created": 1794600000,
+  "data": {
+    "object": {
+      "id": "du_1SynthDispute",
+      "object": "dispute",
+      "amount": 800,
+      "charge": "ch_3SynthPayment",
+      "created": 1794600000,
+      "currency": "gbp",
+      "evidence_details": {
+        "due_by": 1795200000,
+        "has_evidence": false,
+        "past_due": false,
+        "submission_count": 0
+      },
+      "is_charge_refundable": false,
+      "livemode": false,
+      "metadata": {},
+      "payment_intent": "pi_3SynthPayment",
+      "reason": "fraudulent",
+      "status": "needs_response"
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "charge.dispute.created"
+}

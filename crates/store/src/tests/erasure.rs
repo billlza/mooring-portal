@@ -76,7 +76,7 @@ fn holders(path: &Path, trace: &[u8]) -> Vec<PathBuf> {
 fn a_deleted_or_banned_account_leaves_nothing_in_the_files() {
     let delete = |store: &mut Store, code: &AccountCode| store.delete_account(code).unwrap();
     let ban = |store: &mut Store, code: &AccountCode| {
-        store.ban(code, at(NOW + 5)).unwrap();
+        store.ban(code, &[], at(NOW + 5)).unwrap();
     };
     for remove in [&delete as &dyn Fn(&mut Store, &AccountCode), &ban] {
         let dir = tempfile::tempdir().unwrap();

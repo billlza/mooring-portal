@@ -1,0 +1,62 @@
+{
+  "id": "evt_1SynthChargePayment",
+  "object": "event",
+  "api_version": "2026-10-28.endive",
+  "created": 1794355256,
+  "data": {
+    "object": {
+      "id": "ch_3SynthPayment",
+      "object": "charge",
+      "amount": 800,
+      "amount_captured": 800,
+      "amount_refunded": 0,
+      "billing_details": {
+        "address": {
+          "city": null,
+          "country": "GB",
+          "line1": null,
+          "line2": null,
+          "postal_code": "ZZ1 1ZZ",
+          "state": null
+        },
+        "email": "payer@example.test",
+        "name": "Synthetic Payer",
+        "phone": null
+      },
+      "captured": true,
+      "created": 1794355255,
+      "currency": "gbp",
+      "customer": null,
+      "disputed": false,
+      "livemode": false,
+      "metadata": {},
+      "paid": true,
+      "payment_intent": "pi_3SynthPayment",
+      "payment_method": "pm_1SynthCard",
+      "payment_method_details": {
+        "card": {
+          "brand": "visa",
+          "country": "GB",
+          "exp_month": 12,
+          "exp_year": 2030,
+          "fingerprint": "Xt5EWLLDS7FJjR1c",
+          "funding": "debit",
+          "last4": "4242",
+          "network": "visa",
+          "wallet": null
+        },
+        "type": "card"
+      },
+      "receipt_email": "payer@example.test",
+      "refunded": false,
+      "status": "succeeded"
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": {
+    "id": null,
+    "idempotency_key": null
+  },
+  "type": "charge.succeeded"
+}

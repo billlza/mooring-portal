@@ -33,10 +33,11 @@ fn a_ban_deletes_the_account_and_keeps_its_address_from_registering_again() {
         .replace_subscription_link(&digest(1), &digest(9), at(NOW))
         .unwrap();
     assert_eq!(
-        store.ban(&banned.code, at(NOW + 5)).unwrap(),
+        store.ban(&banned.code, &[], at(NOW + 5)).unwrap(),
         Ban {
             user: Some(user("pilotusera")),
             link_ended: true,
+            subscriptions: Vec::new(),
         }
     );
     // No login, no session, no link: the account is gone.
@@ -81,14 +82,15 @@ fn a_ban_says_what_it_removed_and_refuses_an_unknown_code() {
     let mut store = store();
     let loose = register(&mut store, "a@qq.com", 1);
     assert_eq!(
-        store.ban(&loose.code, at(NOW)).unwrap(),
+        store.ban(&loose.code, &[], at(NOW)).unwrap(),
         Ban {
             user: None,
             link_ended: false,
+            subscriptions: Vec::new(),
         }
     );
     assert!(matches!(
-        store.ban(&loose.code, at(NOW)),
+        store.ban(&loose.code, &[], at(NOW)),
         Err(BanError::Unknown(UnknownAccount(code))) if code == loose.code
     ));
 }
@@ -104,7 +106,7 @@ fn a_ban_that_fails_late_changes_nothing() {
         )
         .unwrap();
     assert!(matches!(
-        store.ban(&account.code, at(NOW)),
+        store.ban(&account.code, &[], at(NOW)),
         Err(BanError::Store(StoreError::Sqlite(_)))
     ));
     store.conn.execute_batch("DROP TRIGGER refuse;").unwrap();

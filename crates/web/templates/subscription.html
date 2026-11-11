@@ -104,5 +104,8 @@
     {% endmatch %}
   </section>
 {% endif %}
+{% if let Some(shop) = shop %}
+  {% include "shop.html" %}
+{% endif %}
 </div>
 {% endblock %}

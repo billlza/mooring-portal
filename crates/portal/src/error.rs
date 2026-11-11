@@ -3,15 +3,18 @@
 use std::io;
 use std::path::PathBuf;
 
-use portal_core::auth::HashError;
+use portal_core::auth::{HashError, RandomError};
+use portal_core::payment::CatalogueError;
+use portal_core::payment::stripe::SecretError;
 use portal_core::profile::ProfileError;
 use portal_core::release::ReleaseError;
 use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
 use portal_store::{
-    BanError, BindError, DeleteError, ImportError, ProfileImportError, StoreError, UnbindError,
+    ApproveError, BanError, BindError, DeleteError, DiscardError, ImportError, ProfileImportError,
+    StoreError, UnbindError,
 };
-use portal_web::{OriginError, StartupError};
+use portal_web::{OriginError, SecretCount, StartupError};
 
 /// Why a command failed.
 #[derive(Debug, thiserror::Error)]
@@ -40,9 +43,94 @@ pub enum CommandError {
     /// The address could not be hashed for the ban list.
     #[error(transparent)]
     Hash(#[from] HashError),
-    /// `unban` named an address that is not banned, most likely mistyped.
+    /// `unban` or `ban-cards` named an address that is not banned, most
+    /// likely mistyped.
     #[error("that email address is not banned; nothing changed")]
     NotBanned,
+    /// An approval was refused.
+    #[error(transparent)]
+    Approve(#[from] ApproveError),
+    /// A rehearsal was not discarded.
+    #[error(transparent)]
+    Discard(#[from] DiscardError),
+    /// `dismiss-payment` named a number that is not on the list.
+    #[error("there is no payment numbered {0} on the list; nothing changed")]
+    NoSuchPayment(u64),
+    /// `revoke-pull-token` found no token.
+    #[error("there is no pull token; nothing changed")]
+    NoPullToken,
+    /// The operating system gave no random bytes for a token.
+    #[error(transparent)]
+    Random(#[from] RandomError),
+    /// The catalogue file is not a catalogue.
+    #[error("{path}: {source}")]
+    Catalogue {
+        /// The file.
+        path: PathBuf,
+        /// Why it was refused.
+        #[source]
+        source: CatalogueError,
+    },
+    /// The catalogue file can be changed by other users of the host.
+    #[error(
+        "the catalogue file {path} has mode {mode:o}, so other users may change what is sold \
+         and where it is paid for; restrict it with `chmod go-w`"
+    )]
+    CatalogueFileOpen {
+        /// The file.
+        path: PathBuf,
+        /// Its permission bits.
+        mode: u32,
+    },
+    /// The file of signing secrets is open to other users of the host.
+    #[error(
+        "the signing secret file {path} has mode {mode:o}, so other users may read it; \
+         restrict it with `chmod 600`"
+    )]
+    SecretFileOpen {
+        /// The file.
+        path: PathBuf,
+        /// Its permission bits.
+        mode: u32,
+    },
+    /// The file of signing secrets holds something that is not one. What
+    /// it holds is not repeated.
+    #[error("{path}, line {line}: {source}")]
+    SigningSecret {
+        /// The file.
+        path: PathBuf,
+        /// The line, counted from one.
+        line: usize,
+        /// Why it was refused.
+        #[source]
+        source: SecretError,
+    },
+    /// The file of signing secrets is longer than one can be. It is not
+    /// read in part.
+    #[error(
+        "the signing secret file {path} is larger than {} bytes; it holds one secret, or two \
+         while one is being rolled, a line each",
+        crate::payments::MAX_SECRET_FILE_BYTES
+    )]
+    SecretFileTooLarge {
+        /// The file.
+        path: PathBuf,
+    },
+    /// The file of signing secrets is not text.
+    #[error("{path} is not text: a signing secret is written whsec_ and letters, digits and _")]
+    SecretFileNotText {
+        /// The file.
+        path: PathBuf,
+    },
+    /// The file of signing secrets holds none, or more than two.
+    #[error("{path}: {source}")]
+    SecretCount {
+        /// The file.
+        path: PathBuf,
+        /// How many it holds.
+        #[source]
+        source: SecretCount,
+    },
     /// An input file could not be read.
     #[error("cannot read {path}: {source}")]
     Read {

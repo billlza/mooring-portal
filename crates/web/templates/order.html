@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.pay.order_title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.account.title }}</h1>
+  {% include "tabs.html" %}
+</div>
+<div class="container">
+  <section class="panel">
+    <h2>{{ chrome.t.pay.order_title }}</h2>
+    {% if test_mode %}<p class="alert" role="note">{{ chrome.t.pay.test_mode }}</p>{% endif %}
+    <dl class="facts">
+      <div>
+        <dt>{{ chrome.t.pay.order_state }}</dt>
+        <dd><span class="{{ order.tone.class() }}">{{ order.state }}</span>{% for note in order.notes %}<span class="block muted small">{{ note }}</span>{% endfor %}</dd>
+      </div>
+      <div>
+        <dt>{{ chrome.t.pay.order_plan }}</dt>
+        <dd>{{ order.name }}<span class="block muted small">{{ order.terms }}</span>{% if order.renewal %}<span class="block muted small">{{ chrome.t.pay.renewal_note }}</span>{% endif %}</dd>
+      </div>
+      <div>
+        <dt>{{ chrome.t.pay.order_price }}</dt>
+        <dd>{{ order.price }}</dd>
+      </div>
+      <div>
+        <dt>{{ chrome.t.pay.order_placed }}</dt>
+        <dd>{{ order.placed }} <span class="muted small">{{ chrome.t.common.beijing_time }}</span></dd>
+      </div>
+      {% if let Some(paid) = order.paid %}
+      <div>
+        <dt>{{ chrome.t.pay.order_paid }}</dt>
+        <dd>{{ paid }} <span class="muted small">{{ chrome.t.common.beijing_time }}</span></dd>
+      </div>
+      {% endif %}
+      <div>
+        <dt>{{ chrome.t.pay.order_id }}</dt>
+        <dd class="hash">{{ order.id }}</dd>
+      </div>
+    </dl>
+    {% match pay %}
+    {% when PayAction::Pay with (url) %}
+    <p><a class="button" href="{{ url }}" rel="noopener noreferrer">{{ chrome.t.pay.pay }}</a></p>
+    <p class="small muted">{{ chrome.t.pay.pay_hint }}</p>
+    {% when PayAction::Stale %}
+    <p class="alert" role="note">{{ chrome.t.pay.pay_stale }}</p>
+    {% when PayAction::None %}
+    {% endmatch %}
+    <p><a class="button ghost" href="/subscription">{{ chrome.t.cfm.back }}</a></p>
+  </section>
+</div>
+{% endblock %}

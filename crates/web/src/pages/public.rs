@@ -7,8 +7,9 @@ use axum::response::Response;
 use super::{Chrome, Page, PageContext, render};
 use crate::assets::{AssetPaths, VIEW};
 use crate::error::AppError;
+use crate::i18n::Item;
 use crate::state::AppState;
-use crate::view::ReleaseView;
+use crate::view::{PlanView, ReleaseView};
 
 #[derive(Template)]
 #[template(path = "home.html")]
@@ -48,6 +49,17 @@ struct DownloadPage {
 #[template(path = "plans.html")]
 struct PlansPage {
     chrome: Chrome,
+    /// What is on sale, once the portal sells anything.
+    prices: Option<Prices>,
+    /// How one pays, as things stand.
+    payment: &'static Item,
+}
+
+/// The plans page's price list.
+struct Prices {
+    plans: Vec<PlanView>,
+    /// The catalogue's payment pages take no real payments.
+    test_mode: bool,
 }
 
 #[derive(Template)]
@@ -87,9 +99,32 @@ pub(crate) async fn download(
     })
 }
 
-/// `GET /plans`.
-pub(crate) async fn plans(ctx: PageContext) -> Result<Response, AppError> {
+/// `GET /plans`: how the service works and, once the portal sells
+/// anything, what it sells. Ordering is on the subscription page, where
+/// the account is known.
+pub(crate) async fn plans(
+    State(state): State<AppState>,
+    ctx: PageContext,
+) -> Result<Response, AppError> {
+    let t = ctx.t();
+    let prices = state.payments().map(|payments| {
+        let catalogue = payments.catalogue();
+        Prices {
+            plans: catalogue
+                .plans()
+                .iter()
+                .map(|plan| PlanView::of(plan, false, t))
+                .collect(),
+            test_mode: !catalogue.livemode(),
+        }
+    });
     render(&PlansPage {
+        payment: if prices.is_some() {
+            &t.plans.payment_open
+        } else {
+            &t.plans.payment_closed
+        },
+        prices,
         chrome: ctx.chrome(Page::Plans),
     })
 }

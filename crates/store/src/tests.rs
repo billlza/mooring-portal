@@ -1,17 +1,28 @@
 //! Tests of the store against in-memory and on-disk databases.
 
 mod accounts;
+mod approval;
 mod bans;
 mod bindings;
 mod erasure;
 mod failures;
 mod file;
+mod journal;
+mod leaving;
 mod links;
 mod migration;
+mod modes;
+mod orders;
+mod paying;
+mod payment_failures;
+mod payments;
 mod profiles;
 mod releases;
+mod renewals;
+mod review;
 mod sessions;
 mod sharing;
+mod strays;
 mod subscriptions;
 
 use portal_core::account::{AccountCode, Email};

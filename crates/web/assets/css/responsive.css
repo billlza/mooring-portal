@@ -202,6 +202,21 @@
     gap: 2px;
   }
 
+  /* A row's name takes a line of its own, the rest the line under it. */
+  .rows li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .rows li > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .rows .wide {
+    grid-column: 1 / -1;
+    max-width: none;
+    text-align: left;
+  }
+
   .auth-panel {
     padding: 26px 20px;
   }

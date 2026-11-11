@@ -5,6 +5,8 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use portal_core::account::{AccountCode, AccountCodeError, Email, EmailError};
+use portal_core::payment::stripe::{CardFingerprint, CardFingerprintError};
+use portal_core::payment::{OrderId, OrderIdError};
 use portal_core::snapshot::{MooringUserId, MooringUserIdError};
 
 /// The Mooring portal: its server, and the operator's commands on its
@@ -67,27 +69,80 @@ pub(crate) enum Command {
         #[arg(value_name = "FILE")]
         file: PathBuf,
     },
-    /// Delete an account with its sessions, binding, record, profile and
-    /// link.
+    /// Delete an account with its sessions, binding, record, profile,
+    /// link and orders. Refused while Stripe may still charge a
+    /// subscription of it, or an order of it is not settled.
     DeleteAccount {
         /// The account's code.
         #[arg(long, value_name = "CODE", value_parser = account_code)]
         account: AccountCode,
     },
     /// Ban an account caught abusing the service: delete it as
-    /// `delete-account` does, and keep its email address from registering
-    /// again. Revoke its Mooring user in Mooring as well.
+    /// `delete-account` does, without waiting for its payments to be
+    /// settled, and keep its email address from registering again and
+    /// its cards from paying. Revoke its Mooring user in Mooring as well.
     Ban {
         /// The account's code.
         #[arg(long, value_name = "CODE", value_parser = account_code)]
         account: AccountCode,
+        /// The fingerprint Stripe gives a card the account paid with, as
+        /// Stripe's Dashboard shows it; repeat for each card.
+        #[arg(long = "card", value_name = "FINGERPRINT", value_parser = card_fingerprint)]
+        cards: Vec<CardFingerprint>,
     },
-    /// Let a banned email address register again.
+    /// Add cards to the ban of an email address already banned.
+    BanCards {
+        /// The banned address, as it was registered.
+        #[arg(long, value_name = "ADDRESS", value_parser = email_address)]
+        email: Email,
+        /// A card's fingerprint, as Stripe's Dashboard shows it; repeat
+        /// for each card.
+        #[arg(
+            long = "card",
+            value_name = "FINGERPRINT",
+            value_parser = card_fingerprint,
+            required = true
+        )]
+        cards: Vec<CardFingerprint>,
+    },
+    /// Let a banned email address register again, and the cards banned
+    /// with it pay again.
     Unban {
         /// The address, as it was registered (case does not matter).
         #[arg(long, value_name = "ADDRESS", value_parser = email_address)]
         email: Email,
     },
+    /// Show what about payments waits for the operator or for Stripe,
+    /// the subscriptions Stripe may charge again, the latest orders, and
+    /// how far Mooring has pulled.
+    Orders,
+    /// Let an order through the one thing it waits for, which `orders`
+    /// shows. An order in review for its checkout is judged by its card
+    /// next; one whose card could not be checked, or was never told of,
+    /// is entered for Mooring to grant. One paid with a banned account's
+    /// card is never approved.
+    ApproveOrder {
+        /// The order's id, as `orders` lists it.
+        #[arg(long, value_name = "ID", value_parser = order_id)]
+        order: OrderId,
+    },
+    /// Take a payment that is no order's off the list `orders` shows.
+    /// One refunded in full at Stripe goes by itself.
+    DismissPayment {
+        /// The payment's number, as `orders` lists it.
+        #[arg(long, value_name = "NUMBER")]
+        id: u64,
+    },
+    /// Remove a rehearsal before taking real payments: every order,
+    /// every payment that is no order's and all that Stripe said, from a
+    /// database that has only been served with a catalogue of Stripe's
+    /// test mode. Refused for a database of real payments.
+    DiscardTestPayments,
+    /// Make the token Mooring pulls the entitlements with, in place of
+    /// any made before. It is printed once and never stored.
+    PullToken,
+    /// Remove the token Mooring pulls with.
+    RevokePullToken,
     /// Erase the copies of deleted rows that the database files may still
     /// hold. Every command that deletes or overwrites rows does it itself;
     /// run this when one of them says it could not.
@@ -111,6 +166,17 @@ pub(crate) struct ServeArgs {
     /// Registration closes once the portal holds this many accounts.
     #[arg(long, value_name = "N", default_value_t = 200)]
     pub(crate) max_accounts: u32,
+    /// The catalogue: what the portal sells and on which of Stripe's
+    /// payment pages (`docs/payments.md`). Only its owner may be able to
+    /// change it. Without it the portal sells nothing, and does not start
+    /// over a database with payments that are not settled.
+    #[arg(long, value_name = "FILE", requires = "stripe_webhook_secret")]
+    pub(crate) payments: Option<PathBuf>,
+    /// A file holding the signing secret of the portal's webhook endpoint
+    /// at Stripe (`whsec_...`), or two, a line each, while one is being
+    /// rolled. Only its owner may be able to read it.
+    #[arg(long, value_name = "FILE", requires = "payments")]
+    pub(crate) stripe_webhook_secret: Option<PathBuf>,
 }
 
 fn account_code(text: &str) -> Result<AccountCode, AccountCodeError> {
@@ -123,4 +189,12 @@ fn mooring_user(text: &str) -> Result<MooringUserId, MooringUserIdError> {
 
 fn email_address(text: &str) -> Result<Email, EmailError> {
     Email::parse(text)
+}
+
+fn order_id(text: &str) -> Result<OrderId, OrderIdError> {
+    OrderId::parse(text)
+}
+
+fn card_fingerprint(text: &str) -> Result<CardFingerprint, CardFingerprintError> {
+    CardFingerprint::parse(text)
 }
