@@ -139,16 +139,8 @@ export function stand(options = {}) {
       return settings.webgl ? gl : null;
     },
   });
-  const pause = Object.assign(new Target(), {
-    hidden: true,
-    pressed: "false",
-    setAttribute(name, value) {
-      assert.equal(name, "aria-pressed");
-      this.pressed = value;
-    },
-  });
   const art = {};
-  const parts = { ".hero-art": art, "canvas.hero-scene": canvas, ".hero-pause": pause };
+  const parts = { ".hero-art": art, "canvas.hero-scene": canvas };
   const hero = {
     dataset: {},
     classList: {
@@ -211,7 +203,7 @@ export function stand(options = {}) {
     },
   });
   return {
-    win, gl, canvas, pause, media, document, observers,
+    win, gl, canvas, media, document, observers,
     get live() {
       return classes.has("is-live");
     },

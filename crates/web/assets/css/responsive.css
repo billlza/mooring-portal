@@ -87,15 +87,15 @@
     padding-bottom: 66vw;
   }
 
-  .hero-art,
-  .hero-scene {
+  .hero .hero-art,
+  .hero .hero-scene {
     top: auto;
     height: 88vw;
     -webkit-mask-image: linear-gradient(transparent, #000 22%);
     mask-image: linear-gradient(transparent, #000 22%);
   }
 
-  .hero-art {
+  .hero .hero-art {
     object-position: 84% 100%;
   }
 
@@ -146,11 +146,6 @@
   .hero-facts li + li::before {
     width: 22px;
     margin: 0 10px;
-  }
-
-  .hero-pause {
-    right: 16px;
-    bottom: 14px;
   }
 
   /* The steps run down the page instead of across it. */
@@ -310,10 +305,10 @@
     padding-bottom: 0;
   }
 
+  .backdrop,
   .hero-art,
   .hero-scene,
   .hero-twinkle,
-  .hero-pause,
   .step-icon {
     display: none !important;
   }

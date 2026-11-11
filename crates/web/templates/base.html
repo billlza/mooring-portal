@@ -13,6 +13,12 @@
 </head>
 <body class="{% block body_class %}inner{% endblock %}">
 <a class="skip" href="#main">{{ chrome.t.common.skip }}</a>
+{% block backdrop %}
+<div class="backdrop" aria-hidden="true">
+  <img class="hero-art" src="{{ chrome.hero }}" alt="" width="3160" height="790" decoding="async">
+  <div class="hero-twinkle"></div>
+</div>
+{% endblock %}
 <header class="topbar">
   <a class="logo" href="/">
     <img src="{{ chrome.mark }}" width="46" height="46" alt="">

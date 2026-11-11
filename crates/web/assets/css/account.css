@@ -202,6 +202,7 @@
 /* Footer: the name at one end, the way to help at the other, under a rule. */
 
 .footer {
+  position: relative;
   margin-top: clamp(40px, 6vw, 80px);
   padding: 0 calc(5.3 * var(--u));
 }

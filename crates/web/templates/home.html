@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ chrome.t.home.title }}{% endblock %}
 {% block body_class %}home{% endblock %}
+{# Its hero holds the picture, under the live scene. #}
+{% block backdrop %}{% endblock %}
 {% block head %}
 {% for module in scene.imported %}<link rel="modulepreload" href="{{ module }}">
 {% endfor %}<script type="module" src="{{ scene.script }}"></script>
 {% endblock %}
 {% block main %}
 <section class="hero">
-  <img class="hero-art" src="{{ hero }}" alt="" width="3160" height="790" fetchpriority="high">
+  <img class="hero-art" src="{{ chrome.hero }}" alt="" width="3160" height="790" fetchpriority="high">
   <canvas class="hero-scene" aria-hidden="true" data-view="{{ scene.view }}"></canvas>
   <div class="hero-twinkle" aria-hidden="true"></div>
   <div class="hero-inner">
@@ -22,10 +24,6 @@
       {% for fact in chrome.t.home.facts %}<li>{{ fact }}</li>{% endfor %}
     </ul>
   </div>
-  <button class="hero-pause" type="button" aria-pressed="false" hidden title="{{ chrome.t.home.pause_motion }}" aria-label="{{ chrome.t.home.pause_motion }}">
-    <svg class="when-playing" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-    <svg class="when-paused" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
-  </button>
 </section>
 <section class="start" aria-label="{{ chrome.t.home.steps_label }}">
   <ol class="steps" role="list">

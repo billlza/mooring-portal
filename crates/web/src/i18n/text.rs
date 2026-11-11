@@ -60,8 +60,6 @@ pub(crate) struct Home {
     pub(crate) download: &'static str,
     /// Two facts about the service, set side by side under the buttons.
     pub(crate) facts: [&'static str; 2],
-    /// The button that stops and restarts the live scene.
-    pub(crate) pause_motion: &'static str,
     /// What the three steps are, for those who cannot see them set out.
     pub(crate) steps_label: &'static str,
     /// The steps, in the order the home page draws their icons: a plan,

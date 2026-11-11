@@ -13,7 +13,6 @@ test("a visitor who asked for less motion gets the drawn image, and no scene is 
   enliven(page.win);
   assert.equal(page.live, false);
   assert.equal(page.why, "reduced-motion");
-  assert.equal(page.pause.hidden, true);
   assert.deepEqual(page.canvas.asked, []);
   assert.equal(page.waiting, 0);
   // Until they change their mind.
@@ -51,7 +50,6 @@ test("the scene goes live with its first frame, fitted to the picture", () => {
   assert.equal(page.called("createProgram").length, 1);
   assert.equal(page.live, false);
   assert.equal(page.why, undefined);
-  assert.equal(page.pause.hidden, true);
   assert.deepEqual([page.canvas.width, page.canvas.height], [1000, 600]);
   // The picture covers the box as the drawn image does: 0.625 pixels to
   // the unit, its top 40 units cut off.
@@ -66,7 +64,6 @@ test("the scene goes live with its first frame, fitted to the picture", () => {
   page.tick();
   assert.equal(page.live, true);
   assert.equal(page.why, "live");
-  assert.equal(page.pause.hidden, false);
   assert.deepEqual(page.called("drawArrays"), [["drawArrays", "TRIANGLES", 0, 3]]);
   // All the shader is told is its view, the time, and how far the sky has
   // slid: the picture itself is the shader's own.
@@ -91,25 +88,6 @@ test("frames closer together than a screen's are skipped, and time stops while a
   assert.ok(Math.abs(page.told("u_time")[0] - 0.115) < 1e-9);
 });
 
-test("the pause button stops and restarts the frames", () => {
-  const page = running();
-  page.tick();
-  const paused = page.told("u_time")[0];
-  page.pause.emit("click");
-  assert.equal(page.pause.pressed, "true");
-  assert.equal(page.waiting, 0);
-  // The still frame stays where it is.
-  assert.equal(page.live, true);
-  page.tick(200);
-  page.pause.emit("click");
-  assert.equal(page.pause.pressed, "false");
-  assert.equal(page.waiting, 1);
-  page.tick();
-  assert.equal(page.called("drawArrays").length, 3);
-  // The scene takes up where it stopped: a pause takes no time.
-  assert.equal(page.told("u_time")[0], paused);
-});
-
 test("a hidden page, or a hero scrolled away, draws nothing", () => {
   const page = running();
   page.document.hidden = true;
@@ -131,7 +109,6 @@ test("less motion, asked for while the scene runs, shows the drawn image", () =>
   page.media.emit("change");
   assert.equal(page.live, false);
   assert.equal(page.why, "reduced-motion");
-  assert.equal(page.pause.hidden, true);
   assert.equal(page.waiting, 0);
   // A change of box then is left for later: no frame is asked for.
   page.canvas.clientWidth = 800;
@@ -163,70 +140,6 @@ test("a new box is fitted just before the next frame, never between frames", () 
   assert.deepEqual(page.told("u_size"), [800, 500]);
   // A new box is no new scene: the graphics card is not asked again.
   assert.equal(page.called("getError").length, 1);
-});
-
-test("a paused scene follows its box, and asks for no frame once it fits", () => {
-  const page = running();
-  page.pause.emit("click");
-  const stopped = page.told("u_time");
-  const slid = page.told("u_drift");
-  page.win.emit("pointermove", { pointerType: "mouse", clientX: 1000, clientY: 0 });
-  page.canvas.clientWidth = 500;
-  page.canvas.clientHeight = 300;
-  page.observers.resized();
-  // As when it runs, it is fitted by the frame that paints it.
-  assert.equal(page.canvas.width, 1000);
-  assert.equal(page.waiting, 1);
-  page.tick();
-  assert.deepEqual([page.canvas.width, page.canvas.height], [500, 300]);
-  assert.equal(page.called("drawArrays").length, 2);
-  assert.equal(page.waiting, 0);
-  // Nothing in the picture has moved: not the sky, and not after the mouse.
-  assert.deepEqual(page.told("u_time"), stopped);
-  assert.deepEqual(page.told("u_drift"), slid);
-  // A box that is gone is left alone.
-  page.canvas.clientWidth = 0;
-  page.observers.resized();
-  page.tick();
-  assert.equal(page.canvas.width, 500);
-  assert.equal(page.waiting, 0);
-});
-
-test("a paused scene that had to leave the page comes back paused, with its button", () => {
-  // The graphics card went away and came back.
-  const lost = running();
-  lost.pause.emit("click");
-  const stopped = lost.told("u_time");
-  lost.gl.lost = true;
-  lost.canvas.emit("webglcontextlost", { preventDefault() {} });
-  assert.equal(lost.pause.hidden, true);
-  lost.gl.lost = false;
-  lost.canvas.emit("webglcontextrestored");
-  lost.tick();
-  assert.equal(lost.live, true);
-  assert.equal(lost.pause.hidden, false);
-  assert.equal(lost.pause.pressed, "true");
-  assert.deepEqual(lost.told("u_time"), stopped);
-  assert.equal(lost.waiting, 0);
-  // The visitor asked for less motion, and then for it back.
-  const calmed = running();
-  calmed.pause.emit("click");
-  calmed.media.matches = true;
-  calmed.media.emit("change");
-  assert.equal(calmed.live, false);
-  calmed.media.matches = false;
-  calmed.media.emit("change");
-  calmed.tick();
-  assert.equal(calmed.live, true);
-  assert.equal(calmed.pause.hidden, false);
-  assert.equal(calmed.pause.pressed, "true");
-  assert.equal(calmed.waiting, 0);
-  // Its button still starts it again.
-  calmed.pause.emit("click");
-  calmed.tick();
-  calmed.tick();
-  assert.equal(calmed.pause.pressed, "false");
-  assert.equal(calmed.waiting, 1);
 });
 
 test("a canvas with no box yet is painted only once it has one", () => {

@@ -108,7 +108,32 @@ body::after {
   content: none;
 }
 
+/* Every page but the home page opens on the home page's picture, under
+   its bar and heading, and with the stars that come and go over it. It is
+   drawn and still: the live scene needs script, and these pages run none
+   (`security::headers`). Its lower edge sinks into the night below, as
+   the hero's does. */
+.backdrop {
+  position: absolute;
+  inset: 0 0 auto;
+  isolation: isolate;
+  height: max(calc(34 * var(--u)), 25vw);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 50%;
+  background: linear-gradient(rgba(6, 19, 33, 0), var(--bg));
+}
+
+/* The page lies over the picture. */
 main {
+  position: relative;
   flex: 1;
   scroll-margin-top: 88px;
 }
@@ -168,6 +193,9 @@ h3 {
    one side needs more than its half, and then give way without touching
    it. */
 .topbar {
+  --glass: rgba(6, 19, 33, 0.78);
+  --glass-line: rgba(159, 214, 241, 0.1);
+  --glass-blur: blur(16px) saturate(140%);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -176,10 +204,10 @@ h3 {
   align-items: center;
   column-gap: 20px;
   padding: calc(1.5 * var(--u)) calc(5.95 * var(--u)) calc(1.5 * var(--u)) var(--gutter);
-  border-bottom: 1px solid rgba(159, 214, 241, 0.1);
-  background: rgba(6, 19, 33, 0.78);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  backdrop-filter: blur(16px) saturate(140%);
+  border-bottom: 1px solid var(--glass-line);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 
 .home .topbar {
@@ -190,6 +218,31 @@ h3 {
   background: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+/* On the other pages the bar lies clear over the picture, as the home
+   page's does, and gathers its glass as the page scrolls under it, where
+   a browser can follow the scroll without script. A page too short to
+   scroll leaves it clear, since nothing passes under it. */
+@supports (animation-timeline: scroll()) {
+  .inner .topbar {
+    border-bottom-color: transparent;
+    background-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    animation: glass linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 120px;
+  }
+}
+
+@keyframes glass {
+  to {
+    border-bottom-color: var(--glass-line);
+    background-color: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
 }
 
 .logo {

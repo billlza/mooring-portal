@@ -43,7 +43,10 @@ h2 {
   letter-spacing: 0.06em;
 }
 
+/* Kept to the sky left of the lighthouse, which stands at four-fifths of
+   the width at any width. */
 .page-head .lead {
+  max-width: min(760px, 62vw);
   margin: 0;
 }
 

@@ -220,49 +220,6 @@
   opacity: 0.75;
 }
 
-/* Stops and restarts the live scene; shown only while there is one. */
-.hero-pause {
-  position: absolute;
-  right: calc(5.3 * var(--u));
-  bottom: calc(1.4 * var(--u));
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 50%;
-  background: rgba(6, 19, 33, 0.5);
-  color: #dfe7f0;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s, border-color 0.2s, background-color 0.2s;
-}
-
-.hero-pause[hidden] {
-  display: none;
-}
-
-.hero-pause:hover,
-.hero-pause:focus-visible {
-  border-color: rgba(255, 255, 255, 0.6);
-  background: rgba(6, 19, 33, 0.8);
-  opacity: 1;
-}
-
-.hero-pause svg {
-  width: 14px;
-  height: 14px;
-}
-
-.hero-pause .when-paused,
-.hero-pause[aria-pressed="true"] .when-playing {
-  display: none;
-}
-
-.hero-pause[aria-pressed="true"] .when-paused {
-  display: block;
-}
-
 /* The three steps, side by side between two rules. */
 
 .start {

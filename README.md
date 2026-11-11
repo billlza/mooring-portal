@@ -82,7 +82,7 @@ node --test --experimental-test-coverage --test-coverage-lines=95 "crates/web/as
 node --check crates/web/assets/js/hero.mjs
 ```
 
-着色器能不能在显卡上编译、画出来对不对，这两条都检查不了。改了 `crates/web/assets/js/` 下任何一个 `shader*.mjs` 之后，要在浏览器里打开首页，确认场景出现（主图右下角有暂停按钮，`.hero` 的 `data-scene` 是 `live`）、控制台没有报错。着色器里各处的位置、颜色和几条规则在 `crates/web/src/assets/hero.rs` 及其子模块里另有一份（静态主图用），改一处要两边一起改，`cargo test` 会在只改了一边时失败。
+着色器能不能在显卡上编译、画出来对不对，这两条都检查不了。改了 `crates/web/assets/js/` 下任何一个 `shader*.mjs` 之后，要在浏览器里打开首页，确认场景出现（`.hero` 的 `data-scene` 是 `live`）、控制台没有报错。着色器里各处的位置、颜色和几条规则在 `crates/web/src/assets/hero.rs` 及其子模块里另有一份（静态主图用），改一处要两边一起改，`cargo test` 会在只改了一边时失败。
 
 工作区 lint 禁止 `unsafe`、`unwrap`、`expect`、`panic`、`print`。集成测试的入口文件用 `#[cfg(test)] mod` 声明各模块，以表明它们都是测试代码，`clippy.toml` 里对测试的放宽才能覆盖其中的辅助函数。
 

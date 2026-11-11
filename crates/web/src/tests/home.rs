@@ -2,6 +2,7 @@
 //! and the bar and the footer every page shares with it.
 
 use super::support::{Browser, TestApp};
+use crate::assets::VIEW;
 use crate::brand::brand;
 use crate::i18n::Lang;
 
@@ -30,11 +31,7 @@ async fn the_home_page_says_what_the_service_is_and_where_to_begin() {
     let app = TestApp::new();
     let mut browser = Browser::new([203, 0, 113, 1]);
     let home = browser.get(&app, "/").await.body;
-    let hero = part(
-        &home,
-        "<div class=\"hero-inner\">",
-        "<button class=\"hero-pause\"",
-    );
+    let hero = part(&home, "<div class=\"hero-inner\">", "</section>");
     // The service above the headline, the headline in its two lines, and
     // what it comes to under it.
     assert!(hero.contains("<p class=\"eyebrow\">Mooring · 网络订阅服务</p>"));
@@ -137,6 +134,55 @@ async fn the_home_page_reads_the_same_in_english() {
     assert!(!home.contains("class=\"logo-latin\""));
     let plans = browser.get(&app, "/plans").await.body;
     assert!(plans.contains("<h2>Discreet</h2>") && plans.contains("<h2>What this service is</h2>"));
+}
+
+#[tokio::test]
+async fn every_page_opens_on_the_home_pages_picture_drawn_and_still() {
+    let app = TestApp::new();
+    let hero = app.state.assets().paths().hero.clone();
+    // The picture the home page paints its scene over, as an ornament that
+    // no reader is told of: the same file, still, with the stars that come
+    // and go over it.
+    let backdrop = format!(
+        "<div class=\"backdrop\" aria-hidden=\"true\">\n  \
+         <img class=\"hero-art\" src=\"{hero}\" alt=\"\" width=\"{}\" height=\"{}\" \
+         decoding=\"async\">\n  <div class=\"hero-twinkle\"></div>\n</div>",
+        VIEW.0, VIEW.1
+    );
+    let (mut browser, _) = app.signed_up("alice@qq.com").await;
+    let mut stranger = Browser::new([203, 0, 113, 9]);
+    for (signed_in, path) in [
+        (true, "/plans"),
+        (true, "/download"),
+        (true, "/help"),
+        (true, "/account"),
+        (true, "/account/password"),
+        (true, "/subscription"),
+        (false, "/login"),
+        (false, "/register"),
+    ] {
+        let visitor = if signed_in {
+            &mut browser
+        } else {
+            &mut stranger
+        };
+        let body = visitor.get(&app, path).await.body;
+        assert_eq!(body.matches(&backdrop).count(), 1, "{path}");
+        // Under the bar, which comes after it.
+        assert!(
+            body.find(&backdrop) < body.find("<header class=\"topbar\">"),
+            "{path}"
+        );
+        // Still: these pages run no script, so nothing is painted over it.
+        assert!(
+            !body.contains("<canvas") && !body.contains("<script"),
+            "{path}"
+        );
+    }
+    // The home page holds the picture once, under its live scene.
+    let home = browser.get(&app, "/").await.body;
+    assert!(!home.contains("class=\"backdrop\""));
+    assert_eq!(home.matches(&format!("src=\"{hero}\"")).count(), 1);
 }
 
 #[tokio::test]

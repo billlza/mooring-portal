@@ -15,7 +15,6 @@ use crate::view::{PlanView, ReleaseView};
 #[template(path = "home.html")]
 struct HomePage {
     chrome: Chrome,
-    hero: String,
     scene: Scene,
 }
 
@@ -75,7 +74,6 @@ pub(crate) async fn home(
 ) -> Result<Response, AppError> {
     let paths = state.assets().paths();
     render(&HomePage {
-        hero: paths.hero.clone(),
         scene: Scene::of(paths),
         chrome: ctx.chrome(Page::Home),
     })

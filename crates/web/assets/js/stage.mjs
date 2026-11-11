@@ -10,9 +10,8 @@
 // there is nothing to load and nothing to wait for: it is made at once.
 //
 // Everything that reaches the canvas goes through `frame`: it alone fits
-// the buffer and paints. A paused scene is the same scene with time
-// standing still: it is given a frame whenever the one it shows is missing
-// or no longer fits, and no others.
+// the buffer and paints. The scene has no control of its own: a visitor
+// who wants it to stand still asks the browser for less motion.
 //
 // Everything is reached through the window handed to `enliven`, so the
 // whole of it can be run against a stand-in (`test/stand.mjs`).
@@ -57,7 +56,6 @@ export function enliven(win) {
   const hero = need(win.document, ".hero");
   const art = need(hero, ".hero-art");
   const canvas = need(hero, "canvas.hero-scene");
-  const pause = need(hero, ".hero-pause");
   const picture = brief(canvas);
   const still = win.matchMedia("(prefers-reduced-motion: reduce)");
   const state = {
@@ -70,7 +68,6 @@ export function enliven(win) {
     /** What the hero was last told of the scene: one of `WHY`, or nothing. */
     told: "",
     seen: true,
-    paused: false,
     request: 0,
     last: 0,
     seconds: 0,
@@ -95,9 +92,7 @@ export function enliven(win) {
   function show(why) {
     if (state.told !== why) {
       state.told = why;
-      const live = why === WHY.live;
-      hero.classList.toggle("is-live", live);
-      pause.hidden = !live;
+      hero.classList.toggle("is-live", why === WHY.live);
       hero.dataset.scene = why;
     }
   }
@@ -152,35 +147,28 @@ export function enliven(win) {
       return;
     }
     state.last = now;
-    let lowered = false;
-    if (!state.paused) {
-      // Only a scene that moves is judged for its speed.
-      const { state: watchdog, verdict } = watch(state.watchdog, gap);
-      if (verdict === "stop") {
-        giveUp(WHY.slow);
-        return;
-      }
-      lowered = verdict === "lower";
-      state.watchdog = watchdog;
+    const { state: watchdog, verdict } = watch(state.watchdog, gap);
+    if (verdict === "stop") {
+      giveUp(WHY.slow);
+      return;
     }
+    state.watchdog = watchdog;
     // The buffer is sized here, just before it is painted, and never
     // between frames: sizing it clears it.
-    if (state.unfit || lowered || state.ratio !== win.devicePixelRatio) {
+    if (state.unfit || verdict === "lower" || state.ratio !== win.devicePixelRatio) {
       fit();
     }
     if (state.density === 0) {
       // The canvas has no box yet, so there is nothing to paint on.
       return;
     }
-    if (!state.paused) {
-      // Time stands still while the page is away, so the scene does not
-      // jump.
-      const step = Math.min(gap, 100);
-      state.seconds += step / 1000;
-      const ease = 1 - Math.exp(-step / 600);
-      state.slid.x += (state.aim.x - state.slid.x) * ease;
-      state.slid.y += (state.aim.y - state.slid.y) * ease;
-    }
+    // Time stands still while the page is away, so the scene does not
+    // jump.
+    const step = Math.min(gap, 100);
+    state.seconds += step / 1000;
+    const ease = 1 - Math.exp(-step / 600);
+    state.slid.x += (state.aim.x - state.slid.x) * ease;
+    state.slid.y += (state.aim.y - state.slid.y) * ease;
     paint();
     if (state.unproven) {
       // Asked once for each time the scene is made, not once a frame: the
@@ -198,17 +186,11 @@ export function enliven(win) {
       return;
     }
     show(WHY.live);
-    // A paused scene asks for no more once the frame it shows is right.
-    run();
   }
 
   /** Starts or stops the frames to match what the page and visitor want. */
   function run() {
-    const inView = state.scene !== null && !still.matches && state.seen && !win.document.hidden;
-    // A paused scene is still owed a frame when it shows none, or when its
-    // box has changed under the one it shows.
-    const owed = state.told !== WHY.live || state.unfit;
-    const wanted = inView && (!state.paused || owed);
+    const wanted = state.scene !== null && !still.matches && state.seen && !win.document.hidden;
     if (wanted && state.request === 0) {
       state.last = 0;
       state.request = win.requestAnimationFrame(frame);
@@ -278,12 +260,6 @@ export function enliven(win) {
     }
   });
 
-  pause.addEventListener("click", () => {
-    state.paused = !state.paused;
-    pause.setAttribute("aria-pressed", String(state.paused));
-    run();
-  });
-
   still.addEventListener("change", () => {
     if (still.matches) {
       halt();
@@ -302,9 +278,8 @@ export function enliven(win) {
   }).observe(hero);
 
   new win.ResizeObserver(() => {
-    // The next frame fits it; a paused scene is owed that frame.
+    // The next frame fits it.
     state.unfit = true;
-    run();
   }).observe(canvas);
 
   win.addEventListener("pointermove", (event) => {

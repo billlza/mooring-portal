@@ -23,7 +23,6 @@ test("the watchdog lowers a slow scene, then gives it up for the drawn image", (
   assert.deepEqual(widths, [1000, 750, 500]);
   assert.equal(page.live, false);
   assert.equal(page.why, "too-slow");
-  assert.equal(page.pause.hidden, true);
   assert.equal(page.waiting, 0);
   // What the scene held is given back.
   assert.equal(page.called("deleteProgram").length, 1);
@@ -34,18 +33,6 @@ test("the watchdog lowers a slow scene, then gives it up for the drawn image", (
   page.media.emit("change");
   assert.equal(page.waiting, 0);
   assert.equal(page.called("createProgram").length, 1);
-});
-
-test("a paused scene is not judged for speed, however slowly its frames come", () => {
-  const page = running();
-  page.pause.emit("click");
-  for (let step = 0; step < 2 * (WARM_UP + WINDOW); step += 1) {
-    page.canvas.clientWidth = 900 + (step % 2);
-    page.observers.resized();
-    page.tick(60);
-  }
-  assert.equal(page.canvas.width, page.canvas.clientWidth);
-  assert.equal(page.live, true);
 });
 
 test("a lost context shows the drawn image until it is restored", () => {
@@ -133,7 +120,6 @@ test("a fault in the page or the scene is thrown, not hidden", () => {
     [{ missing: ".hero" }, /no \.hero$/],
     [{ missing: ".hero-art" }, /no \.hero-art$/],
     [{ missing: "canvas.hero-scene" }, /no canvas\.hero-scene$/],
-    [{ missing: ".hero-pause" }, /no \.hero-pause$/],
     [{ dataset: { view: undefined } }, /no data-view$/],
     [{ dataset: { view: "1600" } }, /expected 2 numbers/],
     [{ dataset: { view: "1600px 1000" } }, /expected 2 numbers/],
@@ -183,7 +169,6 @@ test("a frame the graphics card refused is thrown, and the drawn image stays", (
   assert.throws(() => later.tick(), /WebGL error 0x505/);
   assert.equal(later.live, false);
   assert.equal(later.why, "refused");
-  assert.equal(later.pause.hidden, true);
   assert.equal(later.waiting, 0);
   // And a scene that has been refused is not made a third time.
   later.canvas.emit("webglcontextrestored");
@@ -198,7 +183,6 @@ test("a frame on a context that has just been lost shows nothing", () => {
   page.gl.error = "CONTEXT_LOST_WEBGL";
   page.tick();
   assert.equal(page.live, false);
-  assert.equal(page.pause.hidden, true);
   // The loss is told by its event; it is not taken for a refusal.
   assert.equal(page.called("deleteProgram").length, 0);
   page.canvas.emit("webglcontextlost", { preventDefault() {} });

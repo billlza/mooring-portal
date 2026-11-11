@@ -220,12 +220,11 @@ async fn the_home_page_carries_the_live_scene_and_still_shows_the_drawn_image() 
     let paths = app.state.assets().paths().clone();
     let mut browser = Browser::new([203, 0, 113, 1]);
     let home = browser.get(&app, "/").await.body;
-    // Without script: the drawn image, and a pause button that stays hidden.
+    // Without script: the drawn image. The scene has no button of its own:
+    // the one button on the page is the language switch's.
     assert!(home.contains(&format!("<img class=\"hero-art\" src=\"{}\"", paths.hero)));
-    assert!(home.contains(
-        "<button class=\"hero-pause\" type=\"button\" aria-pressed=\"false\" hidden \
-         title=\"暂停动画\" aria-label=\"暂停动画\">"
-    ));
+    assert_eq!(home.matches("<button").count(), 1);
+    assert!(home.contains("<button type=\"submit\" title=\"Switch to English\""));
     // What the script is told: the size of the picture it draws, written
     // as the script reads it, in plain decimals. Nothing else: the scene
     // loads no picture.
@@ -264,10 +263,7 @@ async fn the_home_page_carries_the_live_scene_and_still_shows_the_drawn_image() 
             .collect()
     };
     let selectors = looked_for("need(");
-    assert_eq!(
-        selectors,
-        [".hero", ".hero-art", "canvas.hero-scene", ".hero-pause"]
-    );
+    assert_eq!(selectors, [".hero", ".hero-art", "canvas.hero-scene"]);
     for selector in selectors {
         let (tag, class) = selector.split_once('.').unwrap();
         let written = if tag.is_empty() {
@@ -279,24 +275,14 @@ async fn the_home_page_carries_the_live_scene_and_still_shows_the_drawn_image() 
     }
     assert_eq!(stage.matches("canvas.dataset.").count(), 1);
     assert!(stage.contains("canvas.dataset.view;"));
-    // No other page has the scene.
+    // No other page has the scene, or any script.
     for path in ["/download", "/plans", "/help", "/login", "/register"] {
         let body = browser.get(&app, path).await.body;
         assert!(
-            !body.contains("<canvas") && !body.contains("hero-pause"),
+            !body.contains("<canvas") && !body.contains("<script"),
             "{path}"
         );
     }
-    browser
-        .post(&app, "/lang", &[("to", "en"), ("back", "home")])
-        .await;
-    assert!(
-        browser
-            .get(&app, "/")
-            .await
-            .body
-            .contains("aria-label=\"Pause animation\"")
-    );
 }
 
 #[tokio::test]

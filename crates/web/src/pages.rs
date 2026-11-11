@@ -83,6 +83,8 @@ pub(crate) struct Chrome {
     pub(crate) page: Page,
     pub(crate) css: String,
     pub(crate) mark: String,
+    /// The drawn picture of the home page, which every other page opens on.
+    pub(crate) hero: String,
     /// Whether the header offers the language switch.
     pub(crate) language_switch: bool,
 }
@@ -124,6 +126,7 @@ pub(crate) struct PageContext {
     csrf: String,
     css: String,
     mark: String,
+    hero: String,
 }
 
 impl FromRequestParts<AppState> for PageContext {
@@ -144,6 +147,7 @@ impl FromRequestParts<AppState> for PageContext {
             csrf,
             css: paths.css.clone(),
             mark: paths.mark.clone(),
+            hero: paths.hero.clone(),
         })
     }
 }
@@ -165,6 +169,7 @@ impl PageContext {
             page,
             css: self.css.clone(),
             mark: self.mark.clone(),
+            hero: self.hero.clone(),
             language_switch: true,
         }
     }

@@ -30,7 +30,6 @@ pub(super) const STRINGS: Strings = Strings {
         plans: "查看套餐",
         download: "下载客户端",
         facts: ["英国移动网络出口", "国内网站直连"],
-        pause_motion: "暂停动画",
         steps_label: "如何开始",
         steps: [
             Item {

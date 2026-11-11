@@ -36,7 +36,6 @@ pub(super) const STRINGS: Strings = Strings {
             "Exits through a UK mobile network",
             "Mainland sites connect directly",
         ],
-        pause_motion: "Pause animation",
         steps_label: "Getting started",
         steps: [
             Item {
