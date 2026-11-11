@@ -14,63 +14,38 @@ pub(super) const STRINGS: Strings = Strings {
         switch_language_short: "EN",
         sign_in: "登录 / 注册",
         my_account: "我的账户",
-        help: "帮助",
-        footer_note: "少数受信任用户的小规模服务，不对外销售。",
+        help: "帮助中心",
         beijing_time: "北京时间",
     },
     nav: Nav {
         home: "首页",
         download: "下载",
-        plans: "订阅说明",
+        plans: "套餐",
         help: "帮助",
     },
     home: Home {
         title: "首页",
-        points: ["少数受信任用户共享", "英国移动网络出口", "国内网站直连"],
-        download: "立即下载",
-        learn_more: "了解服务",
+        eyebrow: "Mooring · 网络订阅服务",
+        lead: ["从选择套餐到管理订阅，", "让每一步都清晰、有序。"],
+        plans: "查看套餐",
+        download: "下载客户端",
+        facts: ["英国移动网络出口", "国内网站直连"],
         pause_motion: "暂停动画",
-        intro_title: "这是一项什么样的服务",
-        intro_body: "运营者用自己在英国的移动线路，为少数信任的朋友提供一条上网通道：流量经伦敦中转，\
-                     最后从英国的移动网络出去。它不对外销售；用的人少，线路就不挤。",
-        features: [
-            Item {
-                title: "小而稳",
-                body: "试点期最多 5 位活跃用户共用线路。人少，速度和稳定性都更有保障。",
-            },
-            Item {
-                title: "看得清",
-                body: "登录后能看到自己的状态、本计费周期的用量、配额和到期时间。统计不到的用量会写明“无法获取”，不会显示成 0。",
-            },
-            Item {
-                title: "不窥探",
-                body: "不记录你访问的网站、域名、IP 地址或 DNS 查询，不保存连接日志，运营者也不查看你的流量内容。只按用户编号记录流量字节数和时间。",
-            },
-            Item {
-                title: "国内直连",
-                body: "配合 CFM 的“中国大陆直连”开关，国内网站和应用直接连接，不经过本服务。",
-            },
-        ],
-        steps_title: "如何开始",
+        steps_label: "如何开始",
         steps: [
             Item {
-                title: "下载 CFM",
-                body: "在下载页获取 macOS 版 CFM 0.5.x。",
+                title: "选择套餐",
+                body: "找到适合你的使用方式",
             },
             Item {
-                title: "注册账号",
-                body: "用邮箱注册，在账户页找到你的账号编号。",
+                title: "导入订阅",
+                body: "在客户端中添加订阅",
             },
             Item {
-                title: "联系运营者",
-                body: "在 FaceTime 语音通话中确认《Mooring 使用约定》，并念出账号编号。",
-            },
-            Item {
-                title: "查看订阅",
-                body: "运营者绑定账号并上传你的 CFM 配置后，订阅页会显示你的状态和用量，你也可以在那里生成订阅链接或下载配置文件。",
+                title: "开始使用",
+                body: "连接之后，安心使用",
             },
         ],
-        note: "这不是商业 VPN：本服务只对运营者信任的朋友开放，不保证随时可用。",
     },
     download: Download {
         title: "下载",
@@ -102,6 +77,27 @@ pub(super) const STRINGS: Strings = Strings {
     plans: Plans {
         title: "订阅说明",
         lead: "本服务只对运营者信任的少数朋友开放，不对外销售。",
+        about_title: "这是一项什么样的服务",
+        about_body: "运营者用自己在英国的移动线路，为少数信任的朋友提供一条上网通道：流量经伦敦中转，\
+                     最后从英国的移动网络出去。它不对外销售；用的人少，线路就不挤。",
+        promises: [
+            Item {
+                title: "小而稳",
+                body: "试点期最多 5 位活跃用户共用线路。人少，速度和稳定性都更有保障。",
+            },
+            Item {
+                title: "看得清",
+                body: "登录后能看到自己的状态、本计费周期的用量、配额和到期时间。统计不到的用量会写明“无法获取”，不会显示成 0。",
+            },
+            Item {
+                title: "不窥探",
+                body: "不记录你访问的网站、域名、IP 地址或 DNS 查询，不保存连接日志，运营者也不查看你的流量内容。只按用户编号记录流量字节数和时间。",
+            },
+            Item {
+                title: "国内直连",
+                body: "配合 CFM 的“中国大陆直连”开关，国内网站和应用直接连接，不经过本服务。",
+            },
+        ],
         how_title: "开通方式",
         how_steps: [
             "在本站注册账号。",
@@ -131,6 +127,7 @@ pub(super) const STRINGS: Strings = Strings {
                 body: "付款还没有开通。开通后只接受银行卡，不接受支付宝和微信支付：你在 Stripe 的页面上付款，本站不经手卡号。",
             },
         ],
+        note: "这不是商业 VPN：本服务只对运营者信任的朋友开放，不保证随时可用。",
     },
     help: Help {
         title: "帮助",

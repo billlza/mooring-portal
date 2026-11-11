@@ -89,8 +89,6 @@ async fn assets_are_served_by_content_name_and_cached() {
         (&paths.css, "text/css; charset=utf-8"),
         (&paths.mark, "image/svg+xml"),
         (&paths.hero, "image/svg+xml"),
-        (&paths.land, "image/svg+xml"),
-        (&paths.ring, "image/svg+xml"),
         (&paths.script, "text/javascript; charset=utf-8"),
     ] {
         let reply = browser.get(&app, path).await;
@@ -121,8 +119,16 @@ async fn assets_are_served_by_content_name_and_cached() {
     assert_eq!(entry, "hero.mjs");
     assert_eq!(
         paths.imported,
-        ["measure.mjs", "scene.mjs", "shader.mjs", "stage.mjs"]
-            .map(|name| format!("{directory}/{name}"))
+        [
+            "measure.mjs",
+            "scene.mjs",
+            "shader.mjs",
+            "shader-shore.mjs",
+            "shader-sky.mjs",
+            "shader-water.mjs",
+            "stage.mjs"
+        ]
+        .map(|name| format!("{directory}/{name}"))
     );
     for module in &paths.imported {
         let reply = browser.get(&app, module).await;
@@ -143,6 +149,9 @@ async fn assets_are_served_by_content_name_and_cached() {
         "/assets/js.0000000000000000/hero.mjs".to_owned(),
         "/assets/hero.mjs".to_owned(),
         "/assets/".to_owned(),
+        // The scene has no layers of the picture to load: none is served.
+        paths.hero.replace("/hero.", "/hero-land."),
+        paths.hero.replace("/hero.", "/hero-ring."),
     ] {
         assert_eq!(
             browser.get(&app, &missing).await.status,

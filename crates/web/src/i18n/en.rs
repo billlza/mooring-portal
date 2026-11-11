@@ -14,68 +14,44 @@ pub(super) const STRINGS: Strings = Strings {
         switch_language_short: "中文",
         sign_in: "Log in / Sign up",
         my_account: "My account",
-        help: "Help",
-        footer_note: "A small service for a few trusted people, not sold to the public.",
+        help: "Help centre",
         beijing_time: "Beijing time",
     },
     nav: Nav {
         home: "Home",
         download: "Download",
-        plans: "How it works",
+        plans: "Plans",
         help: "Help",
     },
     home: Home {
         title: "Home",
-        points: [
-            "Shared by a few trusted people",
+        eyebrow: "Mooring · Network subscription",
+        lead: [
+            "From choosing a plan to managing your subscription,",
+            "every step is clear and in order.",
+        ],
+        plans: "View plans",
+        download: "Get the client",
+        facts: [
             "Exits through a UK mobile network",
             "Mainland sites connect directly",
         ],
-        download: "Download",
-        learn_more: "How it works",
         pause_motion: "Pause animation",
-        intro_title: "What this service is",
-        intro_body: "The operator shares their own UK mobile line with a few friends they trust: \
-                     traffic is relayed through London and leaves through a UK mobile network. \
-                     It is not sold to the public, and with few people on it, the line stays uncrowded.",
-        features: [
-            Item {
-                title: "Small and steady",
-                body: "During the pilot, at most five active users share the line. Fewer people means steadier speed.",
-            },
-            Item {
-                title: "Clear to see",
-                body: "Log in to see your status, this billing cycle's usage, your quota and your expiry. Usage that could not be counted says “unavailable”; it is never shown as zero.",
-            },
-            Item {
-                title: "Discreet",
-                body: "No record of the sites, domains, IP addresses or DNS queries you visit, no connection logs, and the operator never looks at your traffic. Only byte counts and times are kept, by user number.",
-            },
-            Item {
-                title: "Mainland sites direct",
-                body: "With CFM's “Mainland China direct” switch on, mainland sites and apps connect directly, not through this service.",
-            },
-        ],
-        steps_title: "Getting started",
+        steps_label: "Getting started",
         steps: [
             Item {
-                title: "Get CFM",
-                body: "Download CFM 0.5.x for macOS from the download page.",
+                title: "Choose a plan",
+                body: "Find the way of using it that suits you",
             },
             Item {
-                title: "Sign up",
-                body: "Sign up with an email address and find your account code on your account page.",
+                title: "Import the subscription",
+                body: "Add it in the client",
             },
             Item {
-                title: "Call the operator",
-                body: "On a FaceTime audio call, accept the Mooring user agreement and read out your account code.",
-            },
-            Item {
-                title: "Check your subscription",
-                body: "Once the operator binds your account and uploads your CFM profile, the subscription page shows your status and usage, and lets you make a subscription link or download the profile.",
+                title: "Start using it",
+                body: "Connect, and use it with peace of mind",
             },
         ],
-        note: "This is not a commercial VPN: it is open only to friends the operator trusts, and it may not always be available.",
     },
     download: Download {
         title: "Download",
@@ -108,6 +84,28 @@ pub(super) const STRINGS: Strings = Strings {
         title: "How it works",
         lead: "This service is open only to a few friends the operator trusts, and is not sold to the \
                public.",
+        about_title: "What this service is",
+        about_body: "The operator shares their own UK mobile line with a few friends they trust: \
+                     traffic is relayed through London and leaves through a UK mobile network. \
+                     It is not sold to the public, and with few people on it, the line stays uncrowded.",
+        promises: [
+            Item {
+                title: "Small and steady",
+                body: "During the pilot, at most five active users share the line. Fewer people means steadier speed.",
+            },
+            Item {
+                title: "Clear to see",
+                body: "Log in to see your status, this billing cycle's usage, your quota and your expiry. Usage that could not be counted says “unavailable”; it is never shown as zero.",
+            },
+            Item {
+                title: "Discreet",
+                body: "No record of the sites, domains, IP addresses or DNS queries you visit, no connection logs, and the operator never looks at your traffic. Only byte counts and times are kept, by user number.",
+            },
+            Item {
+                title: "Mainland sites direct",
+                body: "With CFM's “Mainland China direct” switch on, mainland sites and apps connect directly, not through this service.",
+            },
+        ],
         how_title: "Getting access",
         how_steps: [
             "Sign up on this site.",
@@ -137,6 +135,7 @@ pub(super) const STRINGS: Strings = Strings {
                 body: "Payment is not open yet. When it opens, only bank cards will be accepted, not Alipay or WeChat Pay: you pay on Stripe's page, and this site never handles card numbers.",
             },
         ],
+        note: "This is not a commercial VPN: it is open only to friends the operator trusts, and it may not always be available.",
     },
     help: Help {
         title: "Help",

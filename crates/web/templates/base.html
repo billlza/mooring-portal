@@ -15,7 +15,7 @@
 <a class="skip" href="#main">{{ chrome.t.common.skip }}</a>
 <header class="topbar">
   <a class="logo" href="/">
-    <img src="{{ chrome.mark }}" width="34" height="34" alt="">
+    <img src="{{ chrome.mark }}" width="46" height="46" alt="">
     <span class="logo-text"><span class="logo-name">{{ chrome.brand.name }}</span>{% if chrome.brand.name != chrome.brand.latin %}<span class="logo-latin">{{ chrome.brand.latin }}</span>{% endif %}</span>
   </a>
   <nav class="nav" aria-label="{{ chrome.t.common.nav_label }}">
@@ -34,9 +34,9 @@
     </form>
     {% endif %}
     {% if chrome.signed_in %}
-    <a class="pill" href="/account">{{ chrome.t.common.my_account }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <a class="pill" href="/account">{{ chrome.t.common.my_account }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
     {% else %}
-    <a class="pill" href="/login">{{ chrome.t.common.sign_in }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <a class="pill" href="/login">{{ chrome.t.common.sign_in }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
     {% endif %}
     <details class="menu">
       <summary title="{{ chrome.t.common.menu }}" aria-label="{{ chrome.t.common.menu }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></summary>
@@ -50,11 +50,10 @@
 {% block main %}{% endblock %}
 </main>
 <footer class="footer">
-  <div class="container">
-    <p class="footer-brand">{{ chrome.brand.name }} · {{ chrome.brand.tagline }}</p>
-    <p>{{ chrome.t.common.footer_note }}</p>
+  <div class="footer-inner">
+    <a class="footer-brand" href="/"><span class="logo-name">{{ chrome.brand.name }}</span>{% if chrome.brand.name != chrome.brand.latin %}<span class="logo-latin">{{ chrome.brand.latin }}</span>{% endif %}</a>
+    <a class="footer-help" href="/help">{{ chrome.t.common.help }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
   </div>
 </footer>
-<a class="help-float" href="/help" title="{{ chrome.t.common.help }}" aria-label="{{ chrome.t.common.help }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5z"/><path d="M9.8 7.6a2.3 2.3 0 0 1 4.4.9c0 1.5-2.2 1.9-2.2 3.2"/><circle cx="12" cy="13.6" r="0.4" fill="currentColor"/></svg></a>
 </body>
 </html>

@@ -1,466 +1,376 @@
-//! The home page's hero image, drawn by code: a starry sky, a ring of star
-//! trails around the celestial pole, snowy ridges, a still harbour that
-//! reflects them, and a boat moored at a jetty whose lantern is the one
-//! warm light in the scene.
+//! The home page's hero image, drawn by code: a night sky, a far shore
+//! with a town's lamps at the water, and a lighthouse on its rocks at the
+//! end of a pier, its lamp lit, over a dark sea that carries the lamp's
+//! path.
 //!
-//! The drawing is deterministic (a fixed seed), so the image, and with it
-//! its content-hashed address, changes only when this code does. It uses
+//! The drawing is deterministic, so the image, and with it its
+//! content-hashed address, changes only when this code does. It uses
 //! presentation attributes only, no `<style>` or script, so the content
 //! security policy has nothing to allow.
 //!
-//! The same drawing also gives two layers of the image, the land and the
-//! ring, each on nothing. The home page's live scene (`assets/js/`) paints
-//! a moving sky and moving water around them, so what moves and the image
-//! it is painted over are one drawing and cannot drift apart. [`GEOMETRY`]
-//! tells that scene where the layers' fixed points are.
+//! The home page's live scene (`assets/js/`) is the same picture in
+//! motion, worked out by a shader with no image behind it, and this image
+//! is that scene as it stands when its clock reads nothing: it is what the
+//! page shows first, and all it shows without script. Where things stand
+//! and what colour they are is therefore written twice, here and in the
+//! shader, under the same names: the measures and the colours below, and
+//! the lines of [`LINE`]. A test fails when one of the two is changed
+//! without the other. The shader's arithmetic is written again in
+//! [`field`].
+
+mod field;
+mod light;
+mod rocks;
+mod shore;
+mod sky;
+mod water;
 
 /// The image's size, in its own units.
-const WIDTH: f64 = 1600.0;
-const HEIGHT: f64 = 1000.0;
-/// The waterline.
-const SHORE: f64 = 800.0;
-/// The ring's centre and radius.
-const RING_X: f64 = 1100.0;
-const RING_Y: f64 = 500.0;
-const RING_R: f64 = 280.0;
-/// How far the ring's halo reaches beyond it, and how far its glow is
-/// blurred (the standard deviation).
-const HALO: f64 = 70.0;
-const GLOW_BLUR: f64 = 9.0;
-/// The side of the square the ring layer covers, about the ring's centre:
-/// the halo, and room for the glow to fade out.
-const RING_SPAN: f64 = 2.0 * (RING_R + HALO + 30.0);
-/// The boat's mast, whose top carries the lantern.
-const MAST_X: f64 = 1215.0;
-const LANTERN_Y: f64 = 768.0;
-/// "moorligh", as a seed.
-const SEED: u64 = 0x6d6f_6f72_6c69_6768;
+pub(crate) const VIEW: (f64, f64) = (WIDTH, HEIGHT);
 
-/// The hero image, and the two layers of it that the live scene moves.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct Hero {
-    /// The whole picture: what the page shows first, and all it shows
-    /// without script.
-    pub(super) image: String,
-    /// The ridges, shores, jetty and boat, on nothing.
-    pub(super) land: String,
-    /// The ring of star trails, alone in its square.
-    pub(super) ring: String,
-}
+const WIDTH: f64 = 3160.0;
+const HEIGHT: f64 = 790.0;
+/// The lighthouse's axis; the near shore is measured from it.
+const AXIS: f64 = 2576.0;
+/// The far waterline, and the waterline at the rocks' foot.
+const SEA: f64 = 545.0;
+const STRAND: f64 = 597.0;
+/// The tower: its foot, the band above its plinth, and its neck under the
+/// gallery, each with half its width there.
+const FOOT: f64 = 513.0;
+const FOOT_HALF: f64 = 46.0;
+const BAND: f64 = 487.0;
+const NECK: f64 = 317.0;
+const NECK_HALF: f64 = 30.0;
+/// The gallery: its deck's underside and top, and its railing's top.
+const DECK: f64 = 303.0;
+const DECK_TOP: f64 = 298.0;
+const DECK_HALF: f64 = 41.5;
+const RAIL: f64 = 277.0;
+const RAIL_HALF: f64 = 40.0;
+/// The room under the lantern, and the lantern's glass.
+const ROOM_HALF: f64 = 21.5;
+const GLASS_FOOT: f64 = 274.0;
+const GLASS_TOP: f64 = 244.0;
+const GLASS_HALF: f64 = 22.0;
+/// The roof: eaves, dome, the ball on it and the spike's tip.
+const EAVES: f64 = 240.0;
+const EAVES_HALF: f64 = 26.5;
+const DOME: f64 = 224.0;
+const DOME_HALF: f64 = 25.0;
+const BALL: f64 = 219.5;
+const BALL_R: f64 = 4.5;
+const SPIKE: f64 = 188.0;
+/// The lamp's height.
+const LAMP: f64 = 259.0;
+/// The block the tower stands on.
+const PLINTH_LEFT: f64 = -58.0;
+const PLINTH_RIGHT: f64 = 12.0;
+const PLINTH_FOOT: f64 = 541.0;
+/// The pier: where it begins, its top and foot there, how fast each
+/// climbs or sinks to the right, its cap's depth and its blocks' length.
+const PIER: f64 = 9.0;
+const PIER_TOP: f64 = 527.0;
+const PIER_RISE: f64 = 0.0717;
+const PIER_FOOT: f64 = 592.0;
+const PIER_SINK: f64 = 0.035;
+const CAP: f64 = 11.0;
+const JOINT: f64 = 47.0;
 
-/// Where the picture's fixed points are, in its own units. The live scene
-/// paints the sky, the water and the lantern's light itself, and needs
-/// these to keep them in register with the layers.
+/// Every measure above, by the name the shader gives it.
+#[cfg(test)]
+pub(super) const MEASURES: [(&str, f64); 36] = [
+    ("TALL", HEIGHT),
+    ("AXIS", AXIS),
+    ("SEA", SEA),
+    ("STRAND", STRAND),
+    ("FOOT", FOOT),
+    ("FOOT_HALF", FOOT_HALF),
+    ("BAND", BAND),
+    ("NECK", NECK),
+    ("NECK_HALF", NECK_HALF),
+    ("DECK", DECK),
+    ("DECK_TOP", DECK_TOP),
+    ("DECK_HALF", DECK_HALF),
+    ("RAIL", RAIL),
+    ("RAIL_HALF", RAIL_HALF),
+    ("ROOM_HALF", ROOM_HALF),
+    ("GLASS_FOOT", GLASS_FOOT),
+    ("GLASS_TOP", GLASS_TOP),
+    ("GLASS_HALF", GLASS_HALF),
+    ("EAVES", EAVES),
+    ("EAVES_HALF", EAVES_HALF),
+    ("DOME", DOME),
+    ("DOME_HALF", DOME_HALF),
+    ("BALL", BALL),
+    ("BALL_R", BALL_R),
+    ("SPIKE", SPIKE),
+    ("LAMP", LAMP),
+    ("PLINTH_LEFT", PLINTH_LEFT),
+    ("PLINTH_RIGHT", PLINTH_RIGHT),
+    ("PLINTH_FOOT", PLINTH_FOOT),
+    ("PIER", PIER),
+    ("PIER_TOP", PIER_TOP),
+    ("PIER_RISE", PIER_RISE),
+    ("PIER_FOOT", PIER_FOOT),
+    ("PIER_SINK", PIER_SINK),
+    ("CAP", CAP),
+    ("JOINT", JOINT),
+];
+
+/// The far range, the nearer hill and the rocks' crest: each a line
+/// through its points, the first two across the picture, the last from
+/// the axis. Each is named by where it starts in [`LINE`] and how many
+/// points it has.
+const FAR: (usize, usize) = (0, 17);
+const NEAR: (usize, usize) = (17, 12);
+const ROCKS: (usize, usize) = (29, 18);
+pub(super) const LINE: [(f64, f64); 47] = [
+    (0.0, 549.0),
+    (560.0, 549.0),
+    (760.0, 538.0),
+    (980.0, 533.0),
+    (1220.0, 539.0),
+    (1420.0, 549.0),
+    (1795.0, 549.0),
+    (1875.0, 526.0),
+    (1955.0, 506.0),
+    (2035.0, 492.0),
+    (2155.0, 478.0),
+    (2265.0, 461.0),
+    (2355.0, 471.0),
+    (2475.0, 488.0),
+    (2595.0, 500.0),
+    (2843.0, 512.0),
+    (3160.0, 520.0),
+    (0.0, 549.0),
+    (2275.0, 549.0),
+    (2315.0, 523.0),
+    (2395.0, 505.0),
+    (2465.0, 490.0),
+    (2535.0, 478.0),
+    (2622.0, 473.0),
+    (2695.0, 456.0),
+    (2785.0, 442.0),
+    (2875.0, 446.0),
+    (2995.0, 470.0),
+    (3160.0, 498.0),
+    (-313.0, 598.0),
+    (-297.0, 590.0),
+    (-271.0, 582.0),
+    (-236.0, 570.0),
+    (-206.0, 556.0),
+    (-181.0, 547.0),
+    (-151.0, 537.0),
+    (-131.0, 530.0),
+    (-106.0, 521.0),
+    (-89.0, 515.0),
+    (-73.0, 514.0),
+    (-58.0, 519.0),
+    (-46.0, 541.0),
+    (9.0, 543.0),
+    (24.0, 556.0),
+    (44.0, 568.0),
+    (64.0, 584.0),
+    (77.0, 598.0),
+];
+
+/// A colour, each part from 0 to 255.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Geometry {
-    pub(crate) width: f64,
-    pub(crate) height: f64,
-    /// The pole the sky turns about: the ring's centre.
-    pub(crate) pole_x: f64,
-    pub(crate) pole_y: f64,
-    /// The side of the ring layer's square.
-    pub(crate) span: f64,
-    /// The waterline.
-    pub(crate) shore: f64,
-    /// The lantern at the masthead.
-    pub(crate) lantern_x: f64,
-    pub(crate) lantern_y: f64,
+pub(super) struct Rgb(pub(super) f64, pub(super) f64, pub(super) f64);
+
+impl Rgb {
+    fn mix(self, other: Self, t: f64) -> Self {
+        Self(
+            field::mix(self.0, other.0, t),
+            field::mix(self.1, other.1, t),
+            field::mix(self.2, other.2, t),
+        )
+    }
+
+    fn scaled(self, by: f64) -> Self {
+        Self(self.0 * by, self.1 * by, self.2 * by)
+    }
+
+    /// As the picture writes a colour: `#rrggbb`, each part held within
+    /// what two digits can say.
+    fn hex(self) -> String {
+        let part = |value: f64| value.round().clamp(0.0, 255.0) as u8;
+        format!(
+            "#{:02x}{:02x}{:02x}",
+            part(self.0),
+            part(self.1),
+            part(self.2)
+        )
+    }
 }
 
-/// The geometry of the image [`draw`] makes.
-pub(crate) const GEOMETRY: Geometry = Geometry {
-    width: WIDTH,
-    height: HEIGHT,
-    pole_x: RING_X,
-    pole_y: RING_Y,
-    span: RING_SPAN,
-    shore: SHORE,
-    lantern_x: MAST_X,
-    lantern_y: LANTERN_Y,
-};
+const WHITE: Rgb = Rgb(255.0, 255.0, 255.0);
+const SKY_TOP: Rgb = Rgb(5.0, 19.0, 32.0);
+const SKY_MID: Rgb = Rgb(12.0, 30.0, 47.0);
+const SKY_LOW: Rgb = Rgb(21.0, 41.0, 61.0);
+const SKY_RIM: Rgb = Rgb(29.0, 49.0, 69.0);
+const HAZE: Rgb = Rgb(75.0, 84.0, 99.0);
+const CLOUD: Rgb = Rgb(58.0, 77.0, 102.0);
+const STAR_COOL: Rgb = Rgb(190.0, 214.0, 255.0);
+const STAR_WARM: Rgb = Rgb(255.0, 232.0, 200.0);
+const FAR_HIGH: Rgb = Rgb(29.0, 49.0, 69.0);
+const FAR_DEEP: Rgb = Rgb(25.0, 42.0, 62.0);
+const NEAR_PALE: Rgb = Rgb(42.0, 59.0, 78.0);
+const NEAR_DARK: Rgb = Rgb(26.0, 45.0, 66.0);
+const TOWN_WARM: Rgb = Rgb(255.0, 214.0, 150.0);
+const TOWN_PALE: Rgb = Rgb(255.0, 236.0, 200.0);
+const SEA_FAR: Rgb = Rgb(22.0, 41.0, 60.0);
+const SEA_MID: Rgb = Rgb(13.0, 30.0, 46.0);
+const SEA_DEEP: Rgb = Rgb(6.0, 19.0, 33.0);
+const SEA_SHEEN: Rgb = Rgb(121.0, 147.0, 176.0);
+const SEA_SHADE: Rgb = Rgb(7.0, 12.0, 18.0);
+const GOLD: Rgb = Rgb(251.0, 226.0, 178.0);
+const GOLD_DEEP: Rgb = Rgb(214.0, 150.0, 96.0);
+const PLASTER_LIT: Rgb = Rgb(248.0, 224.0, 197.0);
+const PLASTER: Rgb = Rgb(66.0, 81.0, 103.0);
+const PLASTER_DARK: Rgb = Rgb(48.0, 57.0, 72.0);
+const IRON: Rgb = Rgb(24.0, 28.0, 36.0);
+const IRON_LIT: Rgb = Rgb(106.0, 93.0, 82.0);
+const GLASS: Rgb = Rgb(219.0, 182.0, 133.0);
+const GLASS_DIM: Rgb = Rgb(164.0, 117.0, 77.0);
+const GLASS_HOT: Rgb = Rgb(253.0, 250.0, 236.0);
+const LAMPLIGHT: Rgb = Rgb(255.0, 196.0, 122.0);
+const PANE: Rgb = Rgb(232.0, 197.0, 140.0);
+const DOOR: Rgb = Rgb(19.0, 30.0, 46.0);
+const FRAME: Rgb = Rgb(126.0, 136.0, 152.0);
+const STONE: Rgb = Rgb(55.0, 66.0, 78.0);
+const STONE_LIT: Rgb = Rgb(108.0, 116.0, 128.0);
+const STONE_DARK: Rgb = Rgb(30.0, 36.0, 45.0);
+const WALL: Rgb = Rgb(46.0, 44.0, 47.0);
+const WALL_WARM: Rgb = Rgb(97.0, 80.0, 70.0);
+const WALL_DARK: Rgb = Rgb(16.0, 25.0, 34.0);
+const ROCK: Rgb = Rgb(51.0, 48.0, 50.0);
+const ROCK_LIT: Rgb = Rgb(141.0, 132.0, 120.0);
+const ROCK_DARK: Rgb = Rgb(21.0, 23.0, 28.0);
 
-/// The image and its layers, as SVG text.
-pub(super) fn draw() -> Hero {
-    let mut rng = Rng(SEED);
-    let ring = ring(&mut rng);
-    let ridges = ridges(&mut rng);
-    let glow = glow_filters();
+/// Every colour above but white, by the name the shader gives it.
+#[cfg(test)]
+pub(super) const PALETTE: [(&str, Rgb); 42] = [
+    ("SKY_TOP", SKY_TOP),
+    ("SKY_MID", SKY_MID),
+    ("SKY_LOW", SKY_LOW),
+    ("SKY_RIM", SKY_RIM),
+    ("HAZE", HAZE),
+    ("CLOUD", CLOUD),
+    ("STAR_COOL", STAR_COOL),
+    ("STAR_WARM", STAR_WARM),
+    ("FAR_HIGH", FAR_HIGH),
+    ("FAR_DEEP", FAR_DEEP),
+    ("NEAR_PALE", NEAR_PALE),
+    ("NEAR_DARK", NEAR_DARK),
+    ("TOWN_WARM", TOWN_WARM),
+    ("TOWN_PALE", TOWN_PALE),
+    ("SEA_FAR", SEA_FAR),
+    ("SEA_MID", SEA_MID),
+    ("SEA_DEEP", SEA_DEEP),
+    ("SEA_SHEEN", SEA_SHEEN),
+    ("SEA_SHADE", SEA_SHADE),
+    ("GOLD", GOLD),
+    ("GOLD_DEEP", GOLD_DEEP),
+    ("PLASTER_LIT", PLASTER_LIT),
+    ("PLASTER", PLASTER),
+    ("PLASTER_DARK", PLASTER_DARK),
+    ("IRON", IRON),
+    ("IRON_LIT", IRON_LIT),
+    ("GLASS", GLASS),
+    ("GLASS_DIM", GLASS_DIM),
+    ("GLASS_HOT", GLASS_HOT),
+    ("LAMPLIGHT", LAMPLIGHT),
+    ("PANE", PANE),
+    ("DOOR", DOOR),
+    ("FRAME", FRAME),
+    ("STONE", STONE),
+    ("STONE_LIT", STONE_LIT),
+    ("STONE_DARK", STONE_DARK),
+    ("WALL", WALL),
+    ("WALL_WARM", WALL_WARM),
+    ("WALL_DARK", WALL_DARK),
+    ("ROCK", ROCK),
+    ("ROCK_LIT", ROCK_LIT),
+    ("ROCK_DARK", ROCK_DARK),
+];
 
-    let mut image = String::with_capacity(64 * 1024);
-    image.push_str(&open(
-        0.0,
-        0.0,
-        WIDTH,
-        HEIGHT,
-        " preserveAspectRatio=\"xMidYMid slice\"",
+/// The image, as SVG text.
+pub(super) fn draw() -> String {
+    let mut out = String::with_capacity(128 * 1024);
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {WIDTH} {HEIGHT}\" \
+         width=\"{WIDTH}\" height=\"{HEIGHT}\">"
     ));
-    for part in [
-        "<defs>",
-        SKY_PAINTS,
-        RING_PAINTS,
-        LAND_PAINTS,
-        WATER_PAINT,
-        LANTERN_PAINT,
-        &glow,
-        REFLECTION,
-        &ring,
-        &ridges,
-        "</defs>",
-        "<rect width=\"1600\" height=\"1000\" fill=\"url(#sky)\"/>",
-        "<ellipse cx=\"820\" cy=\"300\" rx=\"900\" ry=\"130\" fill=\"url(#milky)\" \
-         transform=\"rotate(-16 820 300)\"/>",
-    ] {
-        image.push_str(part);
-    }
-    stars(&mut image, &mut rng);
-    image.push_str("<use href=\"#ring\"/><use href=\"#ridges\"/>");
-    water(&mut image, &mut rng);
-    moorings(&mut image);
-    lantern(&mut image);
-    figure(&mut image);
-    image.push_str("</svg>");
-
-    // The ridges stop at the waterline, as the image's water hides them.
-    let mut land = open(0.0, 0.0, WIDTH, HEIGHT, "");
-    land.push_str(&format!(
-        "<defs>{LAND_PAINTS}<clipPath id=\"above\"><rect width=\"{WIDTH}\" height=\"{SHORE}\"/></clipPath>\
-         {ridges}</defs><g clip-path=\"url(#above)\"><use href=\"#ridges\"/></g>"
-    ));
-    moorings(&mut land);
-    figure(&mut land);
-    land.push_str("</svg>");
-
-    let mut ring_layer = open(
-        RING_X - RING_SPAN / 2.0,
-        RING_Y - RING_SPAN / 2.0,
-        RING_SPAN,
-        RING_SPAN,
-        "",
-    );
-    ring_layer.push_str(&format!(
-        "<defs>{RING_PAINTS}{glow}{ring}</defs><use href=\"#ring\"/></svg>"
-    ));
-
-    Hero {
-        image,
-        land,
-        ring: ring_layer,
-    }
-}
-
-/// The opening tag of a picture of the box at `x`, `y`. The size is
-/// stated: a browser draws an SVG into a canvas only at a stated size.
-fn open(x: f64, y: f64, width: f64, height: f64, more: &str) -> String {
-    format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"{x} {y} {width} {height}\" \
-         width=\"{width}\" height=\"{height}\"{more}>"
-    )
-}
-
-/// The sky's gradient and the Milky Way's.
-const SKY_PAINTS: &str = concat!(
-    "<linearGradient id=\"sky\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">",
-    "<stop offset=\"0\" stop-color=\"#01030b\"/><stop offset=\"0.5\" stop-color=\"#050d2a\"/>",
-    "<stop offset=\"0.8\" stop-color=\"#0d2459\"/></linearGradient>",
-    "<radialGradient id=\"milky\"><stop offset=\"0\" stop-color=\"#c9d9ff\" stop-opacity=\"0.13\"/>",
-    "<stop offset=\"1\" stop-color=\"#c9d9ff\" stop-opacity=\"0\"/></radialGradient>",
-);
-
-/// The ring's halo and the dark within it.
-const RING_PAINTS: &str = concat!(
-    "<radialGradient id=\"halo\"><stop offset=\"0.72\" stop-color=\"#3d8bff\" stop-opacity=\"0\"/>",
-    "<stop offset=\"0.86\" stop-color=\"#3d8bff\" stop-opacity=\"0.3\"/>",
-    "<stop offset=\"1\" stop-color=\"#3d8bff\" stop-opacity=\"0\"/></radialGradient>",
-    "<radialGradient id=\"core\"><stop offset=\"0\" stop-color=\"#1b3f8f\" stop-opacity=\"0.5\"/>",
-    "<stop offset=\"1\" stop-color=\"#1b3f8f\" stop-opacity=\"0\"/></radialGradient>",
-);
-
-/// Snow, rock, the far range, the mist at the waterline and the shores.
-const LAND_PAINTS: &str = concat!(
-    "<linearGradient id=\"snow\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"570\" x2=\"0\" y2=\"760\">",
-    "<stop offset=\"0\" stop-color=\"#f6f9ff\"/><stop offset=\"0.3\" stop-color=\"#c6d7f5\"/>",
-    "<stop offset=\"1\" stop-color=\"#6f8cc8\"/></linearGradient>",
-    "<linearGradient id=\"rock\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"600\" x2=\"0\" y2=\"800\">",
-    "<stop offset=\"0\" stop-color=\"#1f356c\"/><stop offset=\"1\" stop-color=\"#081230\"/></linearGradient>",
-    "<linearGradient id=\"far\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"560\" x2=\"0\" y2=\"800\">",
-    "<stop offset=\"0\" stop-color=\"#35518f\"/><stop offset=\"1\" stop-color=\"#0f1c44\"/></linearGradient>",
-    "<linearGradient id=\"mist\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">",
-    "<stop offset=\"0\" stop-color=\"#4f86e8\" stop-opacity=\"0\"/><stop offset=\"0.6\" stop-color=\"#4f86e8\" stop-opacity=\"0.18\"/>",
-    "<stop offset=\"1\" stop-color=\"#4f86e8\" stop-opacity=\"0\"/></linearGradient>",
-    "<linearGradient id=\"shore\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">",
-    "<stop offset=\"0\" stop-color=\"#0a1430\"/><stop offset=\"1\" stop-color=\"#02040b\"/></linearGradient>",
-);
-
-const WATER_PAINT: &str = concat!(
-    "<linearGradient id=\"water\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">",
-    "<stop offset=\"0\" stop-color=\"#0a1a45\"/><stop offset=\"1\" stop-color=\"#01040c\"/></linearGradient>",
-);
-
-const LANTERN_PAINT: &str = concat!(
-    "<radialGradient id=\"lantern\"><stop offset=\"0\" stop-color=\"#ffd27a\" stop-opacity=\"0.9\"/>",
-    "<stop offset=\"0.35\" stop-color=\"#ffb347\" stop-opacity=\"0.32\"/>",
-    "<stop offset=\"1\" stop-color=\"#ffb347\" stop-opacity=\"0\"/></radialGradient>",
-);
-
-/// What softens the image's reflection in the water, and keeps it there.
-const REFLECTION: &str = concat!(
-    "<filter id=\"blur\" x=\"-5%\" y=\"-5%\" width=\"110%\" height=\"110%\"><feGaussianBlur stdDeviation=\"4 1.5\"/></filter>",
-    "<clipPath id=\"below\"><rect x=\"0\" y=\"800\" width=\"1600\" height=\"200\"/></clipPath>",
-);
-
-/// The ring's glow, and the soft light about the brightest stars.
-fn glow_filters() -> String {
-    format!(
-        "<filter id=\"glow\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\"><feGaussianBlur stdDeviation=\"{GLOW_BLUR}\"/></filter>\
-         <filter id=\"soft\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\"><feGaussianBlur stdDeviation=\"2.5\"/></filter>"
-    )
-}
-
-fn stars(out: &mut String, rng: &mut Rng) {
-    out.push_str("<g>");
-    for _ in 0..230 {
-        let x = rng.range(0.0, 1600.0);
-        let y = rng.range(0.0, 760.0);
-        let size = rng.unit();
-        let radius = 0.35 + 1.3 * size * size * size;
-        let opacity = rng.range(0.35, 1.0);
-        let colour = match rng.unit() {
-            tint if tint < 0.12 => "#cfe0ff",
-            tint if tint < 0.2 => "#ffe7c2",
-            _ => "#ffffff",
-        };
-        out.push_str(&format!("<circle cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"{radius:.2}\" fill=\"{colour}\" opacity=\"{opacity:.2}\"/>"
-        ));
-    }
-    for _ in 0..12 {
-        let x = rng.range(0.0, 1600.0);
-        let y = rng.range(0.0, 620.0);
-        out.push_str(&format!("<circle cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"7\" fill=\"#ffffff\" opacity=\"0.14\" filter=\"url(#soft)\"/>\
-             <circle cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"1.9\" fill=\"#ffffff\"/>"
-        ));
-    }
-    out.push_str("</g>");
-}
-
-/// Star trails around the pole, inside a neon ring: the group `ring`.
-fn ring(rng: &mut Rng) -> String {
-    let (x, y, r) = (RING_X, RING_Y, RING_R);
-    let mut out = format!(
-        "<g id=\"ring\"><circle cx=\"{x}\" cy=\"{y}\" r=\"{}\" fill=\"url(#halo)\"/>\
-         <circle cx=\"{x}\" cy=\"{y}\" r=\"{}\" fill=\"url(#core)\"/><g fill=\"none\" stroke-linecap=\"round\">",
-        r + HALO,
-        r - 10.0
-    );
-    for index in 0..34_u32 {
-        let radius = 40.0 + f64::from(index) * 7.2;
-        let dash = rng.range(18.0, 150.0);
-        let gap = rng.range(6.0, 70.0);
-        let turn = rng.range(0.0, 360.0);
-        let opacity = rng.range(0.14, 0.55);
-        let width = rng.range(0.7, 1.8);
-        let colour = if rng.unit() < 0.6 {
-            "#6fb6ff"
-        } else {
-            "#dceaff"
-        };
-        out.push_str(&format!("<circle cx=\"{x}\" cy=\"{y}\" r=\"{radius:.1}\" stroke=\"{colour}\" stroke-opacity=\"{opacity:.2}\" \
-             stroke-width=\"{width:.2}\" stroke-dasharray=\"{dash:.1} {gap:.1}\" transform=\"rotate({turn:.1} {x} {y})\"/>"
-        ));
-    }
-    out.push_str(&format!("</g><circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" fill=\"none\" stroke=\"#5aa9ff\" stroke-width=\"16\" \
-         stroke-opacity=\"0.55\" filter=\"url(#glow)\"/>\
-         <circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" fill=\"none\" stroke=\"#8fd0ff\" stroke-width=\"5\"/>\
-         <circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.6\" stroke-opacity=\"0.9\"/>\
-         <circle cx=\"{x}\" cy=\"{y}\" r=\"{}\" fill=\"none\" stroke=\"#4d8dff\" stroke-width=\"1.2\" stroke-opacity=\"0.55\"/>\
-         <circle cx=\"{x}\" cy=\"{y}\" r=\"9\" fill=\"#ffffff\" opacity=\"0.25\" filter=\"url(#soft)\"/>\
-         <circle cx=\"{x}\" cy=\"{y}\" r=\"2.6\" fill=\"#ffffff\"/></g>",
-        r - 24.0
-    ));
+    sky::draw(&mut out);
+    water::draw(&mut out);
+    shore::draw(&mut out);
+    rocks::draw(&mut out);
+    light::draw(&mut out);
+    out.push_str("</svg>");
     out
 }
 
-/// Two ranges: a far, hazy one, and a near one whose crest is snow and
-/// whose slopes below an uneven snow line are bare rock, with a valley
-/// under the ring: the group `ridges`.
-fn ridges(rng: &mut Rng) -> String {
-    let far = ridge(
-        rng,
-        &[
-            (0.0, 640.0),
-            (200.0, 588.0),
-            (430.0, 642.0),
-            (650.0, 578.0),
-            (900.0, 648.0),
-            (1150.0, 602.0),
-            (1380.0, 566.0),
-            (1600.0, 624.0),
-        ],
-        24.0,
-    );
-    let near = ridge(
-        rng,
-        &[
-            (0.0, 736.0),
-            (230.0, 660.0),
-            (470.0, 716.0),
-            (640.0, 676.0),
-            (880.0, 604.0),
-            (1080.0, 742.0),
-            (1260.0, 696.0),
-            (1420.0, 580.0),
-            (1600.0, 706.0),
-        ],
-        30.0,
-    );
-    // Snow lies above an uneven snow line, so the high peaks are white
-    // fields and the low ridges only dusted along their crest.
-    let (phase, wobble) = (
-        rng.range(0.0, std::f64::consts::TAU),
-        rng.range(0.0, std::f64::consts::TAU),
-    );
-    let snow_line: Vec<(f64, f64)> = near
-        .iter()
-        .map(|&(x, y)| {
-            let line = 676.0 + 18.0 * (x / 53.0 + phase).sin() + 8.0 * (x / 17.0 + wobble).sin();
-            let dusting = y + 5.0 + rng.range(0.0, 3.0);
-            (x, line.max(dusting))
-        })
-        .collect();
-    let mut out = String::from("<g id=\"ridges\">");
-    polygon(&mut out, &far, "url(#far)");
-    polygon(&mut out, &near, "url(#snow)");
-    polygon(&mut out, &snow_line, "url(#rock)");
-    out.push_str("<polyline fill=\"none\" stroke=\"#ffffff\" stroke-opacity=\"0.45\" stroke-width=\"1.1\" points=\"");
-    points(&mut out, &near);
-    out.push_str(
-        "\"/><rect x=\"0\" y=\"730\" width=\"1600\" height=\"80\" fill=\"url(#mist)\"/></g>",
-    );
-    out
-}
-
-/// A ridge line through `peaks`, roughened by midpoint displacement.
-fn ridge(rng: &mut Rng, peaks: &[(f64, f64)], roughness: f64) -> Vec<(f64, f64)> {
-    let mut line = peaks.to_vec();
-    let mut spread = roughness;
-    for _ in 0..5 {
-        let mut finer = Vec::with_capacity(line.len() * 2);
-        for pair in line.windows(2) {
-            if let [(x0, y0), (x1, y1)] = *pair {
-                finer.push((x0, y0));
-                finer.push((
-                    (x0 + x1) / 2.0,
-                    (y0 + y1) / 2.0 + rng.range(-spread, spread),
-                ));
-            }
-        }
-        finer.extend(line.last().copied());
-        line = finer;
-        spread *= 0.55;
+/// A number as the picture writes it: to one decimal place, and without
+/// the place when it says nothing.
+fn n(value: f64) -> String {
+    let written = format!("{value:.1}");
+    match written.strip_suffix(".0") {
+        Some(whole) => whole.to_owned(),
+        None => written,
     }
-    line
 }
 
-fn polygon(out: &mut String, line: &[(f64, f64)], fill: &str) {
-    out.push_str(&format!("<polygon fill=\"{fill}\" points=\"0,{SHORE} "));
-    points(out, line);
-    out.push_str(&format!(" 1600,{SHORE}\"/>"));
+/// An opacity as the picture writes it: to two places.
+fn dim(value: f64) -> String {
+    format!("{:.2}", value.clamp(0.0, 1.0))
 }
 
-fn points(out: &mut String, line: &[(f64, f64)]) {
-    for (index, (x, y)) in line.iter().enumerate() {
+/// The points of a shape, as an SVG `points` attribute's value.
+fn points(shape: &[(f64, f64)]) -> String {
+    let mut out = String::with_capacity(shape.len() * 12);
+    for (index, (x, y)) in shape.iter().enumerate() {
         if index > 0 {
             out.push(' ');
         }
-        out.push_str(&format!("{x:.1},{y:.1}"));
+        out.push_str(&format!("{},{}", n(*x), n(*y)));
     }
+    out
 }
 
-/// The harbour: still water with the ring and ridges reflected in it, and
-/// light on the surface.
-fn water(out: &mut String, rng: &mut Rng) {
-    out.push_str(
-        "<rect x=\"0\" y=\"800\" width=\"1600\" height=\"200\" fill=\"url(#water)\"/>\
-         <g clip-path=\"url(#below)\" opacity=\"0.24\"><g transform=\"matrix(1 0 0 -1 0 1600)\" \
-         filter=\"url(#blur)\"><use href=\"#ring\"/><use href=\"#ridges\"/></g></g><g>",
-    );
-    for _ in 0..40 {
-        let x = RING_X + rng.range(-260.0, 260.0);
-        let y = rng.range(812.0, 990.0);
-        let width = rng.range(20.0, 140.0);
-        let opacity = rng.range(0.06, 0.24);
-        out.push_str(&format!("<rect x=\"{:.1}\" y=\"{y:.1}\" width=\"{width:.1}\" height=\"1.2\" fill=\"#9fd0ff\" opacity=\"{opacity:.2}\"/>",
-            x - width / 2.0
-        ));
-    }
-    for _ in 0..10 {
-        let x = MAST_X + rng.range(-24.0, 24.0);
-        let y = rng.range(818.0, 900.0);
-        let width = rng.range(8.0, 30.0);
-        out.push_str(&format!("<rect x=\"{:.1}\" y=\"{y:.1}\" width=\"{width:.1}\" height=\"1.2\" fill=\"#ffc46b\" opacity=\"0.35\"/>",
-            x - width / 2.0
-        ));
-    }
-    out.push_str("</g>");
+/// A filled polygon; `more` is any further attributes, each led by a space.
+fn polygon(out: &mut String, shape: &[(f64, f64)], fill: &str, more: &str) {
+    out.push_str(&format!(
+        "<polygon points=\"{}\" fill=\"{fill}\"{more}/>",
+        points(shape)
+    ));
 }
 
-/// The near shores, the jetty and the moored boat.
-fn moorings(out: &mut String) {
-    out.push_str(
-        "<path d=\"M0 812 C140 806 260 816 360 826 C430 832 480 838 520 850 L520 1000 L0 1000 Z\" fill=\"url(#shore)\"/>\
-         <path d=\"M1330 804 C1420 794 1520 790 1600 788 L1600 1000 L1330 1000 Z\" fill=\"url(#shore)\"/>\
-         <rect x=\"1150\" y=\"804\" width=\"190\" height=\"3\" fill=\"#0a1124\"/>",
-    );
-    for post in [1160, 1200, 1240, 1280, 1320] {
+/// A filled rectangle with corners at (`x0`, `y0`) and (`x1`, `y1`).
+fn rect(out: &mut String, (x0, y0): (f64, f64), (x1, y1): (f64, f64), fill: &str, more: &str) {
+    out.push_str(&format!(
+        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{fill}\"{more}/>",
+        n(x0),
+        n(y0),
+        n(x1 - x0),
+        n(y1 - y0)
+    ));
+}
+
+/// A gradient of `stops`, each an offset, a colour and an opacity. `kind`
+/// is the element's name with its attributes.
+fn gradient(out: &mut String, kind: &str, stops: &[(f64, Rgb, f64)]) {
+    let name = kind.split(' ').next().unwrap_or(kind);
+    out.push_str(&format!("<{kind}>"));
+    for (offset, colour, opacity) in stops {
         out.push_str(&format!(
-            "<rect x=\"{post}\" y=\"806\" width=\"3\" height=\"16\" fill=\"#070d1e\"/>"
+            "<stop offset=\"{offset:.3}\" stop-color=\"{}\" stop-opacity=\"{}\"/>",
+            colour.hex(),
+            dim(*opacity)
         ));
     }
-    out.push_str(&format!("<path d=\"M1170 806 L1252 806 L1242 818 Q1210 823 1180 818 Z\" fill=\"#050a18\"/>\
-         <rect x=\"1196\" y=\"798\" width=\"22\" height=\"8\" fill=\"#071029\"/>\
-         <line x1=\"{MAST_X}\" y1=\"806\" x2=\"{MAST_X}\" y2=\"{}\" stroke=\"#0b142c\" stroke-width=\"1.6\"/>",
-        LANTERN_Y + 2.0
-    ));
-}
-
-/// The lantern at the masthead: its light, and the light's path on the
-/// water.
-fn lantern(out: &mut String) {
-    out.push_str(&format!("<ellipse cx=\"{MAST_X}\" cy=\"852\" rx=\"6\" ry=\"42\" fill=\"url(#lantern)\" opacity=\"0.55\"/>\
-         <circle cx=\"{MAST_X}\" cy=\"{LANTERN_Y}\" r=\"36\" fill=\"url(#lantern)\"/>\
-         <circle cx=\"{MAST_X}\" cy=\"{LANTERN_Y}\" r=\"2.4\" fill=\"#fff1c8\"/>"
-    ));
-}
-
-/// A small figure on the jetty, looking up at the ring.
-fn figure(out: &mut String) {
-    out.push_str(
-        "<g fill=\"#04070f\"><circle cx=\"1262\" cy=\"786\" r=\"3.2\"/>\
-         <path d=\"M1258.5 790 L1265.5 790 L1266.5 800 L1264.6 800 L1264 806 L1260 806 L1259.4 800 L1257.5 800 Z\"/></g>\
-         <path d=\"M1258.5 790 L1257.5 800\" stroke=\"#6fb6ff\" stroke-opacity=\"0.6\" stroke-width=\"0.6\"/>",
-    );
-}
-
-/// SplitMix64: small, fast and fully determined by its seed.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-        z ^ (z >> 31)
-    }
-
-    /// Uniform in [0, 1).
-    fn unit(&mut self) -> f64 {
-        // The top 53 bits fill an f64's mantissa exactly.
-        (self.next() >> 11) as f64 / (1_u64 << 53) as f64
-    }
-
-    fn range(&mut self, low: f64, high: f64) -> f64 {
-        low + (high - low) * self.unit()
-    }
+    out.push_str(&format!("</{name}>"));
 }
 
 #[cfg(test)]

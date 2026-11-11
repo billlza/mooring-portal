@@ -83,17 +83,6 @@ export function buffer(box, ratio, quality) {
   return { width, height, scale: box.width > 0 ? width / box.width : scale };
 }
 
-/**
- * The size to draw a layer `picture` at for `density` buffer pixels per
- * picture unit: one texel per pixel, within `bounds`, in the picture's
- * shape.
- */
-export function layer(picture, density, bounds) {
-  const wanted = Math.ceil(picture.width * density - 1e-9);
-  const width = Math.min(Math.max(wanted, bounds.least), bounds.most);
-  return { width, height: Math.round((width * picture.height) / picture.width) };
-}
-
 /** A watchdog that has judged nothing yet, for a scene at `quality`. */
 export function watching(quality = 1) {
   return { quality, warm: WARM_UP, frames: 0, total: 0 };

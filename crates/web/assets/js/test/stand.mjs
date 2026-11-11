@@ -24,21 +24,18 @@ class Target {
 /**
  * The WebGL 2 methods and constants the scene may use, by their names in
  * the specification. The stand-in below answers to no other name, so a
- * misspelt call fails here and not only in a browser.
+ * misspelt call fails here and not only in a browser, and so does a call
+ * the scene has no business making: it holds no texture and no buffer.
  */
 const METHODS = new Set([
-  "activeTexture", "attachShader", "bindTexture", "bindVertexArray", "compileShader",
-  "createProgram", "createShader", "createTexture", "createVertexArray", "deleteProgram",
-  "deleteShader", "deleteTexture", "deleteVertexArray", "detachShader", "disable", "drawArrays",
-  "generateMipmap", "linkProgram", "pixelStorei", "shaderSource", "texImage2D", "texParameteri",
-  "uniform1f", "uniform1i", "uniform2f", "useProgram", "viewport",
+  "attachShader", "bindVertexArray", "compileShader", "createProgram", "createShader",
+  "createVertexArray", "deleteProgram", "deleteShader", "deleteVertexArray", "detachShader",
+  "disable", "drawArrays", "linkProgram", "shaderSource", "uniform1f", "uniform2f", "useProgram",
+  "viewport",
 ]);
 const CONSTANTS = new Set([
-  "BLEND", "CLAMP_TO_EDGE", "COMPILE_STATUS", "CONTEXT_LOST_WEBGL", "DEPTH_TEST",
-  "FRAGMENT_SHADER", "LINEAR", "LINEAR_MIPMAP_LINEAR", "LINK_STATUS", "MAX_TEXTURE_SIZE",
-  "NO_ERROR", "RGBA", "TEXTURE0", "TEXTURE1", "TEXTURE_2D", "TEXTURE_MAG_FILTER",
-  "TEXTURE_MIN_FILTER", "TEXTURE_WRAP_S", "TEXTURE_WRAP_T", "TRIANGLES",
-  "UNPACK_PREMULTIPLY_ALPHA_WEBGL", "UNSIGNED_BYTE", "VERTEX_SHADER",
+  "BLEND", "COMPILE_STATUS", "CONTEXT_LOST_WEBGL", "DEPTH_TEST", "FRAGMENT_SHADER", "LINK_STATUS",
+  "NO_ERROR", "TRIANGLES", "VERTEX_SHADER",
 ]);
 
 /** The error WebGL keeps for a call that its state does not allow. */
@@ -52,8 +49,7 @@ function needsProgram(own) {
 
 /**
  * The state that decides whether a call is allowed, kept as WebGL keeps
- * it: the program in use, the texture bound on each unit, and which
- * textures hold an image. A call made out of order is refused the way a
+ * it: the program in use. A call made out of order is refused the way a
  * graphics card refuses it: nothing happens, and an error waits to be
  * asked for.
  */
@@ -61,22 +57,7 @@ const STATE = {
   useProgram(own, program) {
     own.program = program;
   },
-  activeTexture(own, unit) {
-    own.unit = unit;
-  },
-  bindTexture(own, _target, texture) {
-    own.bound.set(own.unit, texture);
-  },
-  texImage2D(own) {
-    own.filled.add(own.bound.get(own.unit));
-  },
-  generateMipmap(own) {
-    if (!own.filled.has(own.bound.get(own.unit))) {
-      own.refuse();
-    }
-  },
   uniform1f: needsProgram,
-  uniform1i: needsProgram,
   uniform2f: needsProgram,
   drawArrays: needsProgram,
 };
@@ -88,9 +69,6 @@ function graphics(settings) {
     lost: false,
     error: 0,
     program: null,
-    unit: "TEXTURE0",
-    bound: new Map(),
-    filled: new Set(),
     refuse() {
       own.error ||= INVALID_OPERATION;
     },
@@ -102,9 +80,9 @@ function graphics(settings) {
       own.error = 0;
       return kept;
     },
-    getParameter: (name) => (name === "MAX_TEXTURE_SIZE" ? settings.largest : null),
-    getShaderParameter: () => settings.compiles,
-    getProgramParameter: () => settings.links,
+    // A lost context answers nothing, whatever it was asked.
+    getShaderParameter: () => settings.compiles && !own.lost,
+    getProgramParameter: () => settings.links && !own.lost,
     getShaderInfoLog: () => "a shader fault",
     getProgramInfoLog: () => "a linking fault",
     getUniformLocation: (_program, name) => name,
@@ -137,34 +115,20 @@ export function stand(options = {}) {
     webgl: true,
     compiles: true,
     links: true,
-    largest: 4096,
-    arrive: () => Promise.resolve(),
-    pen: true,
+    position: "62% 100%",
     width: 1000,
     height: 600,
     ...options,
   };
   const pending = new Map();
   const classes = new Set();
-  const loaded = [];
-  const sheets = [];
-  const scratch = [];
   const observers = {};
   let ids = 0;
   let now = 1000;
   const gl = graphics(settings);
   const media = Object.assign(new Target(), { matches: settings.reduced });
   const canvas = Object.assign(new Target(), {
-    dataset: {
-      view: "1600 1000",
-      pole: "1100 500",
-      span: "760",
-      shore: "800",
-      lantern: "1215 768",
-      land: "/assets/land.svg",
-      ring: "/assets/ring.svg",
-      ...settings.dataset,
-    },
+    dataset: { view: "1600 1000", ...settings.dataset },
     clientWidth: settings.width,
     clientHeight: settings.height,
     width: 300,
@@ -198,37 +162,12 @@ export function stand(options = {}) {
     },
     querySelector: (selector) => (settings.missing === selector ? null : parts[selector]),
   };
+  // The scene makes nothing on the page and loads nothing: the document
+  // answers only what it is asked to find.
   const document = Object.assign(new Target(), {
     hidden: false,
     querySelector: (selector) => (selector === ".hero" && settings.missing !== selector ? hero : null),
-    createElement(tag) {
-      assert.equal(tag, "canvas");
-      const pen = {
-        drawImage(image, x, y, width, height) {
-          sheets.push({ image: image.src, at: [x, y], width, height });
-        },
-      };
-      const sheet = {
-        width: 0,
-        height: 0,
-        getContext: (kind) => (kind === "2d" && settings.pen ? pen : null),
-      };
-      scratch.push(sheet);
-      return sheet;
-    },
   });
-  // A picture that loads when `arrive` settles well, and fails otherwise.
-  class Image extends Target {
-    set src(url) {
-      loaded.push(url);
-      this.from = url;
-      settings.arrive().then(() => this.emit("load"), () => this.emit("error"));
-    }
-
-    get src() {
-      return this.from;
-    }
-  }
   class IntersectionObserver {
     constructor(callback) {
       observers.seen = callback;
@@ -249,10 +188,8 @@ export function stand(options = {}) {
   }
   const win = Object.assign(new Target(), {
     document,
-    Image,
     IntersectionObserver,
     ResizeObserver,
-    DOMException,
     devicePixelRatio: 1,
     innerWidth: 1000,
     innerHeight: 600,
@@ -262,9 +199,8 @@ export function stand(options = {}) {
     },
     getComputedStyle(element) {
       assert.equal(element, art);
-      return { objectPosition: "62% 100%" };
+      return { objectPosition: settings.position };
     },
-    performance: { now: () => now },
     requestAnimationFrame(callback) {
       ids += 1;
       pending.set(ids, callback);
@@ -275,7 +211,7 @@ export function stand(options = {}) {
     },
   });
   return {
-    win, gl, canvas, pause, media, document, observers, loaded, sheets, scratch,
+    win, gl, canvas, pause, media, document, observers,
     get live() {
       return classes.has("is-live");
     },
@@ -304,29 +240,19 @@ export function stand(options = {}) {
     told(name) {
       return gl.calls.findLast(([, uniform]) => uniform === name).slice(2);
     },
-    /** The texture unit each layer was sent to, in the order sent. */
-    uploads() {
-      let unit = "";
-      const units = [];
-      for (const [name, value] of gl.calls) {
-        if (name === "activeTexture") {
-          unit = value;
-        } else if (name === "texImage2D") {
-          units.push(unit);
-        }
-      }
-      return units;
+    /** Every uniform the scene has been told, by name. */
+    uniforms() {
+      const names = gl.calls.filter(([call]) => call.startsWith("uniform")).map(([, name]) => name);
+      return [...new Set(names)].toSorted();
     },
   };
 }
 
 /** A page whose scene has painted its first frame. */
-export async function running(options) {
+export function running(options) {
   const page = stand(options);
-  await enliven(page.win);
+  enliven(page.win);
   page.tick();
   assert.equal(page.live, true);
   return page;
 }
-
-export const settle = () => new Promise((resolve) => setImmediate(resolve));

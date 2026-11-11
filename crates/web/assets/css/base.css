@@ -1,31 +1,47 @@
-/* Tokens, base styles, the night backdrop, the top bar and buttons. System
-   fonts only: nothing is fetched from another host. */
+/* Tokens, base styles, the night behind every page, the top bar and
+   buttons. System fonts only: nothing is fetched from another host. */
 
 :root {
   color-scheme: dark;
-  --bg: #030614;
-  --bg-deep: #060b20;
-  --panel: rgba(16, 27, 62, 0.6);
-  --panel-line: rgba(132, 170, 255, 0.16);
-  --line-strong: rgba(132, 170, 255, 0.36);
-  --field: rgba(4, 9, 26, 0.82);
-  --text: #eaf0ff;
-  --muted: #a7b4d6;
-  --faint: #7b89b0;
-  --accent: #3d8bff;
-  --accent-soft: #7cbcff;
-  --warm: #ffc46b;
+  --bg: #061321;
+  --bg-deep: #040e19;
+  --panel: rgba(14, 30, 48, 0.6);
+  --panel-line: rgba(159, 214, 241, 0.14);
+  --line: rgba(255, 255, 255, 0.26);
+  --line-strong: rgba(159, 214, 241, 0.36);
+  --field: rgba(4, 12, 22, 0.82);
+  --text: #f3f6f9;
+  --muted: #b3bfcf;
+  --faint: #8492a5;
+  --accent: #9fd6f1;
+  --accent-soft: #bfe3f6;
+  --ink: #0b1b2b;
+  --warm: #f3ce95;
   --good: #6be3a4;
-  --warn: #ffc46b;
+  --warn: #f3ce95;
   --bad: #ff7a85;
-  --radius: 20px;
-  --radius-small: 12px;
-  --gutter: clamp(16px, 4vw, 56px);
+  --radius: 16px;
+  --radius-small: 10px;
+  /* The site is drawn to a sheet 100 units wide and 75 tall, as large as
+     the window allows: a unit is a hundredth of the window's width, or
+     less where the window is not tall enough for the sheet. */
+  --u: clamp(8.4px, min(1vw, 1.3333vh), 22px);
+  --gutter: clamp(16px, 6.9 * var(--u), 150px);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+  --serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "Source Han Serif CN",
+    "STSong", "SimSun", Georgia, "Times New Roman", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Where a phone's bars come and go, the sheet is fitted to the window
+   with them showing. */
+@supports (height: 1svh) {
+  :root {
+    --u: clamp(8.4px, min(1vw, 1.3333svh), 22px);
+  }
 }
 
 *,
@@ -36,7 +52,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
-  scrollbar-color: #24345f var(--bg);
+  scrollbar-color: #1f3349 var(--bg);
 }
 
 body {
@@ -51,8 +67,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The night behind every page: light from beyond the top edge, a glow at
-   the waterline, and a few fixed stars. */
+/* The night behind every page but the home page, which has its own: a
+   paler sky low on one side, and a few fixed stars. */
 body::before,
 body::after {
   content: "";
@@ -64,28 +80,32 @@ body::after {
 
 body::before {
   background:
-    radial-gradient(62vw 44vh at 84% -10%, rgba(61, 139, 255, 0.22), transparent 70%),
-    radial-gradient(46vw 36vh at 4% 2%, rgba(124, 188, 255, 0.09), transparent 70%),
-    radial-gradient(80vw 30vh at 50% 112%, rgba(45, 106, 230, 0.16), transparent 70%);
+    radial-gradient(70vw 46vh at 86% 104%, rgba(75, 84, 99, 0.3), transparent 70%),
+    radial-gradient(60vw 40vh at 0% -10%, rgba(159, 214, 241, 0.05), transparent 70%);
 }
 
 body::after {
   background-image:
     radial-gradient(1.2px 1.2px at 6% 14%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 17% 42%, #cfe0ff 50%, transparent 51%),
+    radial-gradient(1px 1px at 17% 42%, #bed6ff 50%, transparent 51%),
     radial-gradient(1.4px 1.4px at 28% 9%, #fff 50%, transparent 51%),
     radial-gradient(1px 1px at 39% 27%, #fff 50%, transparent 51%),
-    radial-gradient(1.2px 1.2px at 52% 6%, #ffe7c2 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 52% 6%, #ffe8c8 50%, transparent 51%),
     radial-gradient(1px 1px at 63% 33%, #fff 50%, transparent 51%),
-    radial-gradient(1.4px 1.4px at 71% 12%, #cfe0ff 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 71% 12%, #bed6ff 50%, transparent 51%),
     radial-gradient(1px 1px at 83% 38%, #fff 50%, transparent 51%),
     radial-gradient(1.2px 1.2px at 94% 19%, #fff 50%, transparent 51%),
     radial-gradient(1px 1px at 11% 63%, #fff 50%, transparent 51%),
-    radial-gradient(1px 1px at 46% 55%, #cfe0ff 50%, transparent 51%),
+    radial-gradient(1px 1px at 46% 55%, #bed6ff 50%, transparent 51%),
     radial-gradient(1px 1px at 89% 61%, #fff 50%, transparent 51%);
-  opacity: 0.55;
+  opacity: 0.5;
   -webkit-mask-image: linear-gradient(#000, transparent 78%);
   mask-image: linear-gradient(#000, transparent 78%);
+}
+
+.home::before,
+.home::after {
+  content: none;
 }
 
 main {
@@ -104,7 +124,7 @@ a {
 }
 
 ::selection {
-  background: rgba(61, 139, 255, 0.45);
+  background: rgba(159, 214, 241, 0.35);
   color: #fff;
 }
 
@@ -116,6 +136,7 @@ a {
 h1,
 h2,
 h3 {
+  font-family: var(--serif);
   line-height: 1.3;
   text-wrap: balance;
 }
@@ -142,16 +163,21 @@ h3 {
 
 /* Top bar */
 
+/* Three columns: the logo, the links, the buttons. The outer two share
+   what room is left, so the links stand in the middle of the bar until
+   one side needs more than its half, and then give way without touching
+   it. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 24px;
-  padding: 12px var(--gutter);
-  border-bottom: 1px solid rgba(132, 170, 255, 0.1);
-  background: rgba(3, 6, 20, 0.72);
+  column-gap: 20px;
+  padding: calc(1.5 * var(--u)) calc(5.95 * var(--u)) calc(1.5 * var(--u)) var(--gutter);
+  border-bottom: 1px solid rgba(159, 214, 241, 0.1);
+  background: rgba(6, 19, 33, 0.78);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
 }
@@ -159,71 +185,83 @@ h3 {
 .home .topbar {
   position: absolute;
   inset: 0 0 auto;
+  padding-block: calc(1.86 * var(--u));
   border-bottom-color: transparent;
-  background: linear-gradient(rgba(3, 6, 20, 0.72), rgba(3, 6, 20, 0));
+  background: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
 .logo {
   display: flex;
+  justify-self: start;
   align-items: center;
-  gap: 10px;
+  gap: calc(1.7 * var(--u));
   color: var(--text);
   text-decoration: none;
 }
 
 .logo img {
-  filter: drop-shadow(0 0 10px rgba(255, 180, 71, 0.35));
+  width: clamp(34px, 3.18 * var(--u), 64px);
+  height: auto;
 }
 
 .logo-text {
   display: flex;
   flex-direction: column;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
 .logo-name {
-  font-size: 1.3rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  background: linear-gradient(90deg, #cfe6ff, #5a9dff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-family: var(--serif);
+  font-size: clamp(1.3rem, 2.35 * var(--u), 3rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
 .logo-latin {
-  margin-top: 3px;
-  font-size: 0.62rem;
-  letter-spacing: 0.34em;
+  margin-top: 0.42em;
+  color: #dbe3ec;
+  font-family: var(--serif);
+  font-size: clamp(0.58rem, 0.86 * var(--u), 1.1rem);
+  letter-spacing: 0.36em;
   text-transform: uppercase;
-  color: var(--muted);
 }
 
 .nav {
   display: flex;
-  gap: clamp(20px, 5vw, 64px);
-  margin-inline: auto;
+  gap: clamp(22px, 6.5 * var(--u), 136px);
+}
+
+/* Latin words are longer; they stand closer. */
+:lang(en) .nav {
+  gap: clamp(18px, 4.2 * var(--u), 90px);
+}
+
+:lang(en) .nav a {
+  letter-spacing: 0.03em;
 }
 
 .nav a {
   position: relative;
-  padding: 8px 2px;
+  padding: 6px 0;
   color: var(--text);
-  font-size: 0.96rem;
+  font-family: var(--serif);
+  font-size: clamp(0.98rem, 1.4 * var(--u), 1.8rem);
+  letter-spacing: 0.08em;
   text-decoration: none;
-  opacity: 0.78;
+  white-space: nowrap;
+  opacity: 0.86;
   transition: opacity 0.2s;
 }
 
 .nav a::after {
   content: "";
   position: absolute;
-  inset: auto 0 0;
+  inset: auto -0.3em calc(-0.55 * var(--u));
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--accent-soft), var(--accent));
+  background: var(--warm);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.28s var(--ease);
@@ -241,13 +279,10 @@ h3 {
 
 .actions {
   display: flex;
+  grid-column: 3;
+  justify-self: end;
   align-items: center;
-  gap: 14px;
-  margin-left: auto;
-}
-
-.nav + .actions {
-  margin-left: 0;
+  gap: clamp(12px, 2.6 * var(--u), 54px);
 }
 
 .lang {
@@ -257,27 +292,28 @@ h3 {
 .lang button {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.6em;
   min-height: 38px;
-  padding: 6px 13px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 4px;
+  border: 0;
+  background: none;
   color: var(--text);
-  font: inherit;
-  font-size: 0.85rem;
+  font-family: var(--serif);
+  font-size: clamp(0.9rem, 1.28 * var(--u), 1.6rem);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
   cursor: pointer;
-  transition: border-color 0.2s, background-color 0.2s;
+  opacity: 0.9;
+  transition: opacity 0.2s;
 }
 
 .lang button:hover {
-  border-color: rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.08);
+  opacity: 1;
 }
 
 .lang svg {
-  width: 18px;
-  height: 18px;
+  width: 1.3em;
+  height: 1.3em;
 }
 
 /* Buttons */
@@ -287,38 +323,46 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  border: 0;
+  gap: 0.7em;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: linear-gradient(180deg, #5a9dff, #2f6cf0);
-  box-shadow: 0 12px 30px -12px rgba(47, 108, 240, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  color: #fff;
   font-family: inherit;
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), filter 0.2s,
-    border-color 0.2s, background-color 0.2s;
+  transition: transform 0.2s var(--ease), border-color 0.2s, background-color 0.2s, color 0.2s;
 }
 
+/* The top bar's button: an outline, squarer than the rest. */
 .pill {
-  min-height: 38px;
-  padding: 8px 20px;
-  font-size: 0.95rem;
+  min-height: clamp(38px, 3.18 * var(--u), 66px);
+  padding: 4px clamp(14px, 1.35 * var(--u), 30px);
+  border-color: rgba(255, 255, 255, 0.6);
+  border-radius: clamp(10px, 0.95 * var(--u), 20px);
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: clamp(0.95rem, 1.4 * var(--u), 1.8rem);
+  letter-spacing: 0.06em;
+}
+
+.pill:hover {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .button {
   min-height: 48px;
-  padding: 12px 30px;
+  padding: 10px 30px;
+  background: var(--accent);
+  color: var(--ink);
   font-size: 1.05rem;
+  letter-spacing: 0.08em;
 }
 
-.pill:hover,
 .button:hover {
-  filter: brightness(1.08);
+  background: #b7e1f7;
   transform: translateY(-1px);
-  box-shadow: 0 16px 36px -12px rgba(47, 108, 240, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .pill:active,
@@ -328,27 +372,25 @@ h3 {
 
 .pill svg,
 .button svg {
-  width: 18px;
-  height: 18px;
+  width: 1.15em;
+  height: 1.15em;
   transition: transform 0.2s var(--ease);
 }
 
 .pill:hover svg,
 .button:hover svg {
-  transform: translateX(3px);
+  transform: translate(2px, -1px);
 }
 
 .button.ghost {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.7);
+  background: none;
+  color: var(--text);
 }
 
 .button.ghost:hover {
-  border-color: rgba(255, 255, 255, 0.46);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: none;
-  filter: none;
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .button.wide {

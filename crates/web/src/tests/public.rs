@@ -5,7 +5,7 @@ use axum::http::StatusCode;
 use axum::http::header::{CACHE_CONTROL, CONTENT_SECURITY_POLICY, CONTENT_TYPE, SET_COOKIE};
 
 use super::support::{Browser, STRICT_POLICY, TestApp};
-use crate::assets::{GEOMETRY, module};
+use crate::assets::{VIEW, module};
 use crate::brand::brand;
 use crate::i18n::Lang;
 
@@ -48,7 +48,9 @@ async fn public_pages_render_in_chinese_by_default() {
         );
     }
     let home = browser.get(&app, "/").await;
-    assert!(home.body.contains(brand(Lang::Zh).slogan));
+    for line in brand(Lang::Zh).slogan {
+        assert!(home.body.contains(line));
+    }
     assert!(home.body.contains("登录 / 注册"));
 }
 
@@ -224,28 +226,20 @@ async fn the_home_page_carries_the_live_scene_and_still_shows_the_drawn_image() 
         "<button class=\"hero-pause\" type=\"button\" aria-pressed=\"false\" hidden \
          title=\"暂停动画\" aria-label=\"暂停动画\">"
     ));
-    // What the script is told: the layers, and where their fixed points are.
-    let at = GEOMETRY;
+    // What the script is told: the size of the picture it draws, written
+    // as the script reads it, in plain decimals. Nothing else: the scene
+    // loads no picture.
     assert!(home.contains(&format!(
-        "<canvas class=\"hero-scene\" aria-hidden=\"true\" data-view=\"{} {}\" \
-         data-pole=\"{} {}\" data-span=\"{}\" data-shore=\"{}\" data-lantern=\"{} {}\" \
-         data-land=\"{}\" data-ring=\"{}\"></canvas>",
-        at.width,
-        at.height,
-        at.pole_x,
-        at.pole_y,
-        at.span,
-        at.shore,
-        at.lantern_x,
-        at.lantern_y,
-        paths.land,
-        paths.ring
+        "<canvas class=\"hero-scene\" aria-hidden=\"true\" data-view=\"{} {}\"></canvas>",
+        VIEW.0, VIEW.1
     )));
-    // The numbers are written as the script reads them: plain decimals.
-    assert!(home.contains(
-        "data-view=\"1600 1000\" data-pole=\"1100 500\" data-span=\"760\" \
-         data-shore=\"800\" data-lantern=\"1215 768\""
-    ));
+    assert!(home.contains("data-view=\"3160 790\""));
+    assert_eq!(home.matches(" data-").count(), 1);
+    assert_eq!(
+        home.matches(".svg").count(),
+        3,
+        "the mark twice and the hero"
+    );
     // The page fetches the entry's imports ahead of it.
     assert!(!paths.imported.is_empty());
     for module in &paths.imported {
@@ -283,14 +277,8 @@ async fn the_home_page_carries_the_live_scene_and_still_shows_the_drawn_image() 
         };
         assert!(home.contains(&written), "{selector}");
     }
-    let facts = looked_for("told(");
-    assert_eq!(
-        facts,
-        ["view", "pole", "lantern", "span", "shore", "land", "ring"]
-    );
-    for fact in facts {
-        assert!(home.contains(&format!(" data-{fact}=\"")), "{fact}");
-    }
+    assert_eq!(stage.matches("canvas.dataset.").count(), 1);
+    assert!(stage.contains("canvas.dataset.view;"));
     // No other page has the scene.
     for path in ["/download", "/plans", "/help", "/login", "/register"] {
         let body = browser.get(&app, path).await.body;

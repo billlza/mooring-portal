@@ -71,37 +71,6 @@ fn imports(source: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Every colour `shader` names, as the image writes it: `#rrggbb`. A
-/// colour is `rgb(r, g, b)` with three whole numbers from 0 to 255.
-/// Whatever else stands between `rgb(` and `)` is an error, the function's
-/// own definition apart, so that no colour goes unread.
-fn colours(shader: &str) -> Result<BTreeSet<String>, String> {
-    let mut found = BTreeSet::new();
-    for (at, _) in shader.match_indices("rgb(") {
-        let inside = &shader[at + 4..];
-        let inside = &inside[..inside.find(')').ok_or("a colour is not closed")?];
-        if inside == "float r, float g, float b" {
-            continue;
-        }
-        let parts: Vec<f64> = inside
-            .split(", ")
-            .map(|part| {
-                part.parse()
-                    .map_err(|_| format!("rgb({inside}) names no colour"))
-            })
-            .collect::<Result<_, _>>()?;
-        let [r, g, b] = parts[..] else {
-            return Err(format!("rgb({inside}) is not three numbers"));
-        };
-        let whole = |part: f64| part.fract() == 0.0 && (0.0..=255.0).contains(&part);
-        if !(whole(r) && whole(g) && whole(b)) {
-            return Err(format!("rgb({inside}) is not whole numbers up to 255"));
-        }
-        found.insert(format!("#{:02x}{:02x}{:02x}", r as u8, g as u8, b as u8));
-    }
-    Ok(found)
-}
-
 #[test]
 fn fnv1a_matches_its_reference_values() {
     assert_eq!(fnv1a(b""), 0xcbf2_9ce4_8422_2325);
@@ -113,16 +82,9 @@ fn fnv1a_matches_its_reference_values() {
 fn assets_are_named_by_their_content() {
     let assets = Assets::build();
     let paths = assets.paths();
-    for path in [
-        &paths.css,
-        &paths.mark,
-        &paths.hero,
-        &paths.land,
-        &paths.ring,
-        &paths.script,
-    ]
-    .into_iter()
-    .chain(&paths.imported)
+    for path in [&paths.css, &paths.mark, &paths.hero, &paths.script]
+        .into_iter()
+        .chain(&paths.imported)
     {
         let name = path.strip_prefix("/assets/").unwrap();
         assert!(assets.files.contains_key(name), "{path}");
@@ -133,18 +95,17 @@ fn assets_are_named_by_their_content() {
     );
     assert!(assets.files.contains_key("site.css"));
     assert!(format!("{assets:?}").starts_with("Assets { paths"));
-    // Each picture is served as itself.
-    let drawn = hero::draw();
-    for (path, picture) in [
-        (&paths.hero, &drawn.image),
-        (&paths.land, &drawn.land),
-        (&paths.ring, &drawn.ring),
-    ] {
-        let asset = &assets.files[path.strip_prefix("/assets/").unwrap()];
-        assert_eq!(asset.body, picture.as_bytes(), "{path}");
-        assert_eq!(asset.content_type, SVG);
-        assert_eq!(asset.cache, IMMUTABLE);
-    }
+    // The picture is served as itself, and is the only one: the live
+    // scene draws its own, and loads no part of this one.
+    let asset = &assets.files[paths.hero.strip_prefix("/assets/").unwrap()];
+    assert_eq!(asset.body, hero::draw().as_bytes());
+    assert_eq!(asset.content_type, SVG);
+    assert_eq!(asset.cache, IMMUTABLE);
+    let pictures = assets
+        .files
+        .values()
+        .filter(|asset| asset.content_type == SVG);
+    assert_eq!(pictures.count(), 2, "the hero and the mark");
 }
 
 #[test]
@@ -256,95 +217,6 @@ fn the_scripts_reach_for_nothing_beyond_the_page_they_draw_on() {
         assert!(!offences(hidden).is_empty(), "{hidden}");
     }
     assert!(offences("import { a } from \"./a.mjs\";\nconst x = a;\n").is_empty());
-}
-
-#[test]
-fn the_shader_paints_in_the_images_colours_and_with_whole_integers() {
-    let shader = module("shader.mjs");
-    let image = hero::draw().image;
-    let named = colours(shader).unwrap();
-    assert!(named.len() >= 10, "{named:?}");
-    for colour in &named {
-        assert!(
-            image.contains(&format!("\"{colour}\"")),
-            "the shader paints {colour}, which the image does not use"
-        );
-    }
-    assert_eq!(
-        colours(
-            "mix(rgb(1.0, 3.0, 11.0), rgb(255.0, 196.0, 107.0), t); \
-             vec3 rgb(float r, float g, float b) {}"
-        ),
-        Ok(BTreeSet::from(["#01030b".to_owned(), "#ffc46b".to_owned()]))
-    );
-    // A colour the check cannot read is a failure, not a colour let pass.
-    for unread in [
-        "rgb(13.0,36.0,255.0)",
-        "rgb(c.r, c.g, c.b)",
-        "rgb(1.0, 2.0)",
-        "rgb(1.0, 2.0, 3.0, 4.0)",
-        "rgb(1.5, 2.0, 3.0)",
-        "rgb(1.0, 2.0, 256.0)",
-        "rgb(-1.0, 2.0, 3.0)",
-        "rgb(1.0, 2.0, 3.0",
-        "vec3 rgb(float r) {}",
-    ] {
-        assert!(colours(unread).is_err(), "{unread}");
-    }
-    // Its hash needs 32-bit integers, which a fragment shader must ask for,
-    // and it takes no power of a number that may be negative.
-    assert!(
-        shader.contains("precision highp float;\n") && shader.contains("precision highp int;\n")
-    );
-    assert!(!shader.contains("pow("));
-}
-
-#[test]
-fn the_shader_repeats_the_images_shapes() {
-    // Where the Milky Way lies, how the lantern glows and how large a star
-    // is are written twice: in the drawing, and in the shader that paints
-    // the same sky in motion. Each pair is the two writings of one thing;
-    // change one, and this fails until the other follows.
-    let shader = module("shader.mjs");
-    let image = hero::draw().image;
-    for (drawn, painted) in [
-        (
-            "<ellipse cx=\"820\" cy=\"300\" rx=\"900\" ry=\"130\" fill=\"url(#milky)\" \
-             transform=\"rotate(-16 820 300)\"/>",
-            "turned(slid - vec2(820.0, 300.0), radians(16.0)) / vec2(900.0, 130.0)",
-        ),
-        (
-            "r=\"36\" fill=\"url(#lantern)\"/>",
-            "float r = d / (36.0 * (1.0 + 0.04 * waver));",
-        ),
-        (
-            "r=\"2.4\" fill=\"#fff1c8\"/>",
-            "smoothstep(2.4 - u_unit, 2.4 + u_unit, d)",
-        ),
-        (
-            "<stop offset=\"0\" stop-color=\"#ffd27a\" stop-opacity=\"0.9\"/>\
-             <stop offset=\"0.35\" stop-color=\"#ffb347\" stop-opacity=\"0.32\"/>\
-             <stop offset=\"1\" stop-color=\"#ffb347\" stop-opacity=\"0\"/>",
-            "float alpha = r < 0.35 ? mix(0.9, 0.32, r / 0.35) : mix(0.32, 0.0, (r - 0.35) / 0.65);",
-        ),
-    ] {
-        assert!(image.contains(drawn), "the image no longer draws {drawn}");
-        assert!(
-            shader.contains(painted),
-            "the shader no longer paints {painted}"
-        );
-    }
-    // A star's size and tint are a rule in the drawing's code, not a
-    // figure in what it draws.
-    let drawing = include_str!("hero.rs");
-    for rule in [
-        "radius = 0.35 + 1.3 * size * size * size;",
-        "tint < 0.12",
-        "tint < 0.2",
-    ] {
-        assert!(drawing.contains(rule), "the drawing: {rule}");
-        assert!(shader.contains(rule), "the shader: {rule}");
-    }
 }
 
 #[test]

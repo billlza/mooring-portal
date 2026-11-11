@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  FLOOR, LIMIT, WARM_UP, WINDOW, anchor, buffer, cover, layer, numbers, watch, watching,
+  FLOOR, LIMIT, WARM_UP, WINDOW, anchor, buffer, cover, numbers, watch, watching,
 } from "../measure.mjs";
 
 const PICTURE = { width: 1600, height: 1000 };
@@ -94,17 +94,6 @@ test("buffer follows the screen's density up to its limits", () => {
   assert.ok(Math.abs(big.width / big.height - 2) < 0.01);
   // A box with no area still gets a buffer.
   assert.deepEqual(buffer({ width: 0, height: 0 }, 2, 1), { width: 1, height: 1, scale: 2 });
-});
-
-test("layer sizes a picture for the screen, within bounds", () => {
-  // One texel per buffer pixel.
-  assert.deepEqual(layer(PICTURE, 0.75, { least: 256, most: 4096 }), { width: 1200, height: 750 });
-  assert.deepEqual(layer(PICTURE, 0.1, { least: 640, most: 4096 }), { width: 640, height: 400 });
-  assert.deepEqual(layer(PICTURE, 9, { least: 640, most: 2400 }), { width: 2400, height: 1500 });
-  assert.deepEqual(layer({ width: 760, height: 760 }, 1.3, { least: 256, most: 1536 }), {
-    width: 988,
-    height: 988,
-  });
 });
 
 /** The state after `count` frames of `ms` each. */

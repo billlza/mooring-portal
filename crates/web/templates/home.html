@@ -7,61 +7,44 @@
 {% endblock %}
 {% block main %}
 <section class="hero">
-  <img class="hero-art" src="{{ hero }}" alt="" width="1600" height="1000" fetchpriority="high">
-  <canvas class="hero-scene" aria-hidden="true" data-view="{{ scene.view }}" data-pole="{{ scene.pole }}" data-span="{{ scene.span }}" data-shore="{{ scene.shore }}" data-lantern="{{ scene.lantern }}" data-land="{{ scene.land }}" data-ring="{{ scene.ring }}"></canvas>
+  <img class="hero-art" src="{{ hero }}" alt="" width="3160" height="790" fetchpriority="high">
+  <canvas class="hero-scene" aria-hidden="true" data-view="{{ scene.view }}"></canvas>
   <div class="hero-twinkle" aria-hidden="true"></div>
   <div class="hero-inner">
-    <p class="eyebrow">{{ chrome.brand.tagline }}</p>
-    <h1 class="slogan">{{ chrome.brand.slogan }}</h1>
-    <ul class="points" role="list">
-      {% for point in chrome.t.home.points %}<li>{{ point }}</li>{% endfor %}
-    </ul>
+    <p class="eyebrow">{{ chrome.t.home.eyebrow }}</p>
+    <h1 class="slogan">{% for line in chrome.brand.slogan %}<span>{{ line }}</span>{% endfor %}</h1>
+    <p class="hero-lead">{% for line in chrome.t.home.lead %}<span>{{ line }}</span>{% endfor %}</p>
     <div class="cta">
-      <a class="button" href="/download">{{ chrome.t.home.download }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
-      <a class="button ghost" href="/plans">{{ chrome.t.home.learn_more }}</a>
+      <a class="button" href="/plans">{{ chrome.t.home.plans }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6"/></svg></a>
+      <a class="button ghost" href="/download">{{ chrome.t.home.download }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
     </div>
+    <ul class="hero-facts" role="list">
+      {% for fact in chrome.t.home.facts %}<li>{{ fact }}</li>{% endfor %}
+    </ul>
   </div>
   <button class="hero-pause" type="button" aria-pressed="false" hidden title="{{ chrome.t.home.pause_motion }}" aria-label="{{ chrome.t.home.pause_motion }}">
     <svg class="when-playing" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
     <svg class="when-paused" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>
   </button>
 </section>
-<section class="section">
-  <div class="container">
-    <h2>{{ chrome.t.home.intro_title }}</h2>
-    <p class="lead">{{ chrome.t.home.intro_body }}</p>
-    <div class="cards">
-      {% for feature in chrome.t.home.features %}
-      <article class="card">
-        <span class="card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            {% match loop.index0 %}
-            {% when 0 %}<circle cx="12" cy="5" r="2.2"/><path d="M12 7.2V20.5M8.5 11h7M4.5 13.5a7.5 7.5 0 0 0 15 0"/>
-            {% when 1 %}<path d="M4 16A8 8 0 0 1 20 16M12 16l4-5.5M4 19.5h16"/><circle cx="12" cy="16" r="1.3"/>
-            {% when 2 %}<path d="M3 12s3.3-6 9-6 9 6 9 6-3.3 6-9 6-9-6-9-6ZM4.5 4.5l15 15"/><circle cx="12" cy="12" r="2.6"/>
-            {% else %}<path d="M3.5 12H9M9 12c3.5 0 3.5-5.5 7-5.5h3.5M9 12c3.5 0 3.5 5.5 7 5.5h3.5M17.5 4 20 6.5 17.5 9M17.5 15l2.5 2.5-2.5 2.5"/>
-            {% endmatch %}
-          </svg>
-        </span>
-        <h3>{{ feature.title }}</h3>
-        <p>{{ feature.body }}</p>
-      </article>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-<section class="section deep">
-  <div class="container">
-    <h2>{{ chrome.t.home.steps_title }}</h2>
-    <ol class="steps" role="list">
-      {% for step in chrome.t.home.steps %}
-      <li>
-        <h3>{{ step.title }}</h3>
+<section class="start" aria-label="{{ chrome.t.home.steps_label }}">
+  <ol class="steps" role="list">
+    {% for step in chrome.t.home.steps %}
+    <li>
+      <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        {% match loop.index0 %}
+        {% when 0 %}<path d="m12 3.5 9 4.6-9 4.6-9-4.6zM3 12.2l9 4.6 9-4.6M3 16.3l9 4.6 9-4.6"/>
+        {% when 1 %}<path d="M12 4v10.5M7.5 10.2l4.5 4.5 4.5-4.5M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/>
+        {% else %}<circle cx="12" cy="12" r="1.5"/><path d="M8.6 8.4a5 5 0 0 0 0 7.2M15.4 8.4a5 5 0 0 1 0 7.2M5.6 5.4a9.2 9.2 0 0 0 0 13.2M18.4 5.4a9.2 9.2 0 0 1 0 13.2"/>
+        {% endmatch %}
+      </svg>
+      <div>
+        <span class="step-number">0{{ loop.index }}</span>
+        <h2>{{ step.title }}</h2>
         <p>{{ step.body }}</p>
-      </li>
-      {% endfor %}
-    </ol>
-    <p class="note">{{ chrome.t.home.note }}</p>
-  </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
 </section>
 {% endblock %}

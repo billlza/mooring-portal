@@ -7,6 +7,7 @@ mod cfm;
 mod cfm_races;
 mod csrf;
 mod failures;
+mod home;
 mod logs;
 mod misc;
 mod public;

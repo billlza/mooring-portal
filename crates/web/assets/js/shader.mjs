@@ -1,16 +1,19 @@
-// The live scene's two shaders. The picture is the drawn hero image set
-// in motion: the sky turns about the pole, stars twinkle, the lantern
-// flickers, and the harbour mirrors all of it in moving water. The land and
-// the ring of star trails are the drawn image's own layers, so the scene
-// and the image it is painted over cannot drift apart there. The sky, the
-// water and the lantern's light are painted here, in the image's own
-// colours: every colour given to `rgb` below is one the image uses
-// (`assets.rs` checks). Where the Milky Way lies, how large a star is and
-// how the lantern glows are written here a second time, after
-// `assets/hero.rs`; a test there fails when one of the two is changed
-// without the other.
+// The live scene's two shaders. The picture is worked out here, pixel by
+// pixel, with no image behind it: a night sky whose stars twinkle, a far
+// shore, a lighthouse on its rocks whose lamp turns, and a sea that moves
+// and glitters under it. The drawn image the page shows first
+// (`assets/hero.rs`) is the same picture standing still. Where things
+// stand and what colour they are is therefore written twice, there and in
+// `HEAD` below, under the same names; a test there fails when one of the
+// two is changed without the other.
 //
 // Positions are in the picture's own units, y downwards, as in the SVG.
+// The sky is in `shader-sky.mjs`, the lighthouse and its shore in
+// `shader-shore.mjs`, and the sea in `shader-water.mjs`.
+
+import { SHORE } from "./shader-shore.mjs";
+import { SKY } from "./shader-sky.mjs";
+import { WATER } from "./shader-water.mjs";
 
 /** One triangle that covers the view, without any buffer. */
 export const VERTEX = `#version 300 es
@@ -20,30 +23,128 @@ void main() {
 }
 `;
 
-export const FRAGMENT = `#version 300 es
+const HEAD = `#version 300 es
 precision highp float;
 // The hash needs all 32 bits; a fragment shader's integers default to less.
 precision highp int;
 
-uniform vec2 u_size;       // the drawing buffer, in pixels
-uniform vec2 u_origin;     // where in the picture its top-left pixel falls
-uniform float u_unit;      // picture units per pixel
-uniform float u_time;      // seconds the scene has run
-uniform vec2 u_drift;      // how far the sky has slid behind the land
-uniform vec2 u_picture;    // the picture's width and height
-uniform vec2 u_pole;       // the pole the sky turns about
-uniform float u_span;      // the side of the square the ring layer covers
-uniform float u_shore;     // the waterline
-uniform vec2 u_lantern;    // the lantern at the masthead
-uniform sampler2D u_land;  // ridges, shores, jetty and boat
-uniform sampler2D u_ring;  // the ring of star trails
+uniform vec2 u_size;    // the drawing buffer, in pixels
+uniform vec2 u_origin;  // where in the picture its top-left pixel falls
+uniform float u_unit;   // picture units per pixel
+uniform float u_time;   // seconds the scene has run
+uniform vec2 u_drift;   // how far the sky has slid behind the shore
 
 out vec4 colour;
 
+#define rgb(r, g, b) (vec3(r, g, b) / 255.0)
+
 const float TAU = 6.28318530718;
-// One turn of the sky in about nine minutes: slow enough to be calm, fast
-// enough to see.
-const float TURN = 0.0116;
+
+// Where things stand. The lighthouse is measured from its axis.
+const float TALL = 790.0;
+const float AXIS = 2576.0;
+const float SEA = 545.0;
+const float STRAND = 597.0;
+const float FOOT = 513.0;
+const float FOOT_HALF = 46.0;
+const float BAND = 487.0;
+const float NECK = 317.0;
+const float NECK_HALF = 30.0;
+const float DECK = 303.0;
+const float DECK_TOP = 298.0;
+const float DECK_HALF = 41.5;
+const float RAIL = 277.0;
+const float RAIL_HALF = 40.0;
+const float ROOM_HALF = 21.5;
+const float GLASS_FOOT = 274.0;
+const float GLASS_TOP = 244.0;
+const float GLASS_HALF = 22.0;
+const float EAVES = 240.0;
+const float EAVES_HALF = 26.5;
+const float DOME = 224.0;
+const float DOME_HALF = 25.0;
+const float BALL = 219.5;
+const float BALL_R = 4.5;
+const float SPIKE = 188.0;
+const float LAMP = 259.0;
+const float PLINTH_LEFT = -58.0;
+const float PLINTH_RIGHT = 12.0;
+const float PLINTH_FOOT = 541.0;
+const float PIER = 9.0;
+const float PIER_TOP = 527.0;
+const float PIER_RISE = 0.0717;
+const float PIER_FOOT = 592.0;
+const float PIER_SINK = 0.035;
+const float CAP = 11.0;
+const float JOINT = 47.0;
+
+// The far range, the nearer hill and the rocks' crest: each a line through
+// these points, the first two across the picture, the last from the axis.
+const int FAR = 0;
+const int FAR_POINTS = 17;
+const int NEAR = 17;
+const int NEAR_POINTS = 12;
+const int ROCKS = 29;
+const int ROCKS_POINTS = 18;
+const vec2 LINE[47] = vec2[47](
+  vec2(0.0, 549.0), vec2(560.0, 549.0), vec2(760.0, 538.0), vec2(980.0, 533.0),
+  vec2(1220.0, 539.0), vec2(1420.0, 549.0), vec2(1795.0, 549.0), vec2(1875.0, 526.0),
+  vec2(1955.0, 506.0), vec2(2035.0, 492.0), vec2(2155.0, 478.0), vec2(2265.0, 461.0),
+  vec2(2355.0, 471.0), vec2(2475.0, 488.0), vec2(2595.0, 500.0), vec2(2843.0, 512.0),
+  vec2(3160.0, 520.0),
+  vec2(0.0, 549.0), vec2(2275.0, 549.0), vec2(2315.0, 523.0), vec2(2395.0, 505.0),
+  vec2(2465.0, 490.0), vec2(2535.0, 478.0), vec2(2622.0, 473.0), vec2(2695.0, 456.0),
+  vec2(2785.0, 442.0), vec2(2875.0, 446.0), vec2(2995.0, 470.0), vec2(3160.0, 498.0),
+  vec2(-313.0, 598.0), vec2(-297.0, 590.0), vec2(-271.0, 582.0), vec2(-236.0, 570.0),
+  vec2(-206.0, 556.0), vec2(-181.0, 547.0), vec2(-151.0, 537.0), vec2(-131.0, 530.0),
+  vec2(-106.0, 521.0), vec2(-89.0, 515.0), vec2(-73.0, 514.0), vec2(-58.0, 519.0),
+  vec2(-46.0, 541.0), vec2(9.0, 543.0), vec2(24.0, 556.0), vec2(44.0, 568.0),
+  vec2(64.0, 584.0), vec2(77.0, 598.0)
+);
+
+// The colours, each named for what it paints.
+const vec3 SKY_TOP = rgb(5.0, 19.0, 32.0);
+const vec3 SKY_MID = rgb(12.0, 30.0, 47.0);
+const vec3 SKY_LOW = rgb(21.0, 41.0, 61.0);
+const vec3 SKY_RIM = rgb(29.0, 49.0, 69.0);
+const vec3 HAZE = rgb(75.0, 84.0, 99.0);
+const vec3 CLOUD = rgb(58.0, 77.0, 102.0);
+const vec3 STAR_COOL = rgb(190.0, 214.0, 255.0);
+const vec3 STAR_WARM = rgb(255.0, 232.0, 200.0);
+const vec3 FAR_HIGH = rgb(29.0, 49.0, 69.0);
+const vec3 FAR_DEEP = rgb(25.0, 42.0, 62.0);
+const vec3 NEAR_PALE = rgb(42.0, 59.0, 78.0);
+const vec3 NEAR_DARK = rgb(26.0, 45.0, 66.0);
+const vec3 TOWN_WARM = rgb(255.0, 214.0, 150.0);
+const vec3 TOWN_PALE = rgb(255.0, 236.0, 200.0);
+const vec3 SEA_FAR = rgb(22.0, 41.0, 60.0);
+const vec3 SEA_MID = rgb(13.0, 30.0, 46.0);
+const vec3 SEA_DEEP = rgb(6.0, 19.0, 33.0);
+const vec3 SEA_SHEEN = rgb(121.0, 147.0, 176.0);
+const vec3 SEA_SHADE = rgb(7.0, 12.0, 18.0);
+const vec3 GOLD = rgb(251.0, 226.0, 178.0);
+const vec3 GOLD_DEEP = rgb(214.0, 150.0, 96.0);
+const vec3 PLASTER_LIT = rgb(248.0, 224.0, 197.0);
+const vec3 PLASTER = rgb(66.0, 81.0, 103.0);
+const vec3 PLASTER_DARK = rgb(48.0, 57.0, 72.0);
+const vec3 IRON = rgb(24.0, 28.0, 36.0);
+const vec3 IRON_LIT = rgb(106.0, 93.0, 82.0);
+const vec3 GLASS = rgb(219.0, 182.0, 133.0);
+const vec3 GLASS_DIM = rgb(164.0, 117.0, 77.0);
+const vec3 GLASS_HOT = rgb(253.0, 250.0, 236.0);
+const vec3 LAMPLIGHT = rgb(255.0, 196.0, 122.0);
+const vec3 PANE = rgb(232.0, 197.0, 140.0);
+const vec3 DOOR = rgb(19.0, 30.0, 46.0);
+const vec3 FRAME = rgb(126.0, 136.0, 152.0);
+const vec3 STONE = rgb(55.0, 66.0, 78.0);
+const vec3 STONE_LIT = rgb(108.0, 116.0, 128.0);
+const vec3 STONE_DARK = rgb(30.0, 36.0, 45.0);
+const vec3 WALL = rgb(46.0, 44.0, 47.0);
+const vec3 WALL_WARM = rgb(97.0, 80.0, 70.0);
+const vec3 WALL_DARK = rgb(16.0, 25.0, 34.0);
+const vec3 ROCK = rgb(51.0, 48.0, 50.0);
+const vec3 ROCK_LIT = rgb(141.0, 132.0, 120.0);
+const vec3 ROCK_DARK = rgb(21.0, 23.0, 28.0);
 
 // PCG (O'Neill 2014), the RXS-M-XS output for one 32-bit word.
 uint pcg(uint v) {
@@ -72,6 +173,12 @@ float noise(vec2 p) {
   return mix(mix(a, b, ease.x), mix(c, d, ease.x), ease.y);
 }
 
+// Noise in four sizes, each half the last: about [0, 1].
+float cloudy(vec2 p) {
+  return (noise(p) + 0.5 * noise(p * 2.03 + 17.0) + 0.25 * noise(p * 4.01 + 31.0)
+    + 0.125 * noise(p * 8.05 + 47.0)) / 1.875;
+}
+
 // The sine of an angle that grows with the time. The angle is brought
 // within one turn first: a graphics card may lose its sine's accuracy far
 // from zero, and the scene may run for hours.
@@ -79,187 +186,60 @@ float wave(float angle) {
   return sin(TAU * fract(angle / TAU));
 }
 
-// A vector turned by an angle, clockwise on the screen as SVG turns.
-vec2 turned(vec2 v, float angle) {
-  float c = cos(angle);
-  float s = sin(angle);
-  return vec2(v.x * c - v.y * s, v.x * s + v.y * c);
+// How much of a pixel lies on the near side of an edge that is d picture
+// units away: all of it where d is well below nothing.
+float within(float d) {
+  return clamp(0.5 - d / u_unit, 0.0, 1.0);
 }
 
-vec3 rgb(float r, float g, float b) {
-  return vec3(r, g, b) / 255.0;
-}
-
-// The sky's gradient and the band of the Milky Way.
-vec3 sky(vec2 p, vec2 slid) {
-  float t = clamp(p.y / u_picture.y, 0.0, 1.0);
-  vec3 c = t < 0.5
-    ? mix(rgb(1.0, 3.0, 11.0), rgb(5.0, 13.0, 42.0), t / 0.5)
-    : mix(rgb(5.0, 13.0, 42.0), rgb(13.0, 36.0, 89.0), min((t - 0.5) / 0.3, 1.0));
-  vec2 band = turned(slid - vec2(820.0, 300.0), radians(16.0)) / vec2(900.0, 130.0);
-  return mix(c, rgb(201.0, 217.0, 255.0), 0.13 * max(1.0 - length(band), 0.0));
-}
-
-// The stars, fixed to a sky that turns about the pole; s is the place in
-// that sky.
-vec3 stars(vec3 c, vec2 s) {
-  const float CELL = 54.0;
-  ivec2 cell = ivec2(floor(s / CELL));
-  if (hash(cell, 1u) > 0.62) {
-    return c;
+// The height at x of the line LINE[from .. from + count): straight from
+// point to point, eased a little at each. Beyond its ends it is level.
+float along(int from, int count, float x) {
+  float y = LINE[from].y;
+  for (int i = from; i < from + count - 1; i++) {
+    vec2 a = LINE[i];
+    vec2 b = LINE[i + 1];
+    if (x >= a.x) {
+      float t = min((x - a.x) / (b.x - a.x), 1.0);
+      y = mix(a.y, b.y, mix(t, t * t * (3.0 - 2.0 * t), 0.5));
+    }
   }
-  vec2 at = (vec2(cell) + 0.14 + 0.72 * vec2(hash(cell, 2u), hash(cell, 3u))) * CELL;
-  float size = hash(cell, 4u);
-  float radius = 0.35 + 1.3 * size * size * size;
-  float tint = hash(cell, 5u);
-  vec3 light = tint < 0.12 ? rgb(207.0, 224.0, 255.0)
-    : tint < 0.2 ? rgb(255.0, 231.0, 194.0)
-    : vec3(1.0);
-  float twinkle = 0.68 + 0.32 * wave(u_time * mix(0.5, 2.3, hash(cell, 6u)) + TAU * hash(cell, 7u));
-  // A star smaller than a pixel is drawn a pixel wide and dimmer, so that
-  // it neither vanishes nor flashes as the sky carries it across pixels.
-  float drawn = max(radius, 0.6 * u_unit);
-  float dim = max(radius / drawn, 0.55);
-  float d = length(s - at);
-  float disc = 1.0 - smoothstep(drawn - 0.7 * u_unit, drawn + 0.7 * u_unit, d);
-  float bright = mix(0.45, 1.0, hash(cell, 8u)) * twinkle * dim;
-  // One star in sixteen has a soft halo.
-  float halo = hash(cell, 9u) < 0.06 ? 0.16 * exp(-d * d / 26.0) : 0.0;
-  return mix(c, light, clamp(disc * bright + halo * twinkle, 0.0, 1.0));
+  return y;
 }
 
-// The ring of star trails, turning with the sky.
-vec3 ring(vec3 c, vec2 s, float blur) {
-  vec2 at = s / u_span + 0.5;
-  if (any(lessThan(at, vec2(0.0))) || any(greaterThan(at, vec2(1.0)))) {
-    return c;
-  }
-  vec4 layer = textureLod(u_ring, at, blur);
-  return layer.rgb + c * (1.0 - layer.a);
+// The far range's crest at x and the nearer hill's, each roughened in its
+// own way.
+float farCrest(float x) {
+  return along(FAR, FAR_POINTS, x)
+    + 5.0 * (noise(vec2(x / 41.0, 3.5)) - 0.5) + 2.0 * (noise(vec2(x / 13.0, 9.5)) - 0.5);
 }
 
-// Now and then, a shooting star.
-vec3 shooting(vec3 c, vec2 p) {
-  const float EVERY = 8.0;
-  float window = floor(u_time / EVERY);
-  ivec2 id = ivec2(int(mod(window, 30000.0)), 3);
-  if (hash(id, 21u) > 0.5) {
-    return c;
-  }
-  float age = (u_time - window * EVERY - 1.0 - 5.0 * hash(id, 22u)) / 0.9;
-  if (age < 0.0 || age > 1.0) {
-    return c;
-  }
-  vec2 from = vec2(mix(60.0, 980.0, hash(id, 23u)), mix(30.0, 260.0, hash(id, 24u)));
-  vec2 along = normalize(vec2(1.0, mix(0.22, 0.55, hash(id, 25u))));
-  vec2 behind = from + along * 380.0 * age - p;
-  float back = dot(behind, along);
-  float aside = length(behind - along * back);
-  const float TAIL = 170.0;
-  if (back < -2.0 || back > TAIL) {
-    return c;
-  }
-  float width = max(1.1, u_unit);
-  float trail = (1.0 - max(back, 0.0) / TAIL) * exp(-aside * aside / (2.0 * width * width));
-  return c + rgb(220.0, 234.0, 255.0) * trail * sin(3.14159265 * age);
+float nearCrest(float x) {
+  return along(NEAR, NEAR_POINTS, x)
+    + 6.0 * (noise(vec2(x / 47.0, 21.5)) - 0.5) + 2.0 * (noise(vec2(x / 11.0, 27.5)) - 0.5);
 }
 
-// The lantern: a warm glow that is never quite still.
-vec3 lantern(vec3 c, vec2 p) {
-  float waver = 0.5 * wave(u_time * 6.1) + 0.3 * wave(u_time * 9.7 + 1.7) + 0.2 * wave(u_time * 17.3 + 0.4);
-  float d = length(p - u_lantern);
-  float r = d / (36.0 * (1.0 + 0.04 * waver));
-  if (r < 1.0) {
-    vec3 light = mix(rgb(255.0, 210.0, 122.0), rgb(255.0, 179.0, 71.0), min(r / 0.35, 1.0));
-    float alpha = r < 0.35 ? mix(0.9, 0.32, r / 0.35) : mix(0.32, 0.0, (r - 0.35) / 0.65);
-    c = mix(c, light, alpha * (1.0 + 0.08 * waver));
-  }
-  float core = 1.0 - smoothstep(2.4 - u_unit, 2.4 + u_unit, d);
-  return mix(c, rgb(255.0, 241.0, 200.0), core);
+// The lamp turns once in eighteen seconds, and throws two beams, so one
+// sweeps past every nine.
+float turn() {
+  return TAU * fract(u_time / 18.0);
 }
+`;
 
-vec4 land(vec2 p, float blur) {
-  return textureLod(u_land, p / u_picture, blur);
-}
-
-// Everything above the waterline. Seen directly it is sharp. The water
-// mirrors it softened, by blur levels of the layers' smaller copies, and
-// without the stars, which no ripple would hold.
-vec3 above(vec2 p, float blur) {
-  vec2 slid = p - u_drift;
-  vec2 s = turned(slid - u_pole, u_time * TURN);
-  vec3 c = sky(p, slid);
-  if (blur == 0.0) {
-    c = stars(c, s);
-    c = shooting(c, p);
-  }
-  c = ring(c, s, blur);
-  vec4 ground = land(p, blur);
-  c = ground.rgb + c * (1.0 - ground.a);
-  return lantern(c, p);
-}
-
-// The harbour: dark water, the scene mirrored in its ripples, and the
-// glints where a ripple catches a light.
-vec3 water(vec2 p) {
-  float depth = clamp((p.y - u_shore) / (u_picture.y - u_shore), 0.0, 1.0);
-  vec3 c = mix(rgb(10.0, 26.0, 69.0), rgb(1.0, 4.0, 12.0), depth);
-  float t = u_time;
-  // How long a ripple is on the screen: short by the far shore, long near
-  // the viewer, and never under a few pixels, so the water does not shimmer.
-  float ripple = max(3.0, 3.0 * u_unit) + 24.0 * depth;
-  // Where the point is, counted in ripples: rows from the far shore, and
-  // across from the middle.
-  float row = 8.0 * log(ripple);
-  float across = (p.x - 0.5 * u_picture.x) / ripple;
-  float calm = smoothstep(0.0, 0.06, depth);
-  // Each row of water slides what it mirrors to one side, and no two rows
-  // agree.
-  float sway = 0.6 * wave(row * 4.3 + t * 1.05 + across * 0.12)
-    + 0.3 * wave(row * 9.7 - t * 1.6 + across * 0.35)
-    + 0.4 * (noise(vec2(across * 0.16 + t * 0.05, row * 1.4 - t * 0.2)) - 0.5);
-  float lift = wave(row * 6.1 + t * 0.8 + across * 0.5);
-  vec2 mirrored = vec2(
-    p.x + sway * ripple * 0.42 * calm,
-    min(2.0 * u_shore - p.y + lift * ripple * 0.16 * calm, u_shore - 0.5));
-  vec3 image = above(mirrored, 1.5 + 1.3 * depth);
-  float light = max(image.r, max(image.g, image.b));
-  c = mix(c, image, mix(0.5, 0.22, depth));
-  c += image * smoothstep(0.45, 1.0, light) * 0.3;
-  // Glints: thin dashes that lie along the rows and come and go, brightest
-  // where the water mirrors a light.
-  float band = ripple * 1.04;
-  float line = floor(row);
-  float off = abs(fract(row) - 0.5) * band;
-  float thin = 1.0 - smoothstep(0.35, min(0.16 * band, 1.3), off);
-  ivec2 id = ivec2(int(line), 7);
-  float along = across * 0.2 + t * mix(-0.2, 0.2, hash(id, 51u)) + 37.0 * hash(id, 52u);
-  float dashes = smoothstep(0.6, 0.82, noise(vec2(along, line * 0.37 + t * 0.07)));
-  float glint = thin * dashes * calm;
-  float fromRing = (p.x - u_pole.x) / 300.0;
-  float nearRing = exp(-fromRing * fromRing);
-  c += (image * 1.6 * smoothstep(0.2, 0.7, light) + rgb(159.0, 208.0, 255.0) * 0.16 * nearRing)
-    * glint * mix(1.0, 0.6, depth);
-  // The lantern's path across the water, broken by the same ripples.
-  float aside = (p.x - u_lantern.x + sway * ripple * 0.3) / (4.0 + 15.0 * depth);
-  float path = exp(-aside * aside) * exp(-(p.y - u_shore) / 58.0) * smoothstep(0.0, 0.03, depth);
-  c += rgb(255.0, 196.0, 107.0) * path * (0.2 + 0.8 * glint + 0.25 * (0.5 + 0.5 * lift));
-  return c;
-}
-
+const MAIN = `
 void main() {
   vec2 p = u_origin + vec2(gl_FragCoord.x, u_size.y - gl_FragCoord.y) * u_unit;
-  vec3 c;
-  if (p.y < u_shore) {
-    c = above(p, 0.0);
-  } else {
-    c = water(p);
-    vec4 ground = land(p, 0.0);
-    c = ground.rgb + c * (1.0 - ground.a);
-    c = lantern(c, p);
-  }
+  vec2 q = vec2(p.x - AXIS, p.y);
+  float angle = turn();
+  // The far waterline: sky and shore above it, the sea below.
+  float wet = within(SEA - p.y);
+  vec3 c = wet <= 0.0 ? heaven(p) : wet >= 1.0 ? sea(p, angle) : mix(heaven(p), sea(p, angle), wet);
+  c = shore(c, q, angle);
+  c = lamplight(c, q, angle);
   // A grain of noise, so the dark gradients do not band.
   c += (hash(ivec2(gl_FragCoord.xy), 31u) - 0.5) / 255.0;
   colour = vec4(c, 1.0);
 }
 `;
+
+export const FRAGMENT = HEAD + SKY + SHORE + WATER + MAIN;

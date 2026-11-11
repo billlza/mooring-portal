@@ -25,8 +25,8 @@ pub(crate) struct Common {
     pub(crate) switch_language_short: &'static str,
     pub(crate) sign_in: &'static str,
     pub(crate) my_account: &'static str,
+    /// The footer's link to the help page.
     pub(crate) help: &'static str,
-    pub(crate) footer_note: &'static str,
     pub(crate) beijing_time: &'static str,
 }
 
@@ -50,19 +50,22 @@ pub(crate) struct Item {
 #[derive(Debug)]
 pub(crate) struct Home {
     pub(crate) title: &'static str,
-    pub(crate) points: [&'static str; 3],
+    /// The line above the headline: the service, and what it is.
+    pub(crate) eyebrow: &'static str,
+    /// What stands under the headline, a line to each part.
+    pub(crate) lead: [&'static str; 2],
+    /// The two buttons: to the plans, and to the download.
+    pub(crate) plans: &'static str,
     pub(crate) download: &'static str,
-    pub(crate) learn_more: &'static str,
+    /// Two facts about the service, set side by side under the buttons.
+    pub(crate) facts: [&'static str; 2],
     /// The button that stops and restarts the live scene.
     pub(crate) pause_motion: &'static str,
-    pub(crate) intro_title: &'static str,
-    pub(crate) intro_body: &'static str,
-    /// What the service promises, in the order the home page draws their
-    /// icons: steady, clear to see, discreet, mainland sites direct.
-    pub(crate) features: [Item; 4],
-    pub(crate) steps_title: &'static str,
-    pub(crate) steps: [Item; 4],
-    pub(crate) note: &'static str,
+    /// What the three steps are, for those who cannot see them set out.
+    pub(crate) steps_label: &'static str,
+    /// The steps, in the order the home page draws their icons: a plan,
+    /// the import, and use.
+    pub(crate) steps: [Item; 3],
 }
 
 /// The download page.
@@ -99,9 +102,17 @@ pub(crate) struct Download {
 pub(crate) struct Plans {
     pub(crate) title: &'static str,
     pub(crate) lead: &'static str,
+    /// What the service is.
+    pub(crate) about_title: &'static str,
+    pub(crate) about_body: &'static str,
+    /// What it promises: steady, clear to see, discreet, mainland sites
+    /// direct.
+    pub(crate) promises: [Item; 4],
     pub(crate) how_title: &'static str,
     pub(crate) how_steps: [&'static str; 4],
     pub(crate) sections: [Item; 5],
+    /// What it is not.
+    pub(crate) note: &'static str,
 }
 
 /// The help page.

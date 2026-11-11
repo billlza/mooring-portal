@@ -6,33 +6,29 @@
 // in this code is thrown, not hidden. Why the scene is not showing is left
 // on the hero as `data-scene`, for whoever wonders: one of the `WHY` below.
 //
+// The scene is worked out by the graphics card alone (`scene.mjs`), so
+// there is nothing to load and nothing to wait for: it is made at once.
+//
 // Everything that reaches the canvas goes through `frame`: it alone fits
-// the buffer, draws the layers and paints. A paused scene is the same
-// scene with time standing still: it is given a frame whenever the one it
-// shows is missing or no longer fits, and no others.
+// the buffer and paints. A paused scene is the same scene with time
+// standing still: it is given a frame whenever the one it shows is missing
+// or no longer fits, and no others.
 //
 // Everything is reached through the window handed to `enliven`, so the
 // whole of it can be run against a stand-in (`test/stand.mjs`).
 
-import { anchor, buffer, cover, layer, numbers, watch, watching } from "./measure.mjs";
+import { anchor, buffer, cover, numbers, watch, watching } from "./measure.mjs";
 import { createScene } from "./scene.mjs";
 
 /** Below this many milliseconds since the last frame, a frame is skipped. */
 const SOONEST = 11;
-/** How long the view must hold still before the layers are drawn afresh. */
-const SETTLE_MS = 300;
 /** How far the pointer slides the sky, in picture units each way. */
 const REACH = { x: 8, y: 3 };
-/** The sizes the layers may be drawn at, in pixels across. */
-const LAND = { least: 640, most: 2400 };
-const RING = { least: 256, most: 1536 };
 /** What the hero says of its scene: that it shows, or why it does not. */
 const WHY = Object.freeze({
   live: "live",
   calm: "reduced-motion",
   unable: "no-webgl2",
-  bare: "no-layers",
-  barred: "layers-barred",
   slow: "too-slow",
   refused: "refused",
   lost: "context-lost",
@@ -46,45 +42,27 @@ function need(root, selector) {
   return found;
 }
 
-/** What the page wrote on the scene's canvas: the layers and the geometry. */
+/** The picture's size, which the page wrote on the scene's canvas. */
 function brief(canvas) {
-  const told = (name) => {
-    const value = canvas.dataset[name];
-    if (value === undefined) {
-      throw new Error(`the scene's canvas has no data-${name}`);
-    }
-    return value;
-  };
-  const [width, height] = numbers(told("view"), 2);
-  const [poleX, poleY] = numbers(told("pole"), 2);
-  const [lanternX, lanternY] = numbers(told("lantern"), 2);
-  return {
-    shape: {
-      picture: { width, height },
-      pole: { x: poleX, y: poleY },
-      span: numbers(told("span"), 1)[0],
-      shore: numbers(told("shore"), 1)[0],
-      lantern: { x: lanternX, y: lanternY },
-    },
-    sources: { land: told("land"), ring: told("ring") },
-  };
+  const view = canvas.dataset.view;
+  if (view === undefined) {
+    throw new Error("the scene's canvas has no data-view");
+  }
+  const [width, height] = numbers(view, 2);
+  return { width, height };
 }
 
-/**
- * Brings the hero of the page in `win` to life. The promise settles once
- * the scene has been made, or it is known that it will not be.
- */
+/** Brings the hero of the page in `win` to life, where it can be. */
 export function enliven(win) {
   const hero = need(win.document, ".hero");
   const art = need(hero, ".hero-art");
   const canvas = need(hero, "canvas.hero-scene");
   const pause = need(hero, ".hero-pause");
-  const { shape, sources } = brief(canvas);
+  const picture = brief(canvas);
   const still = win.matchMedia("(prefers-reduced-motion: reduce)");
   const state = {
     gl: null,
     scene: null,
-    images: null,
     /** The scene has been asked for; it is asked for once. */
     begun: false,
     /** The scene was made and given up; it is not made again. */
@@ -99,30 +77,16 @@ export function enliven(win) {
     watchdog: watching(),
     ratio: 0,
     density: 0,
-    sizes: { land: "", ring: "" },
     /** The canvas's box has changed since the buffer was fitted to it. */
     unfit: false,
-    fittedAt: 0,
-    stale: false,
     /**
-     * Layers have gone to the graphics card since it was last asked what
-     * it refused.
+     * The scene has been made, or made again, since the graphics card was
+     * last asked what it refused.
      */
     unproven: false,
     aim: { x: 0, y: 0 },
     slid: { x: 0, y: 0 },
   };
-
-  /** The picture at `url` once it has loaded, or `null` if it does not. */
-  function picture(url) {
-    return new Promise((resolve) => {
-      const image = new win.Image();
-      image.decoding = "async";
-      image.addEventListener("load", () => resolve(image));
-      image.addEventListener("error", () => resolve(null));
-      image.src = url;
-    });
-  }
 
   /**
    * Shows the scene over the drawn image when `why` is that it is live,
@@ -143,7 +107,7 @@ export function enliven(win) {
     state.unfit = false;
     const box = { width: canvas.clientWidth, height: canvas.clientHeight };
     if (box.width === 0 || box.height === 0) {
-      return false;
+      return;
     }
     state.ratio = win.devicePixelRatio;
     const size = buffer(box, state.ratio, state.watchdog.quality);
@@ -151,41 +115,9 @@ export function enliven(win) {
       canvas.width = size.width;
       canvas.height = size.height;
     }
-    const view = cover(box, shape.picture, anchor(win.getComputedStyle(art).objectPosition));
+    const view = cover(box, picture, anchor(win.getComputedStyle(art).objectPosition));
     state.density = view.scale * size.scale;
     state.scene.setView(size.width, size.height, { x: view.left, y: view.top }, 1 / state.density);
-    state.fittedAt = win.performance.now();
-    state.stale = true;
-    return true;
-  }
-
-  /** Draws the layers at the size the view now needs, if that has changed. */
-  function dress() {
-    state.stale = false;
-    const within = (bounds) => ({ ...bounds, most: Math.min(bounds.most, state.scene.largest) });
-    const wanted = {
-      land: layer(shape.picture, state.density, within(LAND)),
-      ring: layer({ width: shape.span, height: shape.span }, state.density, within(RING)),
-    };
-    for (const name of ["land", "ring"]) {
-      const key = `${wanted[name].width}x${wanted[name].height}`;
-      if (state.sizes[name] !== key) {
-        const sheet = win.document.createElement("canvas");
-        sheet.width = wanted[name].width;
-        sheet.height = wanted[name].height;
-        const pen = sheet.getContext("2d");
-        if (!pen) {
-          throw new Error("no 2D canvas to draw the scene's layers with");
-        }
-        pen.drawImage(state.images[name], 0, 0, sheet.width, sheet.height);
-        state.scene.setLayer(name, sheet);
-        // Its pixels are on the graphics card now; let go of this copy.
-        sheet.width = 0;
-        sheet.height = 0;
-        state.sizes[name] = key;
-        state.unproven = true;
-      }
-    }
   }
 
   function paint() {
@@ -206,10 +138,8 @@ export function enliven(win) {
     state.over = true;
     halt();
     show(why);
-    if (state.scene) {
-      state.scene.dispose();
-      state.scene = null;
-    }
+    state.scene.dispose();
+    state.scene = null;
   }
 
   function frame(now) {
@@ -242,12 +172,9 @@ export function enliven(win) {
       // The canvas has no box yet, so there is nothing to paint on.
       return;
     }
-    const undressed = state.sizes.land === "";
-    if (state.stale && (undressed || now - state.fittedAt > SETTLE_MS)) {
-      dress();
-    }
     if (!state.paused) {
-      // Time stands still while the page is away, so the sky does not jump.
+      // Time stands still while the page is away, so the scene does not
+      // jump.
       const step = Math.min(gap, 100);
       state.seconds += step / 1000;
       const ease = 1 - Math.exp(-step / 600);
@@ -256,7 +183,7 @@ export function enliven(win) {
     }
     paint();
     if (state.unproven) {
-      // Asked once for each time layers are sent, not once a frame: the
+      // Asked once for each time the scene is made, not once a frame: the
       // answer has to be waited for.
       state.unproven = false;
       const fault = state.scene.fault();
@@ -280,7 +207,7 @@ export function enliven(win) {
     const inView = state.scene !== null && !still.matches && state.seen && !win.document.hidden;
     // A paused scene is still owed a frame when it shows none, or when its
     // box has changed under the one it shows.
-    const owed = state.told !== WHY.live || state.unfit || state.stale;
+    const owed = state.told !== WHY.live || state.unfit;
     const wanted = inView && (!state.paused || owed);
     if (wanted && state.request === 0) {
       state.last = 0;
@@ -292,14 +219,13 @@ export function enliven(win) {
 
   /** Makes the scene on the context, which may be new or just restored. */
   function build() {
+    let made = null;
     try {
-      state.scene = createScene(state.gl, shape);
-      state.sizes = { land: "", ring: "" };
-      if (fit()) {
-        dress();
-      }
+      made = createScene(state.gl);
+      state.scene = made;
+      state.unproven = true;
+      fit();
     } catch (error) {
-      const made = state.scene;
       state.scene = null;
       if (state.gl.isContextLost()) {
         // The graphics card went away half-way, and took what was made
@@ -307,17 +233,12 @@ export function enliven(win) {
         return;
       }
       made?.dispose();
-      if (error instanceof win.DOMException && error.name === "SecurityError") {
-        // This browser treats a drawn SVG as another site's picture.
-        giveUp(WHY.barred);
-        return;
-      }
       throw error;
     }
     run();
   }
 
-  async function begin() {
+  function begin() {
     if (state.begun) {
       return;
     }
@@ -339,13 +260,6 @@ export function enliven(win) {
       show(WHY.unable);
       return;
     }
-    const [land, ring] = await Promise.all([picture(sources.land), picture(sources.ring)]);
-    if (!land || !ring) {
-      // A layer did not arrive, or is no picture.
-      show(WHY.bare);
-      return;
-    }
-    state.images = { land, ring };
     if (!state.gl.isContextLost()) {
       build();
     }
@@ -359,7 +273,7 @@ export function enliven(win) {
     show(WHY.lost);
   });
   canvas.addEventListener("webglcontextrestored", () => {
-    if (!state.over && state.images) {
+    if (!state.over && state.gl) {
       build();
     }
   });
@@ -376,7 +290,7 @@ export function enliven(win) {
       show(WHY.calm);
     } else {
       run();
-      void begin();
+      begin();
     }
   });
 
@@ -400,5 +314,5 @@ export function enliven(win) {
     }
   }, { passive: true });
 
-  return begin();
+  begin();
 }

@@ -3,4 +3,4 @@
 
 import { enliven } from "./stage.mjs";
 
-void enliven(window);
+enliven(window);

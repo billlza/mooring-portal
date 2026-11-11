@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::response::Response;
 
 use super::{Chrome, Page, PageContext, render};
-use crate::assets::{AssetPaths, GEOMETRY};
+use crate::assets::{AssetPaths, VIEW};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::view::ReleaseView;
@@ -18,34 +18,21 @@ struct HomePage {
     scene: Scene,
 }
 
-/// What the home page tells its live scene's script, as the text of the
-/// canvas's `data-*` attributes: the layers to load, and where the
-/// picture's fixed points are, as plain decimal numbers.
+/// What the home page tells its live scene's script: where its modules
+/// are, and, as the text of the canvas's `data-view`, the size of the
+/// picture it draws, in plain decimal numbers.
 struct Scene {
     script: String,
     imported: Vec<String>,
-    land: String,
-    ring: String,
     view: String,
-    pole: String,
-    span: String,
-    shore: String,
-    lantern: String,
 }
 
 impl Scene {
     fn of(paths: &AssetPaths) -> Self {
-        let at = GEOMETRY;
         Self {
             script: paths.script.clone(),
             imported: paths.imported.clone(),
-            land: paths.land.clone(),
-            ring: paths.ring.clone(),
-            view: format!("{} {}", at.width, at.height),
-            pole: format!("{} {}", at.pole_x, at.pole_y),
-            span: at.span.to_string(),
-            shore: at.shore.to_string(),
-            lantern: format!("{} {}", at.lantern_x, at.lantern_y),
+            view: format!("{} {}", VIEW.0, VIEW.1),
         }
     }
 }

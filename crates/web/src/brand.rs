@@ -2,8 +2,8 @@
 //!
 //! Renaming the portal means editing this file and nothing else: pages,
 //! titles and the logo take the name from here, the logo mark is a
-//! lantern with no letters in it, and no crate, binary or path carries the
-//! name.
+//! lighthouse with no letters in it, and no crate, binary or path carries
+//! the name.
 
 use crate::i18n::Lang;
 
@@ -14,24 +14,24 @@ pub(crate) struct Brand {
     pub(crate) name: &'static str,
     /// The name in Latin letters, shown under the Chinese name.
     pub(crate) latin: &'static str,
-    /// The headline on the home page.
-    pub(crate) slogan: &'static str,
-    /// One line on what the name means, for the footer and descriptions.
+    /// The headline on the home page, a line to each part.
+    pub(crate) slogan: [&'static str; 2],
+    /// One line on what the name means, for a page's description.
     pub(crate) tagline: &'static str,
 }
 
 const ZH: Brand = Brand {
     name: "泊光",
     latin: "Moorlight",
-    slogan: "小而稳、看得清、不窥探",
-    tagline: "夜里停泊的船上，那盏一直亮着的灯。",
+    slogan: ["让连接，", "有处停泊。"],
+    tagline: "夜里引船进港停泊的那盏灯。",
 };
 
 const EN: Brand = Brand {
     name: "Moorlight",
     latin: "Moorlight",
-    slogan: "Small, steady and discreet",
-    tagline: "The light that stays on aboard a boat moored for the night.",
+    slogan: ["A place for your", "connection to moor."],
+    tagline: "The light that brings a boat in to its mooring at night.",
 };
 
 /// The brand in `lang`.

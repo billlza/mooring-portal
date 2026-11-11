@@ -3,7 +3,7 @@
 //!
 //! Nothing is fetched from another host: no web fonts, scripts or images
 //! from CDNs, which are slow or blocked in mainland China. The hero image
-//! and its layers are drawn by [`hero`] at startup.
+//! is drawn by [`hero`] at startup.
 //!
 //! The one script is the home page's live scene, a handful of ES modules
 //! that import each other by relative address. They are therefore served
@@ -23,7 +23,7 @@ use axum::http::HeaderValue;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
 
-pub(crate) use hero::GEOMETRY;
+pub(crate) use hero::VIEW;
 
 use crate::error::AppError;
 use crate::state::AppState;
@@ -46,11 +46,23 @@ const MARK: &str = include_str!("../assets/mark.svg");
 const ENTRY: &str = "hero.mjs";
 /// The live scene's modules, by file name: every file in `assets/js`.
 /// Their tests are in `assets/js/test` and are not served.
-const MODULES: [(&str, &str); 5] = [
+const MODULES: [(&str, &str); 8] = [
     (ENTRY, include_str!("../assets/js/hero.mjs")),
     ("measure.mjs", include_str!("../assets/js/measure.mjs")),
     ("scene.mjs", include_str!("../assets/js/scene.mjs")),
     ("shader.mjs", include_str!("../assets/js/shader.mjs")),
+    (
+        "shader-shore.mjs",
+        include_str!("../assets/js/shader-shore.mjs"),
+    ),
+    (
+        "shader-sky.mjs",
+        include_str!("../assets/js/shader-sky.mjs"),
+    ),
+    (
+        "shader-water.mjs",
+        include_str!("../assets/js/shader-water.mjs"),
+    ),
     ("stage.mjs", include_str!("../assets/js/stage.mjs")),
 ];
 
@@ -67,10 +79,6 @@ pub(crate) struct AssetPaths {
     pub(crate) mark: String,
     /// The hero image.
     pub(crate) hero: String,
-    /// The hero's land layer, for the live scene.
-    pub(crate) land: String,
-    /// The hero's ring layer, for the live scene.
-    pub(crate) ring: String,
     /// The live scene's entry module.
     pub(crate) script: String,
     /// The modules the entry imports, which a page may fetch ahead of it.
@@ -122,10 +130,7 @@ impl Assets {
             CSS,
         );
         let mark = add("mark", "svg", Bytes::from_static(MARK.as_bytes()), SVG);
-        let drawn = hero::draw();
-        let hero = add("hero", "svg", Bytes::from(drawn.image), SVG);
-        let land = add("hero-land", "svg", Bytes::from(drawn.land), SVG);
-        let ring = add("hero-ring", "svg", Bytes::from(drawn.ring), SVG);
+        let hero = add("hero", "svg", Bytes::from(hero::draw()), SVG);
         let directory = script_directory(&MODULES);
         for (name, source) in MODULES {
             files.insert(
@@ -151,8 +156,6 @@ impl Assets {
                 css,
                 mark,
                 hero,
-                land,
-                ring,
                 script: format!("/assets/{directory}/{ENTRY}"),
                 imported: MODULES
                     .iter()

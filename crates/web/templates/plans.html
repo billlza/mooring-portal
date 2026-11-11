@@ -7,6 +7,18 @@
 </div>
 <div class="container">
   <section class="panel">
+    <h2>{{ chrome.t.plans.about_title }}</h2>
+    <p class="muted">{{ chrome.t.plans.about_body }}</p>
+  </section>
+  <div class="grid-2 pairs">
+    {% for promise in chrome.t.plans.promises %}
+    <section class="panel">
+      <h2>{{ promise.title }}</h2>
+      <p class="muted">{{ promise.body }}</p>
+    </section>
+    {% endfor %}
+  </div>
+  <section class="panel">
     <h2>{{ chrome.t.plans.how_title }}</h2>
     <ol class="numbered" role="list">
       {% for step in chrome.t.plans.how_steps %}<li>{{ step }}</li>{% endfor %}
@@ -20,5 +32,6 @@
     </section>
     {% endfor %}
   </div>
+  <p class="note">{{ chrome.t.plans.note }}</p>
 </div>
 {% endblock %}

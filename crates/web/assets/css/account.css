@@ -1,14 +1,13 @@
-/* Account and subscription pages, the footer, the help button and
-   error pages. */
+/* Account and subscription pages, the footer and error pages. */
 
 .tabs {
   display: inline-flex;
   gap: 4px;
   margin-top: 18px;
   padding: 4px;
-  border: 1px solid rgba(132, 170, 255, 0.14);
+  border: 1px solid rgba(159, 214, 241, 0.14);
   border-radius: 999px;
-  background: rgba(6, 12, 34, 0.6);
+  background: rgba(7, 20, 34, 0.6);
 }
 
 .tabs a {
@@ -24,8 +23,8 @@
 }
 
 .tabs a[aria-current="page"] {
-  background: linear-gradient(180deg, rgba(90, 157, 255, 0.34), rgba(47, 108, 240, 0.22));
-  box-shadow: inset 0 0 0 1px rgba(132, 170, 255, 0.36);
+  background: rgba(159, 214, 241, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(159, 214, 241, 0.36);
   color: #fff;
 }
 
@@ -52,7 +51,7 @@
   inset: 0 12% auto;
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--tone, rgba(132, 170, 255, 0.7)), transparent);
+  background: linear-gradient(90deg, transparent, var(--tone, rgba(159, 214, 241, 0.7)), transparent);
 }
 
 .fact::after {
@@ -60,7 +59,7 @@
   position: absolute;
   inset: -60px 10% auto;
   height: 120px;
-  background: radial-gradient(closest-side, var(--tone, rgba(132, 170, 255, 0.7)), transparent);
+  background: radial-gradient(closest-side, var(--tone, rgba(159, 214, 241, 0.7)), transparent);
   opacity: 0.1;
   pointer-events: none;
 }
@@ -152,7 +151,7 @@
 .cfm h3 {
   margin: 26px 0 6px;
   padding-top: 20px;
-  border-top: 1px solid rgba(132, 170, 255, 0.1);
+  border-top: 1px solid rgba(159, 214, 241, 0.1);
   font-size: 1.02rem;
 }
 
@@ -170,54 +169,64 @@
   font-size: 0.86rem;
 }
 
-/* Footer and the help button */
+/* Footer: the name at one end, the way to help at the other, under a rule. */
 
 .footer {
   margin-top: clamp(40px, 6vw, 80px);
-  padding: 30px 0 44px;
-  border-top: 1px solid rgba(132, 170, 255, 0.1);
-  background: linear-gradient(rgba(6, 11, 32, 0.6), rgba(3, 6, 20, 0));
-  color: var(--faint);
-  font-size: 0.88rem;
+  padding: 0 calc(5.3 * var(--u));
 }
 
 .home .footer {
   margin-top: 0;
-  background: var(--bg-deep);
+  background: var(--bg);
 }
 
-.footer p {
-  margin: 4px 0;
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: clamp(72px, 7.3 * var(--u), 150px);
+  padding: 0 calc(0.35 * var(--u));
+  border-top: 1px solid var(--line);
 }
 
 .footer-brand {
-  color: var(--muted);
+  display: flex;
+  align-items: baseline;
+  gap: calc(1.6 * var(--u));
+  color: var(--text);
+  text-decoration: none;
 }
 
-.help-float {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 30;
-  display: grid;
-  place-items: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 28%, #8cc8ff, #2f6cf0 70%);
-  box-shadow: 0 12px 30px -8px rgba(47, 108, 240, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  color: #fff;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+.footer-brand .logo-name {
+  font-size: clamp(1.15rem, 1.8 * var(--u), 2.3rem);
 }
 
-.help-float:hover {
-  transform: translateY(-2px) scale(1.04);
-  box-shadow: 0 16px 36px -8px rgba(47, 108, 240, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+.footer-brand .logo-latin {
+  margin: 0;
+  font-size: clamp(0.6rem, 0.9 * var(--u), 1.15rem);
+  letter-spacing: 0.42em;
 }
 
-.help-float svg {
-  width: 26px;
-  height: 26px;
+.footer-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  color: var(--text);
+  font-size: clamp(13px, 1.31 * var(--u), 27px);
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-help:hover {
+  color: var(--accent-soft);
+}
+
+.footer-help svg {
+  width: 1.2em;
+  height: 1.2em;
 }
 
 /* Error pages */
@@ -233,8 +242,8 @@
   padding: 40px 32px;
   border: 1px solid var(--panel-line);
   border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(23, 38, 86, 0.56), rgba(11, 19, 46, 0.66));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 26px 60px -32px rgba(0, 0, 0, 0.85);
+  background: linear-gradient(180deg, rgba(17, 34, 52, 0.6), rgba(9, 21, 34, 0.7));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 26px 60px -32px rgba(0, 0, 0, 0.85);
   text-align: center;
 }
 
@@ -244,10 +253,8 @@
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: 0.04em;
-  background: linear-gradient(180deg, #cfe6ff, #5a9dff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--accent-soft);
+  font-family: var(--serif);
 }
 
 .error-card .button {

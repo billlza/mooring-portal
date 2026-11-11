@@ -6,29 +6,27 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { enliven } from "../stage.mjs";
-import { running, settle, stand } from "./stand.mjs";
+import { running, stand } from "./stand.mjs";
 
-test("a visitor who asked for less motion gets the drawn image and no downloads", async () => {
+test("a visitor who asked for less motion gets the drawn image, and no scene is made", () => {
   const page = stand({ reduced: true });
-  await enliven(page.win);
+  enliven(page.win);
   assert.equal(page.live, false);
   assert.equal(page.why, "reduced-motion");
   assert.equal(page.pause.hidden, true);
   assert.deepEqual(page.canvas.asked, []);
-  assert.deepEqual(page.loaded, []);
   assert.equal(page.waiting, 0);
   // Until they change their mind.
   page.media.matches = false;
   page.media.emit("change");
-  await settle();
   page.tick();
   assert.equal(page.live, true);
   assert.equal(page.why, "live");
 });
 
-test("a browser without WebGL 2 keeps the drawn image and downloads no layer", async () => {
+test("a browser without WebGL 2 keeps the drawn image", () => {
   const page = stand({ webgl: false });
-  await enliven(page.win);
+  enliven(page.win);
   assert.deepEqual(page.canvas.asked, [["webgl2", {
     alpha: false,
     antialias: false,
@@ -36,23 +34,21 @@ test("a browser without WebGL 2 keeps the drawn image and downloads no layer", a
     stencil: false,
     failIfMajorPerformanceCaveat: true,
   }]]);
-  assert.deepEqual(page.loaded, []);
   assert.equal(page.waiting, 0);
   assert.equal(page.why, "no-webgl2");
   // It is not asked again.
   page.media.emit("change");
   page.canvas.emit("webglcontextrestored");
-  await settle();
   assert.equal(page.canvas.asked.length, 1);
   assert.equal(page.live, false);
 });
 
-test("the scene goes live with its first frame, fitted to the picture", async () => {
+test("the scene goes live with its first frame, fitted to the picture", () => {
   const page = stand();
-  await enliven(page.win);
-  assert.deepEqual(page.loaded.toSorted(), ["/assets/land.svg", "/assets/ring.svg"]);
-  // Made and fitted, but not shown before a frame is painted; until then
-  // the hero says nothing of its scene.
+  enliven(page.win);
+  // Made and fitted at once, but not shown before a frame is painted;
+  // until then the hero says nothing of its scene.
+  assert.equal(page.called("createProgram").length, 1);
   assert.equal(page.live, false);
   assert.equal(page.why, undefined);
   assert.equal(page.pause.hidden, true);
@@ -61,61 +57,42 @@ test("the scene goes live with its first frame, fitted to the picture", async ()
   // the unit, its top 40 units cut off.
   assert.deepEqual(page.told("u_origin"), [0, 40]);
   assert.deepEqual(page.told("u_unit"), [1.6]);
+  assert.deepEqual(page.told("u_size"), [1000, 600]);
   assert.deepEqual(page.called("viewport").at(-1), ["viewport", 0, 0, 1000, 600]);
-  assert.deepEqual(page.told("u_pole"), [1100, 500]);
-  assert.deepEqual(page.told("u_lantern"), [1215, 768]);
-  assert.deepEqual([page.told("u_span"), page.told("u_shore")], [[760], [800]]);
-  // The layers are drawn at a texel to the pixel.
-  assert.deepEqual(page.sheets, [
-    { image: "/assets/land.svg", at: [0, 0], width: 1000, height: 625 },
-    { image: "/assets/ring.svg", at: [0, 0], width: 475, height: 475 },
-  ]);
-  // Each goes to the unit the shader reads it from, with smaller copies
-  // for the water to mirror, and keeps its colour multiplied by opacity.
-  assert.deepEqual(page.uploads(), ["TEXTURE0", "TEXTURE1"]);
-  assert.deepEqual([page.told("u_land"), page.told("u_ring")], [[0], [1]]);
-  assert.equal(page.called("generateMipmap").length, 2);
-  // Neither layer repeats past its edge, and both are smoothed.
-  const kept = [
-    ["texParameteri", "TEXTURE_2D", "TEXTURE_MIN_FILTER", "LINEAR_MIPMAP_LINEAR"],
-    ["texParameteri", "TEXTURE_2D", "TEXTURE_MAG_FILTER", "LINEAR"],
-    ["texParameteri", "TEXTURE_2D", "TEXTURE_WRAP_S", "CLAMP_TO_EDGE"],
-    ["texParameteri", "TEXTURE_2D", "TEXTURE_WRAP_T", "CLAMP_TO_EDGE"],
-  ];
-  assert.deepEqual(page.called("texParameteri"), [...kept, ...kept]);
-  assert.deepEqual(page.called("pixelStorei"), [
-    ["pixelStorei", "UNPACK_PREMULTIPLY_ALPHA_WEBGL", true],
-  ]);
-  // The copies made on the way are let go.
-  assert.equal(page.scratch.length, 2);
-  assert.ok(page.scratch.every((sheet) => sheet.width === 0 && sheet.height === 0));
+  // It is one triangle drawn by one program, with nothing blended.
+  assert.deepEqual(page.called("disable"), [["disable", "DEPTH_TEST"], ["disable", "BLEND"]]);
+  assert.equal(page.called("bindVertexArray").length, 1);
   assert.equal(page.waiting, 1);
   page.tick();
   assert.equal(page.live, true);
+  assert.equal(page.why, "live");
   assert.equal(page.pause.hidden, false);
   assert.deepEqual(page.called("drawArrays"), [["drawArrays", "TRIANGLES", 0, 3]]);
+  // All the shader is told is its view, the time, and how far the sky has
+  // slid: the picture itself is the shader's own.
+  assert.deepEqual(page.uniforms(), ["u_drift", "u_origin", "u_size", "u_time", "u_unit"]);
   page.tick();
   assert.equal(page.called("drawArrays").length, 2);
-  // The graphics card is asked what it refused once the layers are
+  // The graphics card is asked what it refused once the scene has been
   // painted, and not again with every frame: the answer is waited for.
   assert.equal(page.called("getError").length, 1);
 });
 
-test("frames closer together than a screen's are skipped, and time stops while away", async () => {
-  const page = await running();
+test("frames closer together than a screen's are skipped, and time stops while away", () => {
+  const page = running();
   page.tick(5);
   page.tick(5);
   assert.equal(page.called("drawArrays").length, 1);
   page.tick(5);
   assert.equal(page.called("drawArrays").length, 2);
   assert.ok(Math.abs(page.told("u_time")[0] - 0.015) < 1e-9);
-  // After five seconds away, the sky has moved a tenth of a second.
+  // After five seconds away, the scene has moved a tenth of a second.
   page.tick(5000);
   assert.ok(Math.abs(page.told("u_time")[0] - 0.115) < 1e-9);
 });
 
-test("the pause button stops and restarts the frames", async () => {
-  const page = await running();
+test("the pause button stops and restarts the frames", () => {
+  const page = running();
   page.tick();
   const paused = page.told("u_time")[0];
   page.pause.emit("click");
@@ -133,8 +110,8 @@ test("the pause button stops and restarts the frames", async () => {
   assert.equal(page.told("u_time")[0], paused);
 });
 
-test("a hidden page, or a hero scrolled away, draws nothing", async () => {
-  const page = await running();
+test("a hidden page, or a hero scrolled away, draws nothing", () => {
+  const page = running();
   page.document.hidden = true;
   page.document.emit("visibilitychange");
   assert.equal(page.waiting, 0);
@@ -148,8 +125,8 @@ test("a hidden page, or a hero scrolled away, draws nothing", async () => {
   assert.equal(page.waiting, 1);
 });
 
-test("less motion, asked for while the scene runs, shows the drawn image", async () => {
-  const page = await running();
+test("less motion, asked for while the scene runs, shows the drawn image", () => {
+  const page = running();
   page.media.matches = true;
   page.media.emit("change");
   assert.equal(page.live, false);
@@ -167,10 +144,12 @@ test("less motion, asked for while the scene runs, shows the drawn image", async
   page.tick();
   assert.equal(page.live, true);
   assert.equal(page.canvas.width, 800);
+  // The scene was not made a second time for it.
+  assert.equal(page.called("createProgram").length, 1);
 });
 
-test("a new box is fitted just before the next frame, never between frames", async () => {
-  const page = await running();
+test("a new box is fitted just before the next frame, never between frames", () => {
+  const page = running();
   page.canvas.clientWidth = 800;
   page.canvas.clientHeight = 500;
   page.observers.resized();
@@ -181,18 +160,13 @@ test("a new box is fitted just before the next frame, never between frames", asy
   assert.deepEqual([page.canvas.width, page.canvas.height], [800, 500]);
   const since = page.gl.calls.slice(before).map(([name]) => name);
   assert.ok(since.indexOf("viewport") !== -1 && since.indexOf("viewport") < since.indexOf("drawArrays"));
-  // The layers are drawn afresh once the box has held still.
-  assert.equal(page.sheets.length, 2);
-  page.tick(200);
-  assert.equal(page.sheets.length, 2);
-  page.tick(200);
-  assert.deepEqual(page.sheets.slice(2).map((sheet) => sheet.width), [800, 380]);
-  // And the graphics card is asked again what it made of them.
-  assert.equal(page.called("getError").length, 2);
+  assert.deepEqual(page.told("u_size"), [800, 500]);
+  // A new box is no new scene: the graphics card is not asked again.
+  assert.equal(page.called("getError").length, 1);
 });
 
-test("a paused scene follows its box, and asks for no frame once it fits", async () => {
-  const page = await running();
+test("a paused scene follows its box, and asks for no frame once it fits", () => {
+  const page = running();
   page.pause.emit("click");
   const stopped = page.told("u_time");
   const slid = page.told("u_drift");
@@ -206,13 +180,6 @@ test("a paused scene follows its box, and asks for no frame once it fits", async
   page.tick();
   assert.deepEqual([page.canvas.width, page.canvas.height], [500, 300]);
   assert.equal(page.called("drawArrays").length, 2);
-  // The layers wait for the box to hold still, however often it changes.
-  page.tick(200);
-  assert.equal(page.sheets.length, 2);
-  assert.equal(page.waiting, 1);
-  page.tick(200);
-  assert.deepEqual(page.sheets.slice(2).map((sheet) => sheet.width), [640, 256]);
-  assert.equal(page.called("drawArrays").length, 4);
   assert.equal(page.waiting, 0);
   // Nothing in the picture has moved: not the sky, and not after the mouse.
   assert.deepEqual(page.told("u_time"), stopped);
@@ -225,9 +192,9 @@ test("a paused scene follows its box, and asks for no frame once it fits", async
   assert.equal(page.waiting, 0);
 });
 
-test("a paused scene that had to leave the page comes back paused, with its button", async () => {
+test("a paused scene that had to leave the page comes back paused, with its button", () => {
   // The graphics card went away and came back.
-  const lost = await running();
+  const lost = running();
   lost.pause.emit("click");
   const stopped = lost.told("u_time");
   lost.gl.lost = true;
@@ -242,7 +209,7 @@ test("a paused scene that had to leave the page comes back paused, with its butt
   assert.deepEqual(lost.told("u_time"), stopped);
   assert.equal(lost.waiting, 0);
   // The visitor asked for less motion, and then for it back.
-  const calmed = await running();
+  const calmed = running();
   calmed.pause.emit("click");
   calmed.media.matches = true;
   calmed.media.emit("change");
@@ -262,35 +229,43 @@ test("a paused scene that had to leave the page comes back paused, with its butt
   assert.equal(calmed.waiting, 1);
 });
 
-test("a canvas with no box yet is painted only once it has one", async () => {
+test("a canvas with no box yet is painted only once it has one", () => {
   const page = stand({ width: 0 });
-  await enliven(page.win);
-  assert.deepEqual(page.sheets, []);
+  enliven(page.win);
   page.tick();
   page.tick();
   assert.equal(page.called("drawArrays").length, 0);
+  assert.equal(page.called("viewport").length, 0);
   assert.equal(page.live, false);
   page.canvas.clientWidth = 1000;
   page.observers.resized();
   page.tick();
-  // Fitted, dressed and painted in the one frame: never a frame without
-  // its layers.
-  assert.equal(page.sheets.length, 2);
+  // Fitted and painted in the one frame.
+  assert.equal(page.called("viewport").length, 1);
   assert.equal(page.called("drawArrays").length, 1);
   assert.equal(page.live, true);
+  // A box with no height is no box either.
+  const flat = stand({ height: 0 });
+  enliven(flat.win);
+  flat.tick();
+  assert.equal(flat.called("viewport").length, 0);
+  assert.equal(flat.live, false);
+  flat.canvas.clientHeight = 600;
+  flat.observers.resized();
+  flat.tick();
+  assert.equal(flat.live, true);
 });
 
-test("a denser screen, and a small graphics card, are followed", async () => {
-  const page = await running({ largest: 512 });
-  assert.deepEqual(page.sheets.map((sheet) => [sheet.width, sheet.height]), [[512, 320], [475, 475]]);
+test("a denser screen is followed", () => {
+  const page = running();
   page.win.devicePixelRatio = 2;
   page.tick();
   assert.deepEqual([page.canvas.width, page.canvas.height], [2000, 1200]);
   assert.deepEqual(page.told("u_unit"), [0.8]);
 });
 
-test("the mouse slides the sky, a finger does not", async () => {
-  const page = await running();
+test("the mouse slides the sky, a finger does not", () => {
+  const page = running();
   const slide = () => page.told("u_drift");
   page.win.emit("pointermove", { pointerType: "touch", clientX: 1000, clientY: 600 });
   for (let frame = 0; frame < 120; frame += 1) {
