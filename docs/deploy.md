@@ -24,11 +24,36 @@
 主机是 Akamai（Linode）伦敦机房的一台 Linode 2 GB（运营者 2026-11-12 决定）。首选的 OVHcloud VPS-1 当天在伦敦缺货。在 Cloud Manager 里创建时这样选：
 
 - **区域、系统、套餐**：区域 London 2, UK（`gb-lon`），原来的 London（`eu-west`）新账号选不了；系统 Debian 13；套餐用 Shared CPU 里的 Linode 2 GB（1 核、2 GB 内存、50 GB 磁盘）。
-- **SSH**：创建时加上运营者 Mac 的 SSH 公钥，以后只用密钥登录。
+- **SSH**：创建时加上门户专用的公钥 `~/.ssh/moorlight_portal_ed25519.pub`，以后只用钥匙登录（见下面的「第一次登录」）。
 - **不开 Linode 的备份**。它会在机房另存整台机器的快照，门户删掉的账号会在快照里一直留到快照过期。而《使用约定》第 2 版说，删除门户账号时，门户上关于这个用户的记录随之删除。
 - **防火墙**：用 Linode 的 Cloud Firewall，入站只放行 TCP 22（SSH）、80 和 443，其余丢弃。80 用于申请证书时的 HTTP 验证，以及把 http 转到 https。UDP 443 是 HTTP/3，可以不放行，浏览器会改用 HTTP/2。
 - **先测大陆能不能连上**：配 DNS（第 3 节）之前，先从大陆测一下分到的地址，例如请大陆的用户或者用国内的多点测速网站，测 22 端口能不能连上。连不上就删掉这台，重建一台换个地址；Linode 按小时计费。
 - **时钟**：要准。Stripe 通知的签名时间与本机时钟相差超过 5 分钟，通知就会被拒绝。Debian 默认的 `systemd-timesyncd` 就够。
+
+**第一次登录**：在 Mac 的 `~/.ssh/config` 里给主机起个名字。主机的地址只写在这个文件里，不写进这个仓库，也不贴进聊天：
+
+```text
+Host moorlight-portal
+	HostName <主机的地址>
+	User root
+	IdentityFile ~/.ssh/moorlight_portal_ed25519
+	IdentitiesOnly yes
+```
+
+然后用 `ssh moorlight-portal` 登录。Linode 的镜像允许 root 用密码从 SSH 登录，而 22 端口对全网开着，所以登录后的第一件事是改成只许用钥匙登录：
+
+```bash
+printf '%s\n' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no' 'PermitRootLogin prohibit-password' > /etc/ssh/sshd_config.d/00-keys-only.conf
+sshd -t && systemctl reload ssh
+sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) '
+```
+
+最后一行的输出要满足三点：
+- `passwordauthentication no`；
+- `kbdinteractiveauthentication no`；
+- `permitrootlogin` 后面是 `without-password` 或 `prohibit-password`。
+
+文件名以 `00-` 开头，是因为 sshd 对同一项设置只认最先读到的值，这样能排在镜像自带的设置前面。这一步之后，root 密码只在 Linode 网页上的控制台（Lish）里用。
 
 门户的账号和数据目录，只需建一次：
 
@@ -42,21 +67,30 @@ install -d -o mooring-portal -g mooring-portal -m 0700 /var/lib/mooring-portal
 - 门户用仓库固定的 Rust 1.99.1 构建，SQLite 跟着一起编译，所以要有 C 编译器。
 - 在主机上构建最简单。也可以在另一台架构相同的 Linux 上构建，再把二进制拷过来。
 - Linode 2 GB 的内存够构建：在只有 1 核的机器上，cargo 一次只跑一个编译任务。2026-11-12 在 Mac 上用 `cargo build --release -j1` 实测，最大的一个进程约用 550 MB 内存，用时不到 2 分钟。在 Linode 的 1 核上会慢一些。
-- 下面的 `<主机>` 写 SSH 里的主机名。主机的地址不写进这个仓库，也不贴进聊天。
+- 编译不在 root 下进行：用一个没有 sudo 的账号 `builder`，Rust 工具链也装在它名下。
+- 下面的 `moorlight-portal` 是第一次登录时在 `~/.ssh/config` 里起的主机名。
 
 ```bash
 # 在 Mac 上：把要部署的提交打包，传到主机
 git archive --format=tar.gz --output portal.tar.gz HEAD
-scp portal.tar.gz <主机>:
+scp portal.tar.gz moorlight-portal:/tmp/
 
-# 在主机上，用普通账号（不用 root）
-sudo apt install --yes build-essential curl
+# 在主机上，以 root 运行
+apt install --yes build-essential curl
+adduser --disabled-password --comment '' builder    # 只需一次
+install -o builder -g builder -m 0644 /tmp/portal.tar.gz /home/builder/portal.tar.gz
+su - builder
+
+# 以 builder 运行
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
 . "$HOME/.cargo/env"
-mkdir portal && tar -xzf portal.tar.gz -C portal && cd portal
+rm -rf portal && mkdir portal && tar -xzf portal.tar.gz -C portal && cd portal
 rustup toolchain install
 cargo build --release --locked -p mooring-portal
-sudo install -o root -g root -m 0755 target/release/mooring-portal /usr/local/bin/mooring-portal
+exit
+
+# 回到 root
+install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-portal /usr/local/bin/mooring-portal
 ```
 
 `rustup toolchain install` 不带参数时，装的是仓库 `rust-toolchain.toml` 指定的版本。
@@ -107,7 +141,7 @@ curl --silent --head --header 'X-Forwarded-For: 127.0.0.1' http://127.0.0.1:8080
 - **运营者命令**：用同一个账号运行，在终端里手动跑。它们的输出里有账号编号，不要让 cron 或 systemd 存下来（`docs/security.md` 第 7 节）：
 
 ```bash
-sudo -u mooring-portal /usr/local/bin/mooring-portal --db /var/lib/mooring-portal/portal.db accounts
+runuser -u mooring-portal -- /usr/local/bin/mooring-portal --db /var/lib/mooring-portal/portal.db accounts
 ```
 
 ## 5. Caddy
