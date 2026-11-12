@@ -2,7 +2,7 @@
 
 门户还没有部署。本文写第一次部署的做法：
 
-- 一台英国 VPS，系统 Debian 12 或 13；
+- 一台 Akamai（Linode）伦敦机房的 Linode 2 GB，系统 Debian 13（运营者 2026-11-12 决定）；
 - 域名 `moorlight.app`（运营者 2026-11-12 决定）；
 - 同一台主机上的 Caddy 终止 TLS，再转给门户。
 
@@ -21,8 +21,13 @@
 
 ## 2. 主机
 
-- **系统**：Debian 12 或 13，x86_64 或 arm64。要在主机上构建的话，内存至少 2 GB。
-- **防火墙**：只放行 TCP 22（SSH）、80 和 443。80 用于申请证书时的 HTTP 验证，以及把 http 转到 https。UDP 443 是 HTTP/3，可以不放行，浏览器会改用 HTTP/2。
+主机是 Akamai（Linode）伦敦机房的一台 Linode 2 GB（运营者 2026-11-12 决定）。首选的 OVHcloud VPS-1 当天在伦敦缺货。在 Cloud Manager 里创建时这样选：
+
+- **区域、系统、套餐**：区域 London, UK；系统 Debian 13；套餐用 Shared CPU 里的 Linode 2 GB（1 核、2 GB 内存、50 GB 磁盘）。
+- **SSH**：创建时加上运营者 Mac 的 SSH 公钥，以后只用密钥登录。
+- **不开 Linode 的备份**。它会在机房另存整台机器的快照，门户删掉的账号会在快照里一直留到快照过期。而《使用约定》第 2 版说，删除门户账号时，门户上关于这个用户的记录随之删除。
+- **防火墙**：用 Linode 的 Cloud Firewall，入站只放行 TCP 22（SSH）、80 和 443，其余丢弃。80 用于申请证书时的 HTTP 验证，以及把 http 转到 https。UDP 443 是 HTTP/3，可以不放行，浏览器会改用 HTTP/2。
+- **先测大陆能不能连上**：配 DNS（第 3 节）之前，先从大陆测一下分到的地址，例如请大陆的用户或者用国内的多点测速网站，测 22 端口能不能连上。连不上就删掉这台，重建一台换个地址；Linode 按小时计费。
 - **时钟**：要准。Stripe 通知的签名时间与本机时钟相差超过 5 分钟，通知就会被拒绝。Debian 默认的 `systemd-timesyncd` 就够。
 
 门户的账号和数据目录，只需建一次：
@@ -36,6 +41,7 @@ install -d -o mooring-portal -g mooring-portal -m 0700 /var/lib/mooring-portal
 
 - 门户用仓库固定的 Rust 1.99.1 构建，SQLite 跟着一起编译，所以要有 C 编译器。
 - 在主机上构建最简单。也可以在另一台架构相同的 Linux 上构建，再把二进制拷过来。
+- Linode 2 GB 的内存够构建：在只有 1 核的机器上，cargo 一次只跑一个编译任务。2026-11-12 在 Mac 上用 `cargo build --release -j1` 实测，最大的一个进程约用 550 MB 内存，用时不到 2 分钟。在 Linode 的 1 核上会慢一些。
 - 下面的 `<主机>` 写 SSH 里的主机名。主机的地址不写进这个仓库，也不贴进聊天。
 
 ```bash
