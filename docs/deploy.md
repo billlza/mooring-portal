@@ -1,6 +1,6 @@
 # 部署：moorlight.app
 
-门户已经装在主机上运行（2026-11-12），域名也已指向主机，还没有对外开放：要等 Caddy 申请到证书。本文写第一次部署的做法：
+2026-11-12 起，`https://moorlight.app` 已经能打开门户，但还没有对外开放：注册只限 1 个账号（第 4 节），开放的条件见第 7 节。本文写第一次部署的做法：
 
 - 一台 Akamai（Linode）伦敦机房的 Linode 2 GB，系统 Debian 13（运营者 2026-11-12 决定）；
 - 域名 `moorlight.app`（运营者 2026-11-12 决定，当天在 Porkbun 注册）；
@@ -171,7 +171,7 @@ runuser -u mooring-portal -- /usr/local/bin/mooring-portal --db /var/lib/mooring
 
 ## 5. Caddy
 
-- **安装**：装 Caddy 官方 apt 源里的 `caddy` 包，步骤见 Caddy 文档的安装页（`caddyserver.com/docs/install`，Debian、Ubuntu 一节）。Debian 自带的 `caddy` 包版本较旧。
+- **安装**：装 Caddy 官方 apt 源里的 `caddy` 包，步骤见 Caddy 文档的安装页（`caddyserver.com/docs/install`，Debian、Ubuntu 一节）。Debian 自带的 `caddy` 包版本较旧。Debian 13 的最小安装没有 `gpg`，导入签名密钥的 `--dearmor` 要用它，所以先装上；安装页列出的 `debian-keyring` 和 `apt-transport-https` 用不到。这个源的签名密钥指纹是 `6576 0C51 EDEA 2017 CEA2  CA15 155B 6D79 CA56 EA34`。
 - 装好后，它作为 `caddy` 服务、以 `caddy` 账号运行，证书存在 `/var/lib/caddy` 下面。
 
 `/etc/caddy/Caddyfile`：
@@ -207,6 +207,15 @@ systemctl restart caddy
 - 重启之后，Caddy 马上去申请 `moorlight.app` 的证书：先向 Let's Encrypt 申请，不成再试 ZeroSSL。验证要用到 80 或 443 端口，所以第 3 节的记录要先生效。
 - 证书由 Caddy 自己续期。
 - 申请证书用的邮箱不填。Let's Encrypt 已经不发到期提醒，填了只是多交出一个联系方式。
+- 2026-11-12 照本节做完：装的是 Caddy 2.11.9；Let's Encrypt 用 tls-alpn-01 验证之后签发了证书，证书里只有 `moorlight.app`，有效期 90 天；ACME 账号没有联系邮箱。
+
+**日志里预期会有的几行**：
+
+- Caddy 每次启动都记三行 `warn`：
+  - `admin endpoint disabled`，因为 `admin off`；
+  - 80 端口上的 `HTTP/2 skipped because it requires TLS` 和 `HTTP/3 skipped because it requires TLS`。80 端口只做跳转到 HTTPS，这两种协议要 TLS。
+- 重启时，退出的旧进程还会记一行 `exiting`。
+- 申请和续期证书时，日志会记下 Let's Encrypt 验证服务器的地址（`served key authentication certificate`），那不是用户的地址。
 
 几处写法的原因：
 
@@ -274,6 +283,14 @@ systemctl restart caddy
    - `grep -c` 输出 `0`：日志里既没有这条路径，也没有客户端地址。
 
    不是 `0` 的话，先不要让用户进来，改好 Caddy 的配置再查一遍。
+
+2026-11-12 在运营者的 Mac 上跑过这四条，结果都符合：
+- 首页 `200`，三个头都在，没有压缩；
+- CSS 用了 `gzip`；
+- 订阅链接得到门户自己的 `404`，没有压缩；
+- 门户停着时得到带 `nosniff` 的 `502`，日志里匹配 0 行。
+
+另外，80 端口的请求以 `308` 转到 HTTPS；首页经 IPv4 和 IPv6 都打得开。
 
 ## 7. 之后
 

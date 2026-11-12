@@ -162,7 +162,7 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 
 ## 部署前提（已装在主机上，还没有对外）
 
-第一次部署的步骤和配置（`moorlight.app`、Caddy、systemd 单元、上线前的检查）见 `docs/deploy.md`。2026-11-12，门户服务和下载页的定时器已在 Linode 主机上运行；域名也已指向主机；对外开放还要等 Caddy。门户对主机的要求是：
+第一次部署的步骤和配置（`moorlight.app`、Caddy、systemd 单元、上线前的检查）见 `docs/deploy.md`。2026-11-12 起，门户服务和下载页的定时器在 Linode 主机上运行，`https://moorlight.app` 已经能打开门户；注册只限 1 个账号，还没有对外开放。门户对主机的要求是：
 
 - 门户只监听回环地址，由同机反向代理（如 Caddy、nginx）终止 TLS 后转发；代理须追加 `X-Forwarded-For`，门户以 `--behind-proxy` 启动。代理不得压缩 `/sub/` 的响应（CFM 0.5.1 只接受 identity 编码），也不得记录请求路径：路径里是订阅链接的令牌。
 - 门户主机上要有一个定时器，每 5 分钟取一次 CFM 的最新发布并导入，下载页才会跟着更新；主机因此要能访问 `api.github.com`。取数据的进程用另一个读不到数据库的账号运行，导入的进程没有网络。单元文件见 `docs/releases.md` 第 4 节，2026-11-12 已在门户主机上运行。
