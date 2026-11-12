@@ -55,6 +55,22 @@ sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitr
 
 文件名以 `00-` 开头，是因为 sshd 对同一项设置只认最先读到的值，这样能排在镜像自带的设置前面。这一步之后，root 密码只在 Linode 网页上的控制台（Lish）里用。
 
+然后更新系统，并打开自动安全更新：
+
+```bash
+apt update && apt full-upgrade --yes
+apt install --yes unattended-upgrades
+apt-config dump | grep -E 'APT::Periodic::(Update-Package-Lists|Unattended-Upgrade) '
+```
+
+最后一行要看到这两项都是 `"1"`。不是的话，写上这两项：
+
+```bash
+printf '%s\n' 'APT::Periodic::Update-Package-Lists "1";' 'APT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades
+```
+
+内核更新要重启才生效，挑用户少的时候运行 `reboot`。
+
 门户的账号和数据目录，只需建一次：
 
 ```bash
