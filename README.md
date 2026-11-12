@@ -160,12 +160,12 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 
 退出码：0 成功，1 失败（错误写在 stderr，以 `mooring-portal:` 开头），2 用法错误。
 
-## 部署前提（尚未部署）
+## 部署前提（已装在主机上，还没有对外）
 
-第一次部署的步骤和配置（`moorlight.app`、Caddy、systemd 单元、上线前的检查）见 `docs/deploy.md`。门户对主机的要求是：
+第一次部署的步骤和配置（`moorlight.app`、Caddy、systemd 单元、上线前的检查）见 `docs/deploy.md`。2026-11-12，门户服务和下载页的定时器已在 Linode 主机上运行；对外开放还要等域名付款、DNS 和 Caddy。门户对主机的要求是：
 
 - 门户只监听回环地址，由同机反向代理（如 Caddy、nginx）终止 TLS 后转发；代理须追加 `X-Forwarded-For`，门户以 `--behind-proxy` 启动。代理不得压缩 `/sub/` 的响应（CFM 0.5.1 只接受 identity 编码），也不得记录请求路径：路径里是订阅链接的令牌。
-- 门户主机上要有一个定时器，每 5 分钟取一次 CFM 的最新发布并导入，下载页才会跟着更新；主机因此要能访问 `api.github.com`。取数据的进程用另一个读不到数据库的账号运行，导入的进程没有网络。单元文件见 `docs/releases.md` 第 4 节，它们还没有在真实主机上运行过。
+- 门户主机上要有一个定时器，每 5 分钟取一次 CFM 的最新发布并导入，下载页才会跟着更新；主机因此要能访问 `api.github.com`。取数据的进程用另一个读不到数据库的账号运行，导入的进程没有网络。单元文件见 `docs/releases.md` 第 4 节，2026-11-12 已在门户主机上运行。
 - 代理可以压缩 `/assets/` 下的响应（样式、图片和脚本都是公开的固定内容，压缩后小得多），不要压缩页面（`docs/security.md` 第 6 节）。代理不得改写或去掉门户的 `Content-Security-Policy`；代理自己生成的错误页要带 `X-Content-Type-Options: nosniff`。
 - `--origin` 写浏览器实际使用的 `https://` 地址，即 `https://moorlight.app`；只有 localhost 可以用 `http://`。订阅链接就建在这个地址上，CFM 只接受公网 HTTPS 域名或公网 IP。
 - 收款时，`serve` 要加 `--payments <套餐文件>` 和 `--stripe-webhook-secret <密钥文件>`（两个一起给，`docs/payments.md` 第 3 节）。套餐文件只能让属主改写，密钥文件只能让属主读。一个数据库只装一种模式（测试或正式）的付款；数据库里还有没了结的付款时，不能去掉这两个参数启动（同一文档第 2.9 节）。Stripe 要能从公网访问 `/stripe/webhook`，Mooring 要能访问 `/api/mooring/entitlements`；代理把这两个地址原样转给门户，不改请求体（签名是对原始字节算的），不记录 `Authorization` 请求头。主机的时钟要准：签名时间与本机相差超过 5 分钟的通知会被拒绝。

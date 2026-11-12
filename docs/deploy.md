@@ -1,12 +1,16 @@
 # 部署：moorlight.app
 
-门户还没有部署。本文写第一次部署的做法：
+门户已经装在主机上运行（2026-11-12），还没有对外开放：要等域名付款、配好 DNS、Caddy 申请到证书。本文写第一次部署的做法：
 
 - 一台 Akamai（Linode）伦敦机房的 Linode 2 GB，系统 Debian 13（运营者 2026-11-12 决定）；
 - 域名 `moorlight.app`（运营者 2026-11-12 决定）；
 - 同一台主机上的 Caddy 终止 TLS，再转给门户。
 
-下面的单元文件和 Caddy 配置都还没有在真实主机上运行过。第 6 节的检查要在任何用户注册之前做完。
+2026-11-12 在这台主机上，第 2 节和第 4 节都按本文做完了：
+- 门户服务和下载页的定时器都已运行，单元文件取自本文和 `docs/releases.md`，并通过了 `systemd-analyze verify`；
+- 构建在主机上用了 3 分 47 秒，没有警告。
+
+Caddy 配置还没有运行过。第 6 节的检查要在任何用户注册之前做完。
 
 有三步会对外生效：配 DNS（第 3 节）；Caddy 启动后申请证书（第 5 节）；门户上线。
 
@@ -148,7 +152,9 @@ systemctl enable --now mooring-portal.service
 curl --silent --head --header 'X-Forwarded-For: 127.0.0.1' http://127.0.0.1:8080/ | head -n 1
 ```
 
-最后一行要看到 `HTTP/1.1 200 OK`。不带 `X-Forwarded-For` 时，门户会回一个错误，并在日志里写"the reverse proxy did not send X-Forwarded-For"：它在 `--behind-proxy` 下只认代理写上的地址。
+最后一行要看到 `HTTP/1.1 200 OK`。在 `--behind-proxy` 下，门户只认代理写上的地址：
+- 要按地址限流的请求不带 `X-Forwarded-For` 时，门户回 500，并在日志里写"the reverse proxy did not send X-Forwarded-For"。这类请求有登录、注册、订阅链接，以及 Stripe 和 Mooring 用的两个地址。
+- 首页这类请求用不到地址，不受影响。
 
 几处写法的原因：
 
