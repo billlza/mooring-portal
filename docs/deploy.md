@@ -1,6 +1,6 @@
 # 部署：moorlight.app
 
-门户已经装在主机上运行（2026-11-12），还没有对外开放：要等配好 DNS、Caddy 申请到证书。本文写第一次部署的做法：
+门户已经装在主机上运行（2026-11-12），域名也已指向主机，还没有对外开放：要等 Caddy 申请到证书。本文写第一次部署的做法：
 
 - 一台 Akamai（Linode）伦敦机房的 Linode 2 GB，系统 Debian 13（运营者 2026-11-12 决定）；
 - 域名 `moorlight.app`（运营者 2026-11-12 决定，当天在 Porkbun 注册）；
@@ -117,7 +117,9 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 
 ## 3. DNS
 
+- Porkbun 注册时自动加了两条记录，把 `moorlight.app` 和它的所有子域名都指向 Porkbun 的停放页（一条 `ALIAS`、一条 `*` 的 `CNAME`，目标都是 `pixie.porkbun.com`）。先删掉这两条，否则 `www` 这类子域名会指向 Porkbun。
 - 在注册商 Porkbun 的 DNS 设置里，给 `moorlight.app` 加一条 A 记录，指向主机的 IPv4 地址。主机有 IPv6 的话，再加一条 AAAA 记录。
+- 2026-11-12 照这两条做完：两条默认记录已删除；A 和 AAAA 记录都已加上，TTL 600 秒；Porkbun 的四台权威服务器和三个公共解析器返回的地址，都与主机的地址相同。
 - Porkbun 账号能改这些记录。控制了这个账号的人，能把域名指到自己的服务器，再申请到这个域名的证书，用户的浏览器看不出区别。所以这个账号要开两步验证。
 - 不要 `www`。
 - 第 5 节启动 Caddy 之前，这两条记录要已经生效：在别的电脑上运行 `dig +short moorlight.app`，要能查到主机的地址。
