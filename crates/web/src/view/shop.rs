@@ -26,17 +26,17 @@ pub(crate) struct PlanView {
 }
 
 /// What `terms` buy, in the language of `t`: the kind's name, and its
-/// days and traffic.
+/// days and traffic. A pack's days are left out: Mooring counts a pack
+/// only in the billing cycle it grants it in, and applies no days (the
+/// operator's decision of 2026-11-12).
 fn describe(terms: &OrderTerms, t: &Strings) -> (&'static str, String) {
-    let (name, phrase) = match terms.kind {
-        PlanKind::Month => (t.pay.kind_month, t.pay.terms_month),
-        PlanKind::MonthAuto => (t.pay.kind_month_auto, t.pay.terms_month_auto),
-        PlanKind::Traffic => (t.pay.kind_traffic, t.pay.terms_traffic),
-    };
-    (
-        name,
-        fill(&fill(phrase, terms.days), bytes(terms.traffic_bytes)),
-    )
+    let traffic = bytes(terms.traffic_bytes);
+    let period = |phrase: &str| fill(&fill(phrase, terms.days), &traffic);
+    match terms.kind {
+        PlanKind::Month => (t.pay.kind_month, period(t.pay.terms_month)),
+        PlanKind::MonthAuto => (t.pay.kind_month_auto, period(t.pay.terms_month_auto)),
+        PlanKind::Traffic => (t.pay.kind_traffic, fill(t.pay.terms_traffic, &traffic)),
+    }
 }
 
 impl PlanView {

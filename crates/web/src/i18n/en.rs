@@ -115,11 +115,11 @@ pub(super) const STRINGS: Strings = Strings {
         sections: [
             Item {
                 title: "Traffic and quotas",
-                body: "All users share one monthly traffic budget; when it runs out, the service pauses until the next billing cycle. The operator may also set you a quota of your own; when it runs out, your service pauses until the next billing cycle. Billing cycles follow the UTC calendar; times on this site are shown in Beijing time.",
+                body: "All users share one monthly traffic budget; when it runs out, the service pauses until the next billing cycle. Your plan gives you a quota for each billing cycle, and the operator may set you one of your own; when it runs out, your service pauses until the next billing cycle. A traffic pack that covers what you used over the quota resumes it at the next update, between 3 and 6 a.m. Beijing time. A traffic pack counts only in the billing cycle it is granted in; what is left unused does not carry over. Billing cycles follow the UTC calendar; times on this site are shown in Beijing time.",
             },
             Item {
                 title: "Expiry",
-                body: "The operator may set an expiry date for you. After it, your service pauses until the operator resumes it. If your service is still not renewed three months after it expired, the operator revokes your Mooring user and deletes your account on this site.",
+                body: "When your service expires, it pauses until you renew; once you have, it resumes at the next update, between 3 and 6 a.m. Beijing time. If your service is still not renewed three months after it expired, the operator revokes your Mooring user and deletes your account on this site.",
             },
             Item {
                 title: "Where the figures come from",
@@ -233,9 +233,9 @@ pub(super) const STRINGS: Strings = Strings {
         suspended: "Paused",
         revoked: "Ended",
         reason_operator: "The operator paused your service.",
-        reason_quota: "The billing cycle's quota is used up; service is paused until the cycle ends.",
+        reason_quota: "The billing cycle's quota is used up; service is paused until the cycle ends. A traffic pack that covers what you used over the quota resumes it at the next update, between 3 and 6 a.m. Beijing time.",
         reason_quota_earlier: "Paused when an earlier billing cycle's quota ran out; by the rules, service resumes once a new cycle has started.",
-        reason_expired: "Your access has expired; service stays paused until the operator resumes it.",
+        reason_expired: "Your access has expired; service stays paused until you renew. Once you have, it resumes at the next update, between 3 and 6 a.m. Beijing time.",
         reason_abuse: "Paused while a complaint is reviewed.",
         revoked_body: "Your account has been revoked; the service will not be provided again.",
         since: "since {}",
@@ -257,7 +257,7 @@ pub(super) const STRINGS: Strings = Strings {
         level_over: "Used up",
         level_unknown: "Usage unavailable, so unknown",
         quota_used: "{}% used",
-        action_suspend: "When used up, service pauses until the next billing cycle.",
+        action_suspend: "When used up, service pauses until the next billing cycle, or until a traffic pack covers what was used over it.",
         action_warn: "When used up, the operator is told; service continues.",
         expiry: "Expiry",
         expiry_never: "Does not expire",
@@ -302,7 +302,7 @@ pub(super) const STRINGS: Strings = Strings {
         kind_traffic: "Traffic pack",
         terms_month: "{} days with {} of traffic",
         terms_month_auto: "Renews every {} days, with {} of traffic each time",
-        terms_traffic: "Valid for {} days: {} of extra traffic",
+        terms_traffic: "{} of extra traffic, only for the billing cycle it is granted in",
         to_buy: "Order on the subscription page",
         test_mode: "Stripe is in test mode: payments are not real, and no service is granted.",
         buy_title: "Buy or renew",

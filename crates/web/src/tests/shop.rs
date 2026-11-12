@@ -134,7 +134,7 @@ async fn the_plans_page_lists_what_is_on_sale_and_how_to_pay() {
         "月付 · 自动续费",
         "每 30 天自动续费一次，每期流量 100 GB",
         "流量包",
-        "90 天内有效，额外流量 50 GB",
+        "额外流量 50 GB，只在开通它的那个计费周期内有效",
         "£3.00",
         "去订阅页下单",
         "现在是 Stripe 的测试模式",
@@ -143,6 +143,9 @@ async fn the_plans_page_lists_what_is_on_sale_and_how_to_pay() {
         assert!(page.contains(expected), "{expected}: {page}");
     }
     assert!(!page.contains("付款还没有开通"));
+    // A pack's days are not applied (the operator's decision of
+    // 2026-11-12), so the page does not promise them.
+    assert!(!page.contains("90 天"), "{page}");
     // No form to order here: who orders is known only once signed in.
     assert!(
         !page.contains("<form class=\"inline\" method=\"post\" action=\"/subscription/orders\"")
@@ -157,11 +160,12 @@ async fn the_plans_page_lists_what_is_on_sale_and_how_to_pay() {
         "Plans and prices",
         "30 days with 100 GB of traffic",
         "Renews every 30 days, with 100 GB of traffic each time",
-        "Valid for 90 days: 50 GB of extra traffic",
+        "50 GB of extra traffic, only for the billing cycle it is granted in",
         "Stripe is in test mode",
     ] {
         assert!(english.contains(expected), "{expected}: {english}");
     }
+    assert!(!english.contains("90 days"), "{english}");
 }
 
 #[tokio::test]

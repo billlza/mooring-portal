@@ -111,15 +111,13 @@ mod tests {
             ] {
                 assert_eq!(phrase.matches("{}").count(), 1, "{lang:?}: {phrase}");
             }
-            // A plan's terms take its days, then its traffic.
-            for phrase in [
-                t.pay.terms_month,
-                t.pay.terms_month_auto,
-                t.pay.terms_traffic,
-            ] {
+            // A plan's terms take its days, then its traffic; a pack's take
+            // its traffic alone, since its days are not applied.
+            for phrase in [t.pay.terms_month, t.pay.terms_month_auto] {
                 assert_eq!(phrase.matches("{}").count(), 2, "{lang:?}: {phrase}");
                 assert_eq!(fill(&fill(phrase, 30), "5 GB").matches("{}").count(), 0);
             }
+            assert_eq!(t.pay.terms_traffic.matches("{}").count(), 1, "{lang:?}");
         }
     }
 }

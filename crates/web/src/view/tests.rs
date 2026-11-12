@@ -121,7 +121,10 @@ fn a_known_figure_is_shown_with_its_cycle_and_quota() {
             bar: Some(30),
         })
     );
-    assert_eq!(details.quota.note, "用完后暂停到下一个计费周期。");
+    assert_eq!(
+        details.quota.note,
+        "用完后暂停到下一个计费周期，买了够补上超出部分的流量包会提前恢复。"
+    );
     assert_eq!(details.as_of, "数据截至 2026-11-05 20:00");
     assert!(details.alerts.is_empty());
     assert!(details.lag_note.is_some());
@@ -236,8 +239,18 @@ fn suspensions_name_their_reason_and_revocation_is_final() {
     let since = at(GENERATED - 2 * HOUR);
     for (reason, phrase) in [
         (SuspendReason::Operator, "运营者暂停了你的服务。"),
-        (SuspendReason::QuotaExceeded, "该计费周期的流量配额已经用完"),
-        (SuspendReason::Expired, "访问已经到期"),
+        // Mooring's nightly job, between 3 and 6 a.m. Beijing time, resumes
+        // a user a pack now covers, and one who has renewed.
+        (
+            SuspendReason::QuotaExceeded,
+            "该计费周期的流量配额已经用完，服务暂停到周期结束。\
+             买一个够补上超出部分的流量包，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。",
+        ),
+        (
+            SuspendReason::Expired,
+            "访问已经到期，服务暂停到你续费为止。\
+             续费后，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。",
+        ),
         (SuspendReason::AbuseReview, "因投诉正在审核"),
     ] {
         let record = UserRecord {
@@ -277,6 +290,40 @@ fn suspensions_name_their_reason_and_revocation_is_final() {
     let details = ready(&bound(revoked, true), GENERATED, Lang::En);
     assert_eq!(details.status.value, "Ended");
     assert_eq!(details.status.tone, Tone::Bad);
+}
+
+#[test]
+fn an_english_pause_says_how_service_comes_back() {
+    let since = at(GENERATED - 2 * HOUR);
+    for (reason, phrase) in [
+        (
+            SuspendReason::QuotaExceeded,
+            "The billing cycle's quota is used up; service is paused until the cycle ends. \
+             A traffic pack that covers what you used over the quota resumes it at the next \
+             update, between 3 and 6 a.m. Beijing time.",
+        ),
+        (
+            SuspendReason::Expired,
+            "Your access has expired; service stays paused until you renew. Once you have, it \
+             resumes at the next update, between 3 and 6 a.m. Beijing time.",
+        ),
+    ] {
+        let record = UserRecord {
+            status: UserStatus::Suspended { reason, since },
+            ..active(Some(1))
+        };
+        let note = ready(&bound(record, true), GENERATED, Lang::En)
+            .status
+            .note
+            .unwrap();
+        assert!(note.starts_with(phrase), "{note}");
+    }
+    let details = ready(&bound(active(Some(1)), true), GENERATED, Lang::En);
+    assert_eq!(
+        details.quota.note,
+        "When used up, service pauses until the next billing cycle, or until a traffic pack \
+         covers what was used over it."
+    );
 }
 
 #[test]

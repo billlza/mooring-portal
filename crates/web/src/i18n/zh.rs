@@ -107,11 +107,11 @@ pub(super) const STRINGS: Strings = Strings {
         sections: [
             Item {
                 title: "流量与配额",
-                body: "所有用户共用一个月度流量上限，用尽时服务暂停到下一个计费周期。运营者也可能为你设置个人配额；用尽时，你的服务暂停到下一个计费周期。计费周期按 UTC 日历划分，本站显示的时间都已换算为北京时间。",
+                body: "所有用户共用一个月度流量上限，用尽时服务暂停到下一个计费周期。你的套餐带有每个计费周期的流量配额，运营者也可能为你单独设置配额；用尽时，你的服务暂停到下一个计费周期。买一个够补上超出部分的流量包，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。流量包只在开通它的那个计费周期内有效，没用完的不带到下个周期。计费周期按 UTC 日历划分，本站显示的时间都已换算为北京时间。",
             },
             Item {
                 title: "到期",
-                body: "运营者可能为你设置到期日。到期后，服务暂停，直到运营者恢复。到期满三个月仍没有续期的，运营者会作废你的 Mooring 用户，并删除你在本站的账号。",
+                body: "服务到期后暂停，直到你续费；续费后，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。到期满三个月仍没有续费的，运营者会作废你的 Mooring 用户，并删除你在本站的账号。",
             },
             Item {
                 title: "数据从哪里来",
@@ -225,9 +225,9 @@ pub(super) const STRINGS: Strings = Strings {
         suspended: "已暂停",
         revoked: "已停用",
         reason_operator: "运营者暂停了你的服务。",
-        reason_quota: "该计费周期的流量配额已经用完，服务暂停到周期结束。",
+        reason_quota: "该计费周期的流量配额已经用完，服务暂停到周期结束。买一个够补上超出部分的流量包，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。",
         reason_quota_earlier: "因更早一个计费周期的配额用完而暂停；按规则，新周期开始后服务会恢复。",
-        reason_expired: "访问已经到期，服务暂停到运营者恢复为止。",
+        reason_expired: "访问已经到期，服务暂停到你续费为止。续费后，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。",
         reason_abuse: "因投诉正在审核，服务暂停。",
         revoked_body: "你的账户已经作废，服务不再提供。",
         since: "自 {} 起",
@@ -249,7 +249,7 @@ pub(super) const STRINGS: Strings = Strings {
         level_over: "已达配额",
         level_unknown: "用量无法获取，无法判断",
         quota_used: "已用 {}%",
-        action_suspend: "用完后暂停到下一个计费周期。",
+        action_suspend: "用完后暂停到下一个计费周期，买了够补上超出部分的流量包会提前恢复。",
         action_warn: "用完后只提醒运营者，不暂停服务。",
         expiry: "到期时间",
         expiry_never: "不到期",
@@ -294,7 +294,7 @@ pub(super) const STRINGS: Strings = Strings {
         kind_traffic: "流量包",
         terms_month: "{} 天，流量 {}",
         terms_month_auto: "每 {} 天自动续费一次，每期流量 {}",
-        terms_traffic: "{} 天内有效，额外流量 {}",
+        terms_traffic: "额外流量 {}，只在开通它的那个计费周期内有效",
         to_buy: "去订阅页下单",
         test_mode: "现在是 Stripe 的测试模式：付款不是真的，也不会开通服务。",
         buy_title: "购买与续费",

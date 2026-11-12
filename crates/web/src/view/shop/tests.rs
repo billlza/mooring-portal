@@ -77,7 +77,14 @@ fn a_plan_is_named_by_its_kind_with_its_terms_and_price() {
                 "每 30 天自动续费一次，每期流量 100 GB",
                 "£7.50"
             ),
-            plan("pack", "流量包", "90 天内有效，额外流量 50 GB", "£3.00"),
+            // A pack counts in the billing cycle Mooring grants it in, and
+            // its days are not applied, so none are named.
+            plan(
+                "pack",
+                "流量包",
+                "额外流量 50 GB，只在开通它的那个计费周期内有效",
+                "£3.00"
+            ),
         ]
     );
     // An account that has a renewing plan is not offered another.
@@ -90,7 +97,10 @@ fn a_plan_is_named_by_its_kind_with_its_terms_and_price() {
     let english = PlanView::of(&catalogue.plans()[2], false, Lang::En.strings());
     assert_eq!(
         (english.name, english.terms.as_str()),
-        ("Traffic pack", "Valid for 90 days: 50 GB of extra traffic")
+        (
+            "Traffic pack",
+            "50 GB of extra traffic, only for the billing cycle it is granted in"
+        )
     );
 }
 
@@ -147,7 +157,7 @@ fn an_order_says_where_it_stands_and_what_that_means() {
         OrderView {
             id: "0123456789abcdefghjk".to_owned(),
             name: "流量包",
-            terms: "90 天内有效，额外流量 50 GB".to_owned(),
+            terms: "额外流量 50 GB，只在开通它的那个计费周期内有效".to_owned(),
             price: "£3.00".to_owned(),
             placed: "2026-11-05 20:00".to_owned(),
             paid: None,

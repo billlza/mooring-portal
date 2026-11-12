@@ -417,6 +417,48 @@ async fn no_page_calls_the_service_free_and_the_plans_say_how_it_is_paid() {
 }
 
 #[tokio::test]
+async fn the_plans_say_when_a_paused_service_resumes_and_how_long_a_pack_lasts() {
+    let app = TestApp::new();
+    let mut browser = Browser::new([203, 0, 113, 1]);
+    browser.get(&app, "/").await;
+    // Mooring's nightly job resumes a user a pack now covers, and one who
+    // has renewed; a pack counts only in the cycle it is granted in (the
+    // operator's decision of 2026-11-12).
+    for (lang, said, unsaid) in [
+        (
+            "zh",
+            [
+                "买一个够补上超出部分的流量包，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。",
+                "流量包只在开通它的那个计费周期内有效，没用完的不带到下个周期。",
+                "服务到期后暂停，直到你续费；续费后，会在下一次北京时间凌晨 3 点到 6 点的更新时恢复。",
+            ],
+            "直到运营者恢复",
+        ),
+        (
+            "en",
+            [
+                "A traffic pack that covers what you used over the quota resumes it at the next \
+                 update, between 3 and 6 a.m. Beijing time.",
+                "A traffic pack counts only in the billing cycle it is granted in; what is left \
+                 unused does not carry over.",
+                "When your service expires, it pauses until you renew; once you have, it resumes \
+                 at the next update, between 3 and 6 a.m. Beijing time.",
+            ],
+            "until the operator resumes it",
+        ),
+    ] {
+        browser
+            .post(&app, "/lang", &[("to", lang), ("back", "plans")])
+            .await;
+        let plans = browser.get(&app, "/plans").await.body;
+        for sentence in said {
+            assert!(plans.contains(sentence), "{lang}: {sentence}");
+        }
+        assert!(!plans.contains(unsaid), "{lang}");
+    }
+}
+
+#[tokio::test]
 async fn a_new_browser_gets_a_csrf_cookie_once() {
     let app = TestApp::new();
     let mut browser = Browser::new([203, 0, 113, 1]);
