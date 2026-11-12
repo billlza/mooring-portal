@@ -330,5 +330,5 @@ systemctl restart caddy
   - 在门户主机上用 `pull-token` 生成拉取令牌，令牌只显示这一次（`docs/payments.md` 第 3 节第 8 步）；
   - 在运营者的 Mac 上运行 `mooringctl portal connect --origin https://moorlight.app`，把令牌存进 Mooring。
 - **更新门户**：按第 2 节重新构建、安装，然后运行 `systemctl restart mooring-portal`。
-- **开放给用户**：用户确认第 2 版之后，去掉 `--max-accounts 1`（或者改成想要的上限），再重启门户。
+- **开放给用户**：用户确认第 2 版之后，去掉 `--max-accounts 1`（或者改成想要的上限），再重启门户。开放之前，先请一位用大陆移动网络的用户（最好在江苏）直接打开门户。2026-11-12 测到江苏移动连不上这台主机（第 2 节），运营者当天决定先不换地址，开放前再测。
 - **备份**：要做的话，备份文件保持 0600，并定期轮换。删号和封禁抹不到已经做好的备份（README"部署前提"）。
