@@ -23,7 +23,7 @@
 
 主机是 Akamai（Linode）伦敦机房的一台 Linode 2 GB（运营者 2026-11-12 决定）。首选的 OVHcloud VPS-1 当天在伦敦缺货。在 Cloud Manager 里创建时这样选：
 
-- **区域、系统、套餐**：区域 London, UK；系统 Debian 13；套餐用 Shared CPU 里的 Linode 2 GB（1 核、2 GB 内存、50 GB 磁盘）。
+- **区域、系统、套餐**：区域 London 2, UK（`gb-lon`），原来的 London（`eu-west`）新账号选不了；系统 Debian 13；套餐用 Shared CPU 里的 Linode 2 GB（1 核、2 GB 内存、50 GB 磁盘）。
 - **SSH**：创建时加上运营者 Mac 的 SSH 公钥，以后只用密钥登录。
 - **不开 Linode 的备份**。它会在机房另存整台机器的快照，门户删掉的账号会在快照里一直留到快照过期。而《使用约定》第 2 版说，删除门户账号时，门户上关于这个用户的记录随之删除。
 - **防火墙**：用 Linode 的 Cloud Firewall，入站只放行 TCP 22（SSH）、80 和 443，其余丢弃。80 用于申请证书时的 HTTP 验证，以及把 http 转到 https。UDP 443 是 HTTP/3，可以不放行，浏览器会改用 HTTP/2。
