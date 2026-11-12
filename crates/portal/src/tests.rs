@@ -2,6 +2,7 @@
 
 mod approving;
 mod commands;
+mod deploy;
 mod erasure;
 mod import;
 mod orders_list;
