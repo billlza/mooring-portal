@@ -315,6 +315,9 @@ pub(crate) struct PayText {
     /// Takes the amount refunded.
     pub(crate) note_refunded_part: &'static str,
     pub(crate) note_refunded_full: &'static str,
+    /// A granted order refunded in full: Mooring takes back what it gave
+    /// and is not yet used.
+    pub(crate) note_taken_back: &'static str,
     pub(crate) note_disputed: &'static str,
     pub(crate) notice_unbound: &'static str,
     pub(crate) notice_plan_gone: &'static str,

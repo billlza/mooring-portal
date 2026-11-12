@@ -92,7 +92,16 @@ impl OrderView {
         };
         let mut notes: Vec<String> = note.map(str::to_owned).into_iter().collect();
         if order.refunded_in_full {
-            notes.push(p.note_refunded_full.to_owned());
+            // A granted order gives no more from the refund on: Mooring
+            // takes back what is not yet used (the operator's decision of
+            // 2026-11-12). One never granted gave nothing.
+            let gave = matches!(order.progress, Progress::Granted { .. });
+            let note = if gave {
+                p.note_taken_back
+            } else {
+                p.note_refunded_full
+            };
+            notes.push(note.to_owned());
         } else if order.refunded > 0 {
             notes.push(fill(
                 p.note_refunded_part,

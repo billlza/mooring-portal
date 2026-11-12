@@ -339,6 +339,7 @@ pub(super) const STRINGS: Strings = Strings {
         note_returned: "This payment was refunded in full, or disputed with the bank, before it was granted, so it will not be.",
         note_refunded_part: "{} refunded",
         note_refunded_full: "Refunded in full",
+        note_taken_back: "Refunded in full: what this order gave in time and traffic and is not yet used is taken back; what was used is not.",
         note_disputed: "The cardholder has disputed this payment with their bank.",
         notice_unbound: "Your account is not bound yet, so it cannot order.",
         notice_plan_gone: "That plan is no longer on sale.",

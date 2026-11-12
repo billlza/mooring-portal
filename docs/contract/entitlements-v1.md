@@ -82,7 +82,7 @@ Authorization: Bearer <令牌>
 - **`grant`**：按 `plan_kind` 开通。
   - `month`、`month_auto`：给 `user` 延长 `days` 天的服务，这一期的流量配额是 `traffic_bytes`。建议从"现有到期时刻与现在两者中较晚的"往后延，这样提前续费不吃亏。`month_auto` 每续一期，就有一张新的订单和一条新的 `grant`（`renewal_of` 指向第一张）。
   - `traffic`：给 `user` 加 `traffic_bytes` 的额外流量，只算进 Mooring 开通它的那个计费周期，到这个周期结束为止；没用完的不带到下个周期，`days` 不生效（运营者 2026-11-12 决定）。
-- **`refund`**：`order` 的付款累计已经退了 `amount_refunded`（`amount` 是订单的全价），`refunded_in_full` 说这是不是全额。同一张订单可以有多条：累计金额变大时追加一条；Stripe 说已经全额退款、而清单里这张订单还没有 `refunded_in_full` 为 `true` 的记录时，也追加一条。退款都是运营者在 Stripe 后台做的：按《使用约定》，部分退款多半是补偿停机，服务照常；`refunded_in_full` 为 `true` 时应当撤销这张订单带来的时长或流量。门户只报告事实，怎么处理由 Mooring 的规则决定。
+- **`refund`**：`order` 的付款累计已经退了 `amount_refunded`（`amount` 是订单的全价），`refunded_in_full` 说这是不是全额。同一张订单可以有多条：累计金额变大时追加一条；Stripe 说已经全额退款、而清单里这张订单还没有 `refunded_in_full` 为 `true` 的记录时，也追加一条。退款都是运营者在 Stripe 后台做的：按《使用约定》，部分退款多半是补偿停机，服务照常；`refunded_in_full` 为 `true` 时，Mooring 从 `recorded_at` 起收回这张订单给的、还没用到的时间和流量，已经用掉的不追回（运营者 2026-11-12 决定）。门户只报告事实，怎么处理由 Mooring 的规则决定。
 - **`dispute`**：`order` 的持卡人向银行提出了争议，金额 `amount_disputed`。每张订单至多一条。争议不暂停用户，只通知运营者（运营者 2026-11-11 决定）。
 
 `refund` 和 `dispute` 只会出现在同一张订单的 `grant` 之后（`seq` 更大）。一张订单在开通之前就被全额退款或被争议的，清单里什么也不会有。

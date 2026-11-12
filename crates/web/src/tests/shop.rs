@@ -409,7 +409,8 @@ async fn an_orders_page_follows_its_payment() {
         .await;
     let returned = browser.order_page(&app, &id).await.body;
     assert!(
-        returned.contains("已全额退款") && returned.contains("提出了争议"),
+        returned.contains("已全额退款：这张订单开通的时间和流量中，还没用到的部分会收回")
+            && returned.contains("提出了争议"),
         "{returned}"
     );
     assert!(!returned.contains("已退款 £"));

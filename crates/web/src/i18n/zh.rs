@@ -331,6 +331,7 @@ pub(super) const STRINGS: Strings = Strings {
         note_returned: "这笔付款在开通之前已经全额退款，或者持卡人向银行提出了争议，所以不会开通。",
         note_refunded_part: "已退款 {}",
         note_refunded_full: "已全额退款",
+        note_taken_back: "已全额退款：这张订单开通的时间和流量中，还没用到的部分会收回，已经用掉的不追回。",
         note_disputed: "持卡人向银行对这笔付款提出了争议。",
         notice_unbound: "你的账号还没有绑定，暂时不能下单。",
         notice_plan_gone: "这个套餐已经不再出售。",

@@ -181,12 +181,30 @@ fn an_order_says_what_has_since_happened_to_the_money() {
         ..granted()
     };
     assert_eq!(notes(&part), ["已退款 £3.00"]);
+    // A granted order refunded in full gives no more from then on (the
+    // operator's decision of 2026-11-12); one never granted gave nothing.
     let full = Order {
         refunded: 800,
         refunded_in_full: true,
         ..granted()
     };
-    assert_eq!(notes(&full), ["已全额退款"]);
+    assert_eq!(
+        notes(&full),
+        ["已全额退款：这张订单开通的时间和流量中，还没用到的部分会收回，已经用掉的不追回。"]
+    );
+    assert_eq!(
+        OrderView::of(&full, Lang::En.strings()).notes[1..],
+        [
+            "Refunded in full: what this order gave in time and traffic and is not yet used \
+             is taken back; what was used is not."
+        ]
+    );
+    let returned = Order {
+        refunded: 800,
+        refunded_in_full: true,
+        ..order("month", Progress::Returned)
+    };
+    assert_eq!(notes(&returned), ["已全额退款"]);
     let both = Order {
         refunded: 1,
         disputed: true,
