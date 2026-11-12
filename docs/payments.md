@@ -124,10 +124,10 @@ Stripe 的测试模式和正式模式是两套互不相通的账。给 Mooring �
 3. **为每个套餐建一个 Payment Link**：
    - 固定价格，不允许顾客改数量，不开优惠码。
    - 自动续费的套餐用订阅价格，计费周期设成"每 N 天"，N 就是套餐文件里的 `days`。按自然月扣款的话，31 天的月份会有一天接不上。
-   - 付款完成后跳回 `https://<门户域名>/subscription`。
+   - 付款完成后跳回 `https://moorlight.app/subscription`。
    - 记下链接地址（`https://buy.stripe.com/…`）和链接编号（`plink_…`）。
 4. **客户门户**（有自动续费的套餐时）：开启无代码的客户门户，允许取消订阅，不允许换套餐和改数量。记下登录链接（`https://billing.stripe.com/p/login/…`）。
-5. **Webhook 端点**：地址 `https://<门户域名>/stripe/webhook`；API 版本选 `2026-10-28.endive`（端点的版本在创建时定下，以后不变；同一个 `endive` 发布下更新的版本也可以）；订阅这些事件：
+5. **Webhook 端点**：地址 `https://moorlight.app/stripe/webhook`；API 版本选 `2026-10-28.endive`（端点的版本在创建时定下，以后不变；同一个 `endive` 发布下更新的版本也可以）；订阅这些事件：
 
    ```
    checkout.session.completed
@@ -146,7 +146,7 @@ Stripe 的测试模式和正式模式是两套互不相通的账。给 Mooring �
 7. **启动门户**时加上两个参数：
 
    ```bash
-   mooring-portal --db <数据库> serve --origin https://<门户域名> --behind-proxy --payments <套餐文件> --stripe-webhook-secret <密钥文件>
+   mooring-portal --db <数据库> serve --origin https://moorlight.app --behind-proxy --payments <套餐文件> --stripe-webhook-secret <密钥文件>
    ```
 
    两个参数必须一起给。文件有问题时门户拒绝启动并说明原因，不会把密钥的内容打印出来。密钥文件超过 4096 字节时整份拒绝，不会只读前一半。改了套餐文件或密钥文件要重启。
