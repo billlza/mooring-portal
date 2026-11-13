@@ -17,7 +17,7 @@
 //!    before this is never entered;
 //! 4. a granted order's refunds and dispute are entered after it;
 //! 5. a payment that is no order's, once refunded in full, needs no one's
-//!    attention any more;
+//!    attention unless its subscription still needs cancelling;
 //! 6. what Stripe said long ago of payments that never became an order's
 //!    is forgotten.
 
@@ -25,6 +25,7 @@ use portal_core::time::UnixTime;
 use rusqlite::{Transaction, params};
 
 use crate::StoreError;
+use crate::orders::STRAY_NEEDS_CANCELLATION;
 use crate::rows::time_to_sql;
 
 /// How long the portal remembers an event's id, and what Stripe said of a
@@ -138,8 +139,12 @@ pub(crate) fn settle(tx: &Transaction<'_>, now: UnixTime) -> Result<(), StoreErr
     )?;
     // 5.
     tx.execute(
-        "DELETE FROM stray_payments WHERE payment_intent IN
-             (SELECT payment_intent FROM stripe_payments WHERE refunded_in_full = 1)",
+        &format!(
+            "DELETE FROM stray_payments AS sp
+             WHERE sp.payment_intent IN
+                 (SELECT payment_intent FROM stripe_payments WHERE refunded_in_full = 1)
+               AND NOT ({STRAY_NEEDS_CANCELLATION})"
+        ),
         [],
     )?;
     // 6.

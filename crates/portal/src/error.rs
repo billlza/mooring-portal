@@ -11,8 +11,8 @@ use portal_core::release::ReleaseError;
 use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
 use portal_store::{
-    ApproveError, BanError, BindError, DeleteError, DiscardError, ImportError, ProfileImportError,
-    StoreError, UnbindError,
+    ApproveError, BanError, BindError, DeleteError, DiscardError, DismissError, ImportError,
+    ProfileImportError, StoreError, UnbindError,
 };
 use portal_web::{OriginError, SecretCount, StartupError};
 
@@ -53,9 +53,9 @@ pub enum CommandError {
     /// A rehearsal was not discarded.
     #[error(transparent)]
     Discard(#[from] DiscardError),
-    /// `dismiss-payment` named a number that is not on the list.
-    #[error("there is no payment numbered {0} on the list; nothing changed")]
-    NoSuchPayment(u64),
+    /// A stray payment was not dismissed.
+    #[error(transparent)]
+    Dismiss(#[from] DismissError),
     /// `revoke-pull-token` found no token.
     #[error("there is no pull token; nothing changed")]
     NoPullToken,

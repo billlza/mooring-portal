@@ -97,9 +97,12 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
         Command::ApproveOrder { order } => {
             with_store(&mut |store| payments::approve_order(store, clock, &order, out))
         }
-        Command::DismissPayment { id } => {
-            with_store(&mut |store| payments::dismiss_payment(store, id, out))
-        }
+        Command::DismissPayment {
+            id,
+            subscription_ended,
+        } => with_store(&mut |store| {
+            payments::dismiss_payment(store, id, subscription_ended.as_ref(), out)
+        }),
         Command::DiscardTestPayments => {
             with_store(&mut |store| payments::discard_test_payments(store, out))
         }

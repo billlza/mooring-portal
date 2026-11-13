@@ -17,7 +17,7 @@
 
 use rusqlite::{Connection, OptionalExtension as _, TransactionBehavior};
 
-use crate::orders::{ORDER_TABLES, RENEWAL_TABLES, RENEWS, UNSETTLED};
+use crate::orders::{ORDER_TABLES, RENEWAL_TABLES, RENEWS, STRAY_NEEDS_CANCELLATION, UNSETTLED};
 use crate::rows::count_from_sql;
 use crate::{Store, StoreError};
 
@@ -160,6 +160,7 @@ impl Store {
         Ok(self.conn.query_row(
             &format!(
                 "SELECT EXISTS (SELECT 1 FROM {RENEWAL_TABLES} WHERE {RENEWS})
+                     OR EXISTS (SELECT 1 FROM stray_payments sp WHERE {STRAY_NEEDS_CANCELLATION})
                      OR EXISTS (SELECT 1 FROM {ORDER_TABLES} WHERE {UNSETTLED})"
             ),
             [],

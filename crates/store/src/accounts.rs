@@ -292,7 +292,8 @@ pub(crate) fn open_subscriptions(
 
 /// Forgets what Stripe said of the payments, invoices and subscriptions
 /// of the orders of the account with row id `account`: the orders are
-/// about to go, and nothing else names them.
+/// about to go. A stray payment can independently name one of these
+/// facts; in particular, it needs to remember a subscription has ended.
 pub(crate) fn forget_payments(conn: &Connection, account: i64) -> Result<(), StoreError> {
     for (table, key) in [
         ("stripe_payments", "payment_intent"),
@@ -302,7 +303,9 @@ pub(crate) fn forget_payments(conn: &Connection, account: i64) -> Result<(), Sto
         conn.execute(
             &format!(
                 "DELETE FROM {table} WHERE {key} IN
-                     (SELECT {key} FROM orders WHERE account_id = ?1 AND {key} IS NOT NULL)"
+                     (SELECT {key} FROM orders WHERE account_id = ?1 AND {key} IS NOT NULL)
+                   AND {key} NOT IN
+                     (SELECT {key} FROM stray_payments WHERE {key} IS NOT NULL)"
             ),
             [account],
         )?;

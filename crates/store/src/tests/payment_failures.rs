@@ -5,8 +5,8 @@ use portal_core::payment::stripe::{BillingReason, CheckoutSession, EventKind};
 use super::paying::*;
 use super::*;
 use crate::{
-    ApproveError, DiscardError, Discarded, ModeError, OrderError, Progress, PullError, Recorded,
-    StoreError,
+    ApproveError, DiscardError, Discarded, DismissError, ModeError, OrderError, Progress,
+    PullError, Recorded, StoreError,
 };
 
 #[test]
@@ -127,7 +127,10 @@ fn payment_writes_fail_loudly() {
         store.approve_order(&oid(1), at(NOW)),
         Err(ApproveError::Store(StoreError::Sqlite(_)))
     ));
-    sqlite(store.dismiss_stray(1));
+    assert!(matches!(
+        store.dismiss_stray(1, None),
+        Err(DismissError::Store(StoreError::Sqlite(_)))
+    ));
     sqlite(store.payments_outstanding());
     assert!(matches!(
         store.enter_payment_mode(true),

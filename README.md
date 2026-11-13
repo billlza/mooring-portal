@@ -150,7 +150,7 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 | `unban --email <地址>` | 解除封禁：这个邮箱可以重新注册，随它记下的卡以后可以再付款（封禁期间用这些卡付的款仍然不能放行，退款后重新付）；被删除的账号不会恢复 |
 | `orders` | 付款的账：等运营者核对的订单和原因、等 Stripe 通知的订单、不属于任何订单的付款、Stripe 还可能扣款的订阅、对不上订单的退款和争议、最近 20 张订单、Mooring 取到了哪里；每一项都写明下一步怎么做 |
 | `approve-order --order <订单编号>` | 放行一张订单，只免掉 `orders` 给它列出的那一条原因：结账对不上的，接着按卡核对；卡无法核对、或 Stripe 一直没说卡的，列进给 Mooring 的清单。命令会说订单现在停在哪里。卡在封禁名单上、已经全额退款、被争议、已在清单里、还没付款，或账号不再绑定订单上那个 Mooring 用户的，拒绝（`docs/payments.md` 第 2.2 节） |
-| `dismiss-payment --id <序号>` | 把一笔不属于任何订单的付款从待办里拿掉（在 Stripe 全额退款的会自己消失） |
+| `dismiss-payment --id <序号> [--subscription-ended <订阅号>]` | 把一笔不属于任何订单的付款从待办里拿掉。它的订阅没有订单开始过、Stripe 也还没说结束时拒绝，全额退款也要等这个订阅结束才会自动移除；Stripe 的结束通知一直不来，在 Stripe 后台确认订阅已经结束后加 `--subscription-ended` 和订阅号（`docs/payments.md` 第 2.6 节） |
 | `pull-token` | 生成 Mooring 拉取清单用的令牌，替换以前的；只显示一次 |
 | `revoke-pull-token` | 作废拉取令牌 |
 | `discard-test-payments` | 演练之后、收真钱之前：删掉 Stripe 测试模式留下的全部订单、付款和通知记录，并抹除副本；账号、绑定、封禁名单和拉取令牌留着。装着真钱付款的数据库拒绝（`docs/payments.md` 第 2.9 节） |

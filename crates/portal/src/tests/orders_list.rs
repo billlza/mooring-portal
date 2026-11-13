@@ -3,7 +3,8 @@
 use std::process::ExitCode;
 
 use portal_core::payment::stripe::{
-    BillingReason, CheckoutMode, CheckoutSession, Dispute, EventKind, Invoice, PaymentStatus,
+    BillingReason, CheckoutMode, CheckoutSession, Dispute, EventKind, Invoice, InvoicePayment,
+    PaymentStatus, Refunded, Renewal, SubscriptionChange,
 };
 use portal_core::payment::{OrderId, OrderTerms};
 
@@ -60,6 +61,188 @@ fn the_list_shows_what_waits_and_for_whom_and_what_to_do() {
            55555555555555555555  0000-0000-0002  2026-11-05T12:00:00Z  granted   month-100-auto  8.00 gbp\n\
          Mooring's pull token was made 2026-11-05T12:01:40Z\n\
          Mooring has pulled through entry 1 of 2, last at 2026-11-05T12:03:20Z\n"
+    );
+}
+
+#[test]
+fn refunding_a_second_checkout_does_not_hide_its_subscription() {
+    let fixture = Fixture::new();
+    let alice = fixture.customer("alice@qq.com", 1, "pilotusera");
+    let plan = "month-100-auto";
+    let order = fixture.order(&alice, plan, 1);
+    let checkout_paid_by_invoice = |n| {
+        EventKind::CheckoutCompleted(CheckoutSession {
+            payment_intent: None,
+            ..checkout(n, order, plan)
+        })
+    };
+    fixture.told(
+        1,
+        vec![
+            checkout_paid_by_invoice(1),
+            EventKind::InvoicePaymentPaid(InvoicePayment {
+                invoice: sid("in_1"),
+                payment_intent: sid("pi_1"),
+            }),
+            charged(1, 1),
+            checkout_paid_by_invoice(2),
+            EventKind::InvoicePaymentPaid(InvoicePayment {
+                invoice: sid("in_2"),
+                payment_intent: sid("pi_2"),
+            }),
+        ],
+    );
+    let cancel = "    Stripe may charge subscription sub_2 again (active): cancel it in Stripe and \
+                  wait for Stripe to report that it ended\n";
+    let fallback = "    if that report never comes, see at Stripe that the subscription has ended \
+                    and take this off with `dismiss-payment --id 1 --subscription-ended sub_2`\n";
+    let listed = fixture.run(&["orders"]);
+    assert_eq!(listed.code, ExitCode::SUCCESS, "{}", listed.err);
+    let out = listed.out;
+    assert!(
+        out.starts_with("Waiting (0 order(s), 1 payment(s) that are no order's)\n"),
+        "{out}"
+    );
+    // Its checkout is known, so there is no lost checkout to look for.
+    let paid_again = format!(
+        "    no order's: its checkout names an order that another checkout had paid\n\
+         {cancel}    refund the payment in full at Stripe as well\n{fallback}"
+    );
+    assert!(out.contains(&paid_again), "{out}");
+    assert!(
+        out.contains(
+            "Subscriptions Stripe may charge again (2)\n  \
+             sub_1  account 0000-0000-0001  month-100-auto  active\n  \
+             sub_2  no order's: payment #1  active\n"
+        ),
+        "{out}"
+    );
+
+    // Refunded in full, it stays, for the subscription alone.
+    fixture.told(
+        6,
+        vec![EventKind::ChargeRefunded(Refunded {
+            payment_intent: sid("pi_2"),
+            amount_refunded: terms(plan).amount,
+            in_full: true,
+        })],
+    );
+    let out = fixture.run(&["orders"]).out;
+    assert!(
+        out.contains(&format!("    refunded in full\n{cancel}{fallback}")),
+        "{out}"
+    );
+    let dismissed = fixture.run(&["dismiss-payment", "--id", "1"]);
+    assert_eq!(dismissed.code, ExitCode::FAILURE);
+    assert!(
+        dismissed.err.contains(
+            "payment #1 stays on the list while Stripe may charge subscription sub_2 again"
+        ),
+        "{}",
+        dismissed.err
+    );
+
+    let change = |state| {
+        EventKind::SubscriptionChanged(SubscriptionChange {
+            id: sid("sub_2"),
+            state,
+        })
+    };
+    fixture.told(10, vec![change(Renewal::Ending)]);
+    let out = fixture.run(&["orders"]).out;
+    assert!(
+        out.contains("Stripe may charge subscription sub_2 again (ending): cancel it"),
+        "{out}"
+    );
+    fixture.told(11, vec![change(Renewal::Ended)]);
+    let listed = fixture.run(&["orders"]).out;
+    assert!(
+        listed.contains("0 payment(s) that are no order's"),
+        "{listed}"
+    );
+    assert!(!listed.contains("sub_2"), "{listed}");
+    assert!(
+        listed.contains("Subscriptions Stripe may charge again (1)\n  sub_1  account"),
+        "{listed}"
+    );
+}
+
+#[test]
+fn a_subscription_whose_end_stripe_never_reports_is_taken_off_by_naming_it() {
+    let fixture = Fixture::new();
+    let renewal = |n: u8| {
+        EventKind::InvoicePaid(Invoice {
+            id: sid(&format!("in_{n}")),
+            subscription: sid("sub_7"),
+            reason: BillingReason::Cycle,
+            amount_paid: 750,
+            currency: None,
+        })
+    };
+    fixture.told(
+        1,
+        vec![
+            renewal(7),
+            EventKind::InvoicePaymentPaid(InvoicePayment {
+                invoice: sid("in_7"),
+                payment_intent: sid("pi_7"),
+            }),
+            renewal(8),
+        ],
+    );
+    let out = fixture.run(&["orders"]).out;
+    // Its checkout may have been lost on the way here: that comes first.
+    assert!(
+        out.contains(
+            "    no order's: it renews a subscription that no order began\n    \
+             first find at Stripe the checkout that began subscription sub_7: if it names an \
+             order of the portal, its event never came here; send it again rather than cancel\n    \
+             Stripe may charge subscription sub_7 again (active)"
+        ),
+        "{out}"
+    );
+    // Two payments of one subscription: it is one subscription.
+    assert!(
+        out.contains(
+            "Subscriptions Stripe may charge again (1)\n  \
+             sub_7  no order's: payment #1, #2  active\n"
+        ),
+        "{out}"
+    );
+    let wrong = fixture.run(&[
+        "dismiss-payment",
+        "--id",
+        "1",
+        "--subscription-ended",
+        "sub_8",
+    ]);
+    assert_eq!(wrong.code, ExitCode::FAILURE);
+    assert_eq!(
+        wrong.err,
+        "mooring-portal: subscription sub_8 is not payment #1's (`orders` shows its subscription); \
+         nothing changed\n"
+    );
+    let named = fixture.run(&[
+        "dismiss-payment",
+        "--id",
+        "1",
+        "--subscription-ended",
+        "sub_7",
+    ]);
+    assert_eq!(named.code, ExitCode::SUCCESS, "{}", named.err);
+    assert!(
+        named.out.starts_with("took payment #1 off the list\n"),
+        "{}",
+        named.out
+    );
+    let out = fixture.run(&["orders"]).out;
+    assert!(
+        out.starts_with("Waiting (0 order(s), 1 payment(s) that are no order's)\n"),
+        "{out}"
+    );
+    assert!(
+        out.contains("  sub_7  no order's: payment #2  active\n"),
+        "{out}"
     );
 }
 
@@ -203,8 +386,8 @@ fn every_reason_to_wait_is_said_in_words() {
          at Stripe: invoice in_23, subscription sub_23\n    \
          no order's: it renews a subscription that no order began\n",
         "no order's: it is an invoice that neither began a subscription nor renewed one\n",
-        "Subscriptions Stripe may charge again (1)\n  sub_0  account 0000-0000-0001  \
-         month-100-auto  active\n",
+        "Subscriptions Stripe may charge again (2)\n  sub_0  account 0000-0000-0001  \
+         month-100-auto  active\n  sub_23  no order's: payment #3  active\n",
         "Refunds and disputes of payments no order names (1)\n  \
          payment pi_77  0 hundredths refunded, 300 hundredths disputed\n",
         "Latest orders (9)\n",

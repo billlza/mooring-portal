@@ -99,7 +99,7 @@ fn a_payment_that_is_no_orders_keeps_a_database_in_its_mode_too() {
          for Stripe's test mode: rehearse with another database"
     );
     // Dismissed, nothing holds it.
-    assert!(store.dismiss_stray(1).unwrap());
+    store.dismiss_stray(1, None).unwrap();
     store.enter_payment_mode(false).unwrap();
 }
 

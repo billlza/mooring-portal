@@ -5,7 +5,7 @@ use portal_core::payment::stripe::{BillingReason, CheckoutSession, EventKind, Re
 
 use super::paying::*;
 use super::*;
-use crate::{Progress, StoreError, StrayPayment, StrayReason, UnmatchedPayment};
+use crate::{DismissError, Progress, StoreError, StrayPayment, StrayReason, UnmatchedPayment};
 
 /// A checkout on the month's page that names `order`.
 fn stray_checkout(n: u8, order: Option<portal_core::payment::OrderId>) -> EventKind {
@@ -43,6 +43,8 @@ fn a_checkout_that_names_no_order_of_the_portal_waits_for_the_operator() {
         currency: Some(gbp()),
         card,
         refunded: 0,
+        refunded_in_full: false,
+        open_subscription: None,
     };
     assert_eq!(
         store.stray_payments().unwrap(),
@@ -158,9 +160,10 @@ fn the_operator_can_take_a_stray_payment_off_the_list() {
             event(2, 61, stray_checkout(2, None)),
         ],
     );
-    assert!(store.dismiss_stray(1).unwrap());
-    assert!(!store.dismiss_stray(1).unwrap());
-    assert!(!store.dismiss_stray(7).unwrap());
+    store.dismiss_stray(1, None).unwrap();
+    for id in [1, 7] {
+        assert!(matches!(store.dismiss_stray(id, None), Err(DismissError::Unknown(n)) if n == id));
+    }
     let strays = store.stray_payments().unwrap();
     assert_eq!(strays.len(), 1);
     assert_eq!(strays[0].id, 2);
@@ -170,8 +173,8 @@ fn the_operator_can_take_a_stray_payment_off_the_list() {
     // Dismissed, the checkout told of again would be listed again: the
     // portal remembers events for a while, not what was dismissed.
     assert!(matches!(
-        store.dismiss_stray(u64::MAX),
-        Err(StoreError::OutOfRange { .. })
+        store.dismiss_stray(u64::MAX, None),
+        Err(DismissError::Store(StoreError::OutOfRange { .. }))
     ));
 }
 
@@ -251,9 +254,37 @@ fn an_invoice_that_renews_nothing_the_portal_knows_waits_for_the_operator() {
         )],
     );
     assert_eq!(store.stray_payments().unwrap().len(), 3);
-    // The renewal's refund, found through its invoice, settles it.
+    // The renewal's refund settles its payment, but the subscription is
+    // still unknown and may charge again.
     record_all(&mut store, &[event(8, 200, refunded("pi_7", 750, true))]);
+    let strays = store.stray_payments().unwrap();
+    assert_eq!(strays.len(), 3);
+    assert_eq!(
+        (strays[0].refunded_in_full, strays[0].open_subscription),
+        (true, Some(Renewal::Active))
+    );
+    // An extra invoice of an order's own subscription is a payment
+    // problem alone. Cancelling sub_7 likewise leaves the decision of
+    // whether to refund in_9, but clears the already refunded in_7.
+    assert_eq!(strays[1].open_subscription, None);
+    assert_eq!(strays[2].open_subscription, Some(Renewal::Active));
+    record_all(
+        &mut store,
+        &[event(9, 201, subscription("sub_7", Renewal::Ended))],
+    );
     assert_eq!(store.stray_payments().unwrap().len(), 2);
+    let strays = store.stray_payments().unwrap();
+    assert_eq!(strays[1].invoice, Some(sid("in_9")));
+    assert_eq!(strays[1].open_subscription, None);
+    store.dismiss_stray(strays[0].id, None).unwrap();
+    record_all(
+        &mut store,
+        &[
+            event(10, 202, invoice_paid_by("in_9", "pi_9")),
+            event(11, 203, refunded("pi_9", 50, true)),
+        ],
+    );
+    assert!(store.stray_payments().unwrap().is_empty());
     for reason in StrayReason::ALL {
         assert_eq!(StrayReason::parse(reason.as_str()), Some(reason));
     }
@@ -304,6 +335,97 @@ fn a_subscription_begun_without_an_order_is_astray_and_so_are_its_renewals() {
     assert_eq!(strays[1].reason, StrayReason::NoSubscription);
     assert_eq!(strays.len(), 2);
     assert_eq!(rows(&store, "orders"), 0);
+}
+
+#[test]
+fn a_stray_subscription_blocks_disabling_payments_until_it_has_ended() {
+    let mut store = shop();
+    let begun = CheckoutSession {
+        order: None,
+        ..checkout(1, oid(1), &auto())
+    };
+    // Stripe can confirm the refund before telling us about checkout.
+    record_all(
+        &mut store,
+        &[
+            event(1, 62, refunded("pi_1", 750, true)),
+            event(2, 61, invoice_paid_by("in_1", "pi_1")),
+            event(3, 60, EventKind::CheckoutCompleted(begun)),
+        ],
+    );
+    assert!(store.payments_outstanding().unwrap());
+    assert_eq!(entries(&store), []);
+    record_all(
+        &mut store,
+        &[event(4, 100, subscription("sub_1", Renewal::Ended))],
+    );
+    assert!(!store.payments_outstanding().unwrap());
+    assert!(store.stray_payments().unwrap().is_empty());
+}
+
+#[test]
+fn the_operator_takes_off_a_payment_whose_subscription_stripe_may_charge_only_by_naming_it() {
+    let mut store = shop();
+    let begun = CheckoutSession {
+        order: None,
+        ..checkout(1, oid(1), &auto())
+    };
+    record_all(
+        &mut store,
+        &[
+            event(1, 60, EventKind::CheckoutCompleted(begun)),
+            event(2, 61, invoice_paid_by("in_1", "pi_1")),
+            event(3, 62, refunded("pi_1", 750, true)),
+            event(4, 63, stray_checkout(2, None)),
+        ],
+    );
+    let open = |store: &Store| -> Vec<Option<Renewal>> {
+        store
+            .stray_payments()
+            .unwrap()
+            .iter()
+            .map(|stray| stray.open_subscription)
+            .collect()
+    };
+    // Each payment says what Stripe last said of its subscription, while
+    // Stripe may charge that again.
+    assert_eq!(open(&store), [Some(Renewal::Active), None]);
+    record_all(
+        &mut store,
+        &[event(5, 70, subscription("sub_1", Renewal::Ending))],
+    );
+    assert_eq!(open(&store), [Some(Renewal::Ending), None]);
+    // It stays unless the operator says its own subscription has ended;
+    // a payment with no subscription has none to name.
+    assert!(matches!(
+        store.dismiss_stray(1, None),
+        Err(DismissError::NeedsCancellation(1, ref open)) if *open == sid("sub_1")
+    ));
+    assert!(matches!(
+        store.dismiss_stray(1, Some(&sid("sub_9"))),
+        Err(DismissError::NotItsSubscription(1, ref named)) if *named == sid("sub_9")
+    ));
+    assert!(matches!(
+        store.dismiss_stray(2, Some(&sid("sub_1"))),
+        Err(DismissError::NotItsSubscription(2, _))
+    ));
+    assert_eq!(open(&store).len(), 2);
+    assert!(store.payments_outstanding().unwrap());
+    store.dismiss_stray(1, Some(&sid("sub_1"))).unwrap();
+    assert_eq!(open(&store), [None]);
+    assert!(!store.payments_outstanding().unwrap());
+    // Wrongly said: Stripe charges the subscription again, and the
+    // renewal is listed in its place.
+    record_all(
+        &mut store,
+        &[event(
+            6,
+            3_000,
+            invoiced("in_2", "sub_1", BillingReason::Cycle, 750),
+        )],
+    );
+    assert_eq!(open(&store), [None, Some(Renewal::Ending)]);
+    assert!(store.payments_outstanding().unwrap());
 }
 
 #[test]

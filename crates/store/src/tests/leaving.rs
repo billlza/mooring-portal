@@ -164,6 +164,29 @@ fn an_account_with_nothing_owing_goes_at_once() {
 }
 
 #[test]
+fn deleting_an_account_does_not_make_its_ended_subscription_look_open() {
+    let mut store = shop();
+    let account = customer(&mut store, "a@qq.com", 1, "pilotusera");
+    let order = place(&mut store, 1, &auto(), 1);
+    record_all(
+        &mut store,
+        &[
+            event(1, 60, completed(1, order, &auto())),
+            event(2, 61, invoice_paid_by("in_1", "pi_1")),
+            event(3, 62, refunded("pi_1", 750, true)),
+            event(4, 70, invoiced("in_2", "sub_1", BillingReason::Other, 50)),
+            event(5, 80, subscription("sub_1", Renewal::Ended)),
+        ],
+    );
+    store.delete_account(&account.code).unwrap();
+    let strays = store.stray_payments().unwrap();
+    assert_eq!(strays.len(), 1);
+    assert_eq!(strays[0].open_subscription, None);
+    assert!(!store.payments_outstanding().unwrap());
+    store.dismiss_stray(strays[0].id, None).unwrap();
+}
+
+#[test]
 fn a_ban_does_not_wait_and_says_which_subscriptions_to_cancel() {
     let mut store = shop();
     let account = customer(&mut store, "a@qq.com", 1, "pilotusera");

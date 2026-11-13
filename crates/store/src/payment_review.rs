@@ -5,8 +5,9 @@
 //! order asked. Whatever is not waits here: an order in review, which the
 //! operator settles by refunding it at Stripe or by approving it; and a
 //! payment that is no order's, which the operator refunds at Stripe or
-//! dismisses. The portal holds no key that could refund, so it only
-//! learns of a refund when Stripe tells it.
+//! dismisses. A subscription no order began must also end before its
+//! payment can leave the list. The portal holds no key that could refund
+//! or cancel, so it learns of each when Stripe tells it.
 //!
 //! Approving waives the one thing the operator was shown, and nothing
 //! else: an order let through for its amount is still judged by its card.
@@ -19,7 +20,7 @@ use rusqlite::{OptionalExtension as _, Row, TransactionBehavior, params};
 
 use crate::orders::{
     ORDER_COLUMNS, ORDER_TABLES, ORDER_WIDTH, Order, OrderRow, Progress, RENEWAL_TABLES, RENEWS,
-    order_row, renewal_from_sql,
+    STRAY_NEEDS_CANCELLATION, order_row, renewal_from_sql,
 };
 use crate::rows::{
     code_from_sql, corrupt, count_from_sql, count_to_sql, stripe_id_from_sql, time_from_sql,
@@ -73,6 +74,14 @@ pub struct StrayPayment {
     pub card: Option<CardVerdict>,
     /// How much of it has been refunded.
     pub refunded: u64,
+    /// Whether Stripe says the whole payment has been refunded.
+    pub refunded_in_full: bool,
+    /// What Stripe last said of its subscription, while no order began
+    /// that subscription and Stripe may charge it again: never
+    /// [`Renewal::Ended`]. Such a payment stays on the list, refunded or
+    /// not, until Stripe says the subscription has ended or the operator
+    /// does ([`Store::dismiss_stray`]).
+    pub open_subscription: Option<Renewal>,
 }
 
 /// A subscription that Stripe may charge again.
@@ -147,6 +156,38 @@ pub enum ApproveError {
 }
 
 impl From<rusqlite::Error> for ApproveError {
+    fn from(error: rusqlite::Error) -> Self {
+        Self::Store(error.into())
+    }
+}
+
+/// Why a stray payment was not dismissed.
+#[derive(Debug, thiserror::Error)]
+pub enum DismissError {
+    /// No payment on the list has the number.
+    #[error("there is no payment numbered {0} on the list; nothing changed")]
+    Unknown(u64),
+    /// Stripe may still charge for a subscription no order began, and
+    /// the operator did not say it has ended.
+    #[error(
+        "payment #{0} stays on the list while Stripe may charge subscription {1} again: cancel \
+         it in Stripe and wait for Stripe to report that it ended; if that report never comes, \
+         see at Stripe that it has ended and pass `--subscription-ended {1}`"
+    )]
+    NeedsCancellation(u64, StripeId),
+    /// The operator said a subscription has ended that is not the
+    /// payment's own.
+    #[error(
+        "subscription {1} is not payment #{0}'s (`orders` shows its subscription); nothing \
+         changed"
+    )]
+    NotItsSubscription(u64, StripeId),
+    /// The database failed.
+    #[error(transparent)]
+    Store(#[from] StoreError),
+}
+
+impl From<rusqlite::Error> for DismissError {
     fn from(error: rusqlite::Error) -> Self {
         Self::Store(error.into())
     }
@@ -255,17 +296,22 @@ impl Store {
             Option<String>,
             Option<String>,
             i64,
+            bool,
+            Option<String>,
         );
         let rows: Vec<StrayRow> = self
             .conn
-            .prepare(
-                "SELECT s.id, s.noticed_at, s.reason, s.session, s.invoice, s.payment_intent,
-                        s.subscription, s.amount, s.currency, p.card,
-                        COALESCE(p.refunded_amount, 0)
-                 FROM stray_payments s
-                 LEFT JOIN stripe_payments p ON p.payment_intent = s.payment_intent
-                 ORDER BY s.id",
-            )?
+            .prepare(&format!(
+                "SELECT sp.id, sp.noticed_at, sp.reason, sp.session, sp.invoice, sp.payment_intent,
+                        sp.subscription, sp.amount, sp.currency, p.card,
+                        COALESCE(p.refunded_amount, 0), COALESCE(p.refunded_in_full, 0),
+                        CASE WHEN {STRAY_NEEDS_CANCELLATION} THEN COALESCE(
+                            (SELECT s.state FROM stripe_subscriptions s
+                             WHERE s.subscription = sp.subscription), 'active') END
+                 FROM stray_payments sp
+                 LEFT JOIN stripe_payments p ON p.payment_intent = sp.payment_intent
+                 ORDER BY sp.id"
+            ))?
             .query_map([], |row| {
                 Ok((
                     row.get(0)?,
@@ -276,12 +322,14 @@ impl Store {
                     row.get(8)?,
                     row.get(9)?,
                     row.get(10)?,
+                    row.get(11)?,
+                    row.get(12)?,
                 ))
             })?
             .collect::<Result<_, _>>()?;
         rows.into_iter()
             .map(
-                |(id, noticed_at, reason, ids, amount, currency, card, refunded)| {
+                |(id, noticed_at, reason, ids, amount, currency, card, refunded, in_full, open)| {
                     let [session, invoice, payment_intent, subscription] = ids;
                     Ok(StrayPayment {
                         id: count_from_sql(id, "stray payment's number")?,
@@ -305,13 +353,15 @@ impl Store {
                             .transpose()?,
                         card: card_verdict(card)?,
                         refunded: count_from_sql(refunded, "refunded amount")?,
+                        refunded_in_full: in_full,
+                        open_subscription: open.as_deref().map(renewal_from_sql).transpose()?,
                     })
                 },
             )
             .collect()
     }
 
-    /// Every subscription that Stripe may charge again, by account.
+    /// Every subscription of an order that Stripe may charge again, by account.
     pub fn open_renewals(&self) -> Result<Vec<OpenRenewal>, StoreError> {
         let rows: Vec<(String, String, String, String)> = self
             .conn
@@ -450,13 +500,40 @@ impl Store {
         })
     }
 
-    /// Takes the stray payment numbered `id` off the operator's list;
-    /// whether there was one.
-    pub fn dismiss_stray(&mut self, id: u64) -> Result<bool, StoreError> {
-        let removed = self.conn.execute(
-            "DELETE FROM stray_payments WHERE id = ?1",
-            params![count_to_sql(id, "stray payment's number")?],
-        )?;
-        Ok(removed > 0)
+    /// Takes the stray payment numbered `id` off the operator's list.
+    ///
+    /// A payment whose subscription no order began stays while Stripe may
+    /// charge that subscription again, unless the operator says it has
+    /// ended: `ended` names a subscription seen to have ended at Stripe,
+    /// whose report of that never came, and must be the payment's own.
+    /// If it was wrongly said, Stripe's next charge of it is listed anew.
+    pub fn dismiss_stray(&mut self, id: u64, ended: Option<&StripeId>) -> Result<(), DismissError> {
+        let id_sql = count_to_sql(id, "stray payment's number")?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let found: Option<(Option<String>, bool)> = tx
+            .query_row(
+                &format!(
+                    "SELECT sp.subscription, ({STRAY_NEEDS_CANCELLATION})
+                     FROM stray_payments sp WHERE sp.id = ?1"
+                ),
+                [id_sql],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let Some((subscription, open)) = found else {
+            return Err(DismissError::Unknown(id));
+        };
+        match (stripe_id(subscription)?, ended) {
+            (own, Some(named)) if own.as_ref() != Some(named) => {
+                return Err(DismissError::NotItsSubscription(id, named.clone()));
+            }
+            (Some(own), None) if open => return Err(DismissError::NeedsCancellation(id, own)),
+            _ => {}
+        }
+        tx.execute("DELETE FROM stray_payments WHERE id = ?1", [id_sql])?;
+        tx.commit()?;
+        Ok(())
     }
 }

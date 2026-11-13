@@ -5,7 +5,9 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use portal_core::account::{AccountCode, AccountCodeError, Email, EmailError};
-use portal_core::payment::stripe::{CardFingerprint, CardFingerprintError};
+use portal_core::payment::stripe::{
+    CardFingerprint, CardFingerprintError, StripeId, StripeIdError,
+};
 use portal_core::payment::{OrderId, OrderIdError};
 use portal_core::snapshot::{MooringUserId, MooringUserIdError};
 
@@ -127,11 +129,19 @@ pub(crate) enum Command {
         order: OrderId,
     },
     /// Take a payment that is no order's off the list `orders` shows.
-    /// One refunded in full at Stripe goes by itself.
+    /// One whose subscription no order began stays while Stripe may
+    /// charge that subscription again: cancel it in Stripe and wait for
+    /// Stripe to report that it ended. A full refund then takes the
+    /// payment off the list by itself.
     DismissPayment {
         /// The payment's number, as `orders` lists it.
         #[arg(long, value_name = "NUMBER")]
         id: u64,
+        /// Say that the payment's subscription has ended, when Stripe's
+        /// report of that never came: only after seeing at Stripe that it
+        /// has. If it has not, its next charge is listed again.
+        #[arg(long, value_name = "SUBSCRIPTION", value_parser = stripe_id)]
+        subscription_ended: Option<StripeId>,
     },
     /// Remove a rehearsal before taking real payments: every order,
     /// every payment that is no order's and all that Stripe said, from a
@@ -197,4 +207,8 @@ fn order_id(text: &str) -> Result<OrderId, OrderIdError> {
 
 fn card_fingerprint(text: &str) -> Result<CardFingerprint, CardFingerprintError> {
     CardFingerprint::parse(text)
+}
+
+fn stripe_id(text: &str) -> Result<StripeId, StripeIdError> {
+    StripeId::parse(text)
 }

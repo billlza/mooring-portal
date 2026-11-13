@@ -56,7 +56,8 @@ pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
 pub use orders::{AutoRenewal, Order, OrderError, Progress};
 pub use payment_mode::{DiscardError, Discarded, ModeError};
 pub use payment_review::{
-    ApproveError, Approved, OpenRenewal, OperatorOrder, StrayPayment, UnmatchedPayment,
+    ApproveError, Approved, DismissError, OpenRenewal, OperatorOrder, StrayPayment,
+    UnmatchedPayment,
 };
 pub use profiles::{
     ProfileImportError, ProfileImportReport, StoredProfile, Withheld, WithheldLink,

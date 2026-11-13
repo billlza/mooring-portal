@@ -142,6 +142,15 @@ pub(crate) const RENEWAL_TABLES: &str =
 pub(crate) const RENEWS: &str =
     "o.subscription IS NOT NULL AND COALESCE(s.state, 'active') <> 'ended'";
 
+/// Whether a stray payment (`sp`) names a subscription Stripe may
+/// charge again and no order began. An extra invoice for an order's
+/// subscription is stray, but does not make the subscription stray.
+pub(crate) const STRAY_NEEDS_CANCELLATION: &str = "sp.subscription IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM orders o
+                     WHERE o.subscription = sp.subscription AND o.renewal_of IS NULL)
+     AND NOT EXISTS (SELECT 1 FROM stripe_subscriptions s
+                     WHERE s.subscription = sp.subscription AND s.state = 'ended')";
+
 /// An order's row as SQLite gives it.
 pub(crate) struct OrderRow {
     id: String,

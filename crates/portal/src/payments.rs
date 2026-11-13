@@ -1,6 +1,7 @@
 //! Payments from the operator's side: what `serve` reads to take orders,
 //! and the commands on orders, stray payments and Mooring's token.
 
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read as _, Write};
 use std::os::unix::fs::PermissionsExt as _;
@@ -8,7 +9,7 @@ use std::path::Path;
 
 use portal_core::account::Email;
 use portal_core::auth::{BanDigest, SecretToken};
-use portal_core::payment::stripe::{CardFingerprint, SigningSecret, StripeId};
+use portal_core::payment::stripe::{CardFingerprint, Renewal, SigningSecret, StripeId};
 use portal_core::payment::{
     CardVerdict, Catalogue, Currency, MAX_CATALOGUE_BYTES, OrderId, OrderTerms, ReviewReason,
 };
@@ -195,16 +196,17 @@ pub(crate) fn discard_test_payments(
     })
 }
 
-/// Takes a stray payment off the list. Its row named a payment at Stripe,
-/// so its copies are erased as an account's are.
+/// Takes a stray payment off the list, with the operator's word that its
+/// subscription has `ended` if Stripe's report of that never came. Its
+/// row named a payment at Stripe, so its copies are erased as an
+/// account's are.
 pub(crate) fn dismiss_payment(
     store: &mut Store,
     id: u64,
+    ended: Option<&StripeId>,
     out: &mut dyn Write,
 ) -> Result<(), CommandError> {
-    if !store.dismiss_stray(id)? {
-        return Err(CommandError::NoSuchPayment(id));
-    }
+    store.dismiss_stray(id, ended)?;
     crate::operator::erase_then_report(store, out, |out| {
         writeln!(out, "took payment #{id} off the list")
     })
@@ -427,19 +429,70 @@ fn stray(payment: &StrayPayment, out: &mut dyn Write) -> std::io::Result<()> {
     if payment.card == Some(CardVerdict::Banned) {
         writeln!(out, "    it was paid with a card of a banned account")?;
     }
-    if payment.refunded > 0 {
+    if payment.refunded_in_full {
+        writeln!(out, "    refunded in full")?;
+    } else if payment.refunded > 0 {
         writeln!(
             out,
             "    {} hundredths of it are refunded",
             payment.refunded
         )?;
     }
+    let (Some(subscription), Some(state)) = (&payment.subscription, payment.open_subscription)
+    else {
+        return writeln!(
+            out,
+            "    refund it in full at Stripe, which takes it off this list, or take it off with \
+             `dismiss-payment --id {}`",
+            payment.id
+        );
+    };
+    // Only an invoice came: the checkout that began its subscription may
+    // be an order's whose event was lost, and the payer a customer.
+    if matches!(
+        payment.reason,
+        StrayReason::NoSubscription | StrayReason::OtherInvoice
+    ) {
+        writeln!(
+            out,
+            "    first find at Stripe the checkout that began subscription {subscription}: if it \
+             names an order of the portal, its event never came here; send it again rather \
+             than cancel"
+        )?;
+    }
     writeln!(
         out,
-        "    refund it in full at Stripe, which takes it off this list, or take it off with \
-         `dismiss-payment --id {}`",
+        "    Stripe may charge subscription {subscription} again ({}): cancel it in Stripe and \
+         wait for Stripe to report that it ended",
+        state.as_str()
+    )?;
+    if !payment.refunded_in_full {
+        writeln!(out, "    refund the payment in full at Stripe as well")?;
+    }
+    writeln!(
+        out,
+        "    if that report never comes, see at Stripe that the subscription has ended and take \
+         this off with `dismiss-payment --id {} --subscription-ended {subscription}`",
         payment.id
     )
+}
+
+/// Every subscription that payments no order's name and Stripe may charge
+/// again, once, with the numbers of those payments, by subscription.
+fn stray_renewals(strays: &[StrayPayment]) -> BTreeMap<&str, (Renewal, Vec<u64>)> {
+    let mut found: BTreeMap<&str, (Renewal, Vec<u64>)> = BTreeMap::new();
+    for payment in strays {
+        if let (Some(subscription), Some(state)) =
+            (&payment.subscription, payment.open_subscription)
+        {
+            found
+                .entry(subscription.as_str())
+                .or_insert((state, Vec::new()))
+                .1
+                .push(payment.id);
+        }
+    }
+    found
 }
 
 /// `orders`: everything about payments that the operator may have to act
@@ -460,10 +513,11 @@ pub(crate) fn orders(store: &Store, out: &mut dyn Write) -> Result<(), CommandEr
         stray(payment, out)?;
     }
     let renewals = store.open_renewals()?;
+    let strays_renewing = stray_renewals(&strays);
     writeln!(
         out,
         "Subscriptions Stripe may charge again ({})",
-        renewals.len()
+        renewals.len() + strays_renewing.len()
     )?;
     for renewal in &renewals {
         writeln!(
@@ -473,6 +527,15 @@ pub(crate) fn orders(store: &Store, out: &mut dyn Write) -> Result<(), CommandEr
             renewal.account,
             renewal.plan,
             renewal.state.as_str()
+        )?;
+    }
+    for (subscription, (state, payments)) in &strays_renewing {
+        let numbers: Vec<String> = payments.iter().map(|id| format!("#{id}")).collect();
+        writeln!(
+            out,
+            "  {subscription}  no order's: payment {}  {}",
+            numbers.join(", "),
+            state.as_str()
         )?;
     }
     let unmatched = store.unmatched_payments()?;

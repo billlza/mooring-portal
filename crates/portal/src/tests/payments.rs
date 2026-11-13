@@ -452,7 +452,7 @@ fn the_payment_commands_report_a_failing_output() {
             "{args:?}"
         );
     }
-    let error = CommandError::NoSuchPayment(4);
+    let error = CommandError::from(portal_store::DismissError::Unknown(4));
     assert_eq!(
         error.to_string(),
         "there is no payment numbered 4 on the list; nothing changed"
