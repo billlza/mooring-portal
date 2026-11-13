@@ -153,7 +153,7 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 | `dismiss-payment --id <序号> [--subscription-ended <订阅号>]` | 把一笔不属于任何订单的付款从待办里拿掉。它的订阅没有订单开始过、Stripe 也还没说结束时拒绝，全额退款也要等这个订阅结束才会自动移除；Stripe 的结束通知一直不来，在 Stripe 后台确认订阅已经结束后加 `--subscription-ended` 和订阅号（`docs/payments.md` 第 2.6 节） |
 | `pull-token` | 生成 Mooring 拉取清单用的令牌，替换以前的；只显示一次 |
 | `revoke-pull-token` | 作废拉取令牌 |
-| `discard-test-payments` | 演练之后、收真钱之前：删掉 Stripe 测试模式留下的全部订单、付款和通知记录，并抹除副本；账号、绑定、封禁名单和拉取令牌留着。装着真钱付款的数据库拒绝（`docs/payments.md` 第 2.9 节） |
+| `discard-test-payments` | 在 Mooring 上关闭演练后，删掉原门户数据库的测试订单、付款和通知记录，并抹除副本。保留账号、绑定、封禁名单、拉取令牌和清单序号。装着真钱付款的数据库拒绝（`docs/payments.md` 第 2.9 节） |
 | `erase-deleted` | 把已删除的行从数据库文件和日志里抹掉。删除或改写数据的命令都会自己做；它们报告别的连接一直占着数据库、没能做完时，再运行它 |
 
 绑定流程：用户注册后，在 FaceTime 语音通话中把账户页上的账号编号念给运营者；运营者**按编号绑定，不按邮箱绑定**（原因见 `docs/security.md` 第 2 节）。编号不区分大小写，字母 o、i、l 会按 0、1、1 读入。

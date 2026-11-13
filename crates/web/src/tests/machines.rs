@@ -10,7 +10,7 @@ use super::support::{Browser, NOW, Reply, TestApp};
 use crate::config::ClientIpSource;
 use crate::security::limits::{PULLS_PER_NETWORK, WEBHOOKS_PER_NETWORK};
 
-const FEED: &str = "/api/mooring/entitlements";
+pub(super) const FEED: &str = "/api/mooring/entitlements";
 const OTHER_SECRET: &str = "whsec_test_other_fedcba9876543210";
 
 /// What a machine is told when it is refused: a line or two of plain
@@ -27,7 +27,7 @@ fn refused(reply: &Reply, status: StatusCode) {
 }
 
 /// How many orders have been paid.
-async fn orders_recorded(app: &TestApp) -> usize {
+pub(super) async fn orders_recorded(app: &TestApp) -> usize {
     app.store(|store| store.recent_orders(100))
         .await
         .unwrap()

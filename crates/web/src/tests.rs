@@ -13,6 +13,7 @@ mod machines;
 mod misc;
 mod paying;
 mod public;
+mod renewals;
 mod selling;
 mod serving;
 mod shop;
