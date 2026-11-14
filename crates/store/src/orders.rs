@@ -132,6 +132,13 @@ pub(crate) const UNSETTLED: &str = "(
      OR EXISTS (SELECT 1 FROM entitlements e WHERE e.order_id = o.id
                 AND e.seq > COALESCE((SELECT pulled_through FROM pull_access WHERE id = 1), 0)))";
 
+/// Whether `orders o`, joined as [`ORDER_TABLES`], stands paid: paid, and
+/// neither refunded in full nor disputed, whether before it was granted
+/// or after. One that waits for the operator is not, until the operator
+/// lets it through.
+pub(crate) const STANDS_PAID: &str =
+    "(o.state = 'paid' AND COALESCE(p.refunded_in_full, 0) = 0 AND p.disputed_amount IS NULL)";
+
 /// `orders o` with what Stripe has said of its subscription
 /// (`stripe_subscriptions s`).
 pub(crate) const RENEWAL_TABLES: &str =

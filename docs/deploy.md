@@ -138,6 +138,10 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 部署前先确认线上的 `cfm_profiles` 是空的；不空的话，每份配置都要有绑定，`profile_bundle` 也要有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
 - 要换回第 6 版的程序，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：旧版本照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
 
+数据库第 8 版（绑定上记着最近一次扣下这个用户的配置包的时间，订阅页据此在付款以后写明"配置正在准备"；分支 `feature/profile-preparing`，接在第 7 版之后，尚未部署）：
+- 迁移只加一列、填一次时间，没有会失败的情形。"正在准备"要等真实配置能导入以后才属实，所以和第 7 版一样，等约定第 2 版合并以后再部署（`docs/contract/cfm-profiles-v2.md` 第 4 节）。
+- 要换回第 7 版的程序，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE bindings DROP COLUMN withheld_at;`，再把 `user_version` 改回 7。只改 `user_version` 的话，旧版本照样启动，但以后再换上新版本时，迁移会因为这一列已经存在而失败，门户不启动。这两点 2026-11-14 在按迁移建出的测试库上核对过。
+
 ## 3. DNS
 
 - Porkbun 注册时自动加了两条记录，把 `moorlight.app` 和它的所有子域名都指向 Porkbun 的停放页（一条 `ALIAS`、一条 `*` 的 `CNAME`，目标都是 `pixie.porkbun.com`）。先删掉这两条，否则 `www` 这类子域名会指向 Porkbun。

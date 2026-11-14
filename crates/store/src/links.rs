@@ -16,6 +16,7 @@ use portal_core::profile::CfmProfile;
 use portal_core::time::UnixTime;
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
+use crate::orders::{ORDER_TABLES, STANDS_PAID};
 use crate::profiles::stored_profile;
 use crate::rows::{time_from_sql, time_to_sql};
 use crate::sessions::session_account_id;
@@ -73,6 +74,11 @@ pub enum CfmDelivery {
         /// When the account's link was made, if it still has one: a link
         /// paused while Mooring withholds the user for a passing reason.
         paused_link_created_at: Option<UnixTime>,
+        /// Whether an order of the account for its Mooring user stands
+        /// paid, and was paid since the last bundle that withheld the
+        /// user, or at all if none has: a payment that waits for a profile
+        /// Mooring has yet to make.
+        paid_since_withheld: bool,
     },
     /// The account has a profile.
     Profile {
@@ -166,22 +172,30 @@ impl Store {
     /// How `account` gets its profile.
     pub fn cfm_delivery(&self, account: AccountId) -> Result<CfmDelivery, StoreError> {
         // A profile always has its time, so a time means a profile.
-        let found: Option<(Option<i64>, Option<i64>)> = self
+        let found: Option<(Option<i64>, Option<i64>, bool)> = self
             .conn
             .query_row(
-                "SELECT p.generated_at, l.created_at
-                 FROM bindings b
-                 LEFT JOIN cfm_profiles p ON p.mooring_user = b.mooring_user
-                 LEFT JOIN subscription_links l ON l.account_id = b.account_id
-                 WHERE b.account_id = ?1",
+                &format!(
+                    "SELECT cp.generated_at, l.created_at,
+                         EXISTS (SELECT 1 FROM {ORDER_TABLES}
+                                 WHERE o.account_id = b.account_id
+                                     AND o.mooring_user = b.mooring_user AND {STANDS_PAID}
+                                     AND (b.withheld_at IS NULL OR o.paid_at > b.withheld_at))
+                     FROM bindings b
+                     LEFT JOIN cfm_profiles cp ON cp.mooring_user = b.mooring_user
+                     LEFT JOIN subscription_links l ON l.account_id = b.account_id
+                     WHERE b.account_id = ?1"
+                ),
                 [account.0],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        // An unbound account has no link: links go with bindings.
-        let Some((generated_at, link_created_at)) = found else {
+        // An unbound account has no link (links go with bindings), and no
+        // user to make a profile for.
+        let Some((generated_at, link_created_at, paid_since_withheld)) = found else {
             return Ok(CfmDelivery::NoProfile {
                 paused_link_created_at: None,
+                paid_since_withheld: false,
             });
         };
         let link_created_at = link_created_at
@@ -190,6 +204,7 @@ impl Store {
         let Some(generated_at) = generated_at else {
             return Ok(CfmDelivery::NoProfile {
                 paused_link_created_at: link_created_at,
+                paid_since_withheld,
             });
         };
         Ok(CfmDelivery::Profile {

@@ -271,6 +271,61 @@ async fn a_paused_link_fetches_nothing_and_works_again_once_delivered() {
 }
 
 #[tokio::test]
+async fn after_paying_an_account_without_a_profile_is_told_it_is_being_prepared() {
+    let app = TestApp::shop();
+    let (mut lilei, _) = app.customer("lilei@qq.com", "pilotusera").await;
+    app.import_profiles(&["pilotusera"]).await;
+    let link = make_link(&app, &mut lilei).await;
+    // Withheld, as at the end of a paid month: no profile, the link
+    // paused, and nothing paid since.
+    app.import_bundle(&[], &[("pilotusera", "suspended")]).await;
+    let page = lilei.get(&app, "/subscription").await;
+    assert!(
+        page.body.contains("目前没有你的 CFM 配置。"),
+        "{}",
+        page.body
+    );
+    assert!(!page.body.contains("正在准备"), "{}", page.body);
+    // Paid after that: the profile is on its way, and the paused link is
+    // still named.
+    let order = lilei.order(&app, "month-100").await;
+    app.deliver_events(&["checkout-payment", "charge-payment"], &order)
+        .await;
+    let page = lilei.get(&app, "/subscription").await;
+    assert!(
+        page.body
+            .contains("付款已收到，你的 CFM 配置正在准备。运营者为你生成配置后，就会出现在这里"),
+        "{}",
+        page.body
+    );
+    assert!(
+        !page.body.contains("目前没有你的 CFM 配置。"),
+        "{}",
+        page.body
+    );
+    assert!(page.body.contains("现在暂停，取不到配置"), "{}", page.body);
+    assert!(!page.body.contains("/subscription/profile.json"));
+    let english = lilei
+        .post(&app, "/lang", &[("to", "en"), ("back", "subscription")])
+        .await;
+    assert_eq!(english.status, StatusCode::SEE_OTHER, "{}", english.body);
+    let page = lilei.get(&app, "/subscription").await;
+    assert!(
+        page.body
+            .contains("Your payment has arrived, and your CFM profile is being prepared."),
+        "{}",
+        page.body
+    );
+    // Once the profile is delivered, the panel offers it, and the paused
+    // link serves it again.
+    app.import_profiles(&["pilotusera"]).await;
+    let page = lilei.get(&app, "/subscription").await;
+    assert!(!page.body.contains("being prepared"), "{}", page.body);
+    assert!(page.body.contains("/subscription/profile.json"));
+    is_document_of(&fetch(&app, &link, CFM).await, "pilotusera");
+}
+
+#[tokio::test]
 async fn unbinding_or_revoking_the_user_ends_the_link_for_good() {
     let app = TestApp::new();
     let (mut lilei, lilei_code) = bound(&app, "lilei@qq.com", "pilotusera").await;

@@ -275,6 +275,7 @@ pub(super) const STRINGS: Strings = Strings {
         title: "Use with CFM",
         intro: "Only CFM 0.5.x is supported. After importing, turn on “Mainland China direct” in CFM.",
         waiting: "There is no CFM profile for you at the moment. Once the operator uploads one, you can make a subscription link or download the profile here.",
+        preparing: "Your payment has arrived, and your CFM profile is being prepared. Once the operator has made it, it appears here, where you can make a subscription link or download the profile; there is no need to order again.",
         generated: "Profile generated {}",
         update_hint: "When the operator updates your profile, choose “Update” on it in CFM to fetch the new one; CFM does not update on its own.",
         link_title: "Subscription link",

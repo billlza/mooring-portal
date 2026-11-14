@@ -10,6 +10,9 @@ use crate::i18n::{Strings, fill};
 pub(crate) enum CfmPanel {
     /// The account has no profile now.
     Waiting {
+        /// That there is no profile yet, or, after a payment Mooring has
+        /// yet to make the profile for, that it is being prepared.
+        message: &'static str,
         /// "Your link is paused …", if the account still has a link: Mooring
         /// withholds the user for a passing reason, and the link works
         /// again once a profile is delivered.
@@ -30,7 +33,13 @@ impl CfmPanel {
         match delivery {
             CfmDelivery::NoProfile {
                 paused_link_created_at,
+                paid_since_withheld,
             } => Self::Waiting {
+                message: if paid_since_withheld {
+                    t.cfm.preparing
+                } else {
+                    t.cfm.waiting
+                },
                 paused: paused_link_created_at.map(|at| fill(t.cfm.link_paused, beijing(at))),
             },
             CfmDelivery::Profile {
@@ -85,28 +94,51 @@ mod tests {
                 link: None,
             }
         );
-        assert_eq!(
-            CfmPanel::of(
-                CfmDelivery::NoProfile {
-                    paused_link_created_at: None
-                },
-                t
+    }
+
+    #[test]
+    fn without_a_profile_the_panel_says_whether_one_is_being_prepared() {
+        let link = UnixTime::from_secs(1_793_959_200).unwrap();
+        let paused = "你的订阅链接生成于 2026-11-06 18:00，现在暂停，取不到配置。运营者恢复为你提供配置后，在 CFM 里对这份配置点「更新」即可，不用重新生成。";
+        for (paid_since_withheld, message) in [
+            (
+                false,
+                "目前没有你的 CFM 配置。运营者上传后，可以在这里生成订阅链接或下载配置文件。",
             ),
-            CfmPanel::Waiting { paused: None }
-        );
-        assert_eq!(
-            CfmPanel::of(
-                CfmDelivery::NoProfile {
-                    paused_link_created_at: Some(link)
-                },
-                t
+            (
+                true,
+                "付款已收到，你的 CFM 配置正在准备。运营者为你生成配置后，就会出现在这里，可以生成订阅链接或下载配置文件；不用重新下单。",
             ),
-            CfmPanel::Waiting {
-                paused: Some(
-                    "你的订阅链接生成于 2026-11-06 18:00，现在暂停，取不到配置。运营者恢复为你提供配置后，在 CFM 里对这份配置点「更新」即可，不用重新生成。"
-                        .to_owned()
-                )
+        ] {
+            // A paused link is named either way: it works again once the
+            // profile comes.
+            for (link, paused) in [(None, None), (Some(link), Some(paused.to_owned()))] {
+                assert_eq!(
+                    CfmPanel::of(
+                        CfmDelivery::NoProfile {
+                            paused_link_created_at: link,
+                            paid_since_withheld,
+                        },
+                        Lang::Zh.strings()
+                    ),
+                    CfmPanel::Waiting { message, paused },
+                    "{paid_since_withheld}"
+                );
             }
+        }
+        let CfmPanel::Waiting { message, .. } = CfmPanel::of(
+            CfmDelivery::NoProfile {
+                paused_link_created_at: None,
+                paid_since_withheld: true,
+            },
+            Lang::En.strings(),
+        ) else {
+            panic!("a panel without a profile waits");
+        };
+        assert!(
+            message
+                .starts_with("Your payment has arrived, and your CFM profile is being prepared."),
+            "{message}"
         );
     }
 }

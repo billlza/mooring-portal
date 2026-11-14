@@ -34,6 +34,7 @@
 3. 用户在 Stripe 的页面上用银行卡付款。卡号只在 Stripe 的页面上输入。
 4. Stripe 把事件发到门户的 `POST /stripe/webhook`。门户先验证签名，再读事件，然后按下面的规则记账。
 5. Mooring 定时来取（`GET /api/mooring/entitlements`，契约见 `docs/contract/entitlements-v1.md`），按订单开通或续期。订阅页上的到期时间和配额，要等 Mooring 下一次导出快照、运营者导入之后才变。
+6. 用户付完款回到订阅页（Payment Link 付完跳回 `/subscription`，第 3 节）。账号还没有 CFM 配置的，配置区写明付款已收到、配置正在准备，不说要多久：配置要等 Mooring 开通这个用户，运营者为他导出，再用 `import-profile` 只给这个账号导入（`docs/contract/cfm-profiles-v2.md` 第 4 节）。导入以后，下载和订阅链接就出现。约定第 2 版合并之前，门户上还不能放真实配置，这一步要等它。
 
 ### 2.2 什么样的付款才开通
 

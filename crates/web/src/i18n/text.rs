@@ -244,6 +244,7 @@ pub(crate) struct CfmText {
     pub(crate) title: &'static str,
     pub(crate) intro: &'static str,
     pub(crate) waiting: &'static str,
+    pub(crate) preparing: &'static str,
     pub(crate) generated: &'static str,
     pub(crate) update_hint: &'static str,
     pub(crate) link_title: &'static str,

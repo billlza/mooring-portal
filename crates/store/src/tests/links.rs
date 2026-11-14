@@ -354,7 +354,8 @@ fn a_user_withheld_for_a_while_keeps_a_paused_link() {
         assert_eq!(
             store.cfm_delivery(first.id).unwrap(),
             CfmDelivery::NoProfile {
-                paused_link_created_at: Some(at(NOW))
+                paused_link_created_at: Some(at(NOW)),
+                paid_since_withheld: false,
             }
         );
         assert!(matches!(
@@ -447,7 +448,8 @@ fn the_delivery_reads_the_profile_and_the_link_together() {
     assert_eq!(
         store.cfm_delivery(loose.id).unwrap(),
         CfmDelivery::NoProfile {
-            paused_link_created_at: None
+            paused_link_created_at: None,
+            paid_since_withheld: false,
         }
     );
     assert_eq!(

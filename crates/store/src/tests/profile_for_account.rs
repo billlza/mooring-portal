@@ -158,6 +158,7 @@ fn a_bundle_withholding_the_accounts_user_does_what_a_full_import_would() {
         store.cfm_delivery(first.id).unwrap(),
         CfmDelivery::NoProfile {
             paused_link_created_at: Some(at(NOW)),
+            paid_since_withheld: false,
         }
     );
     second_untouched(&store, &second);

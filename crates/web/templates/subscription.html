@@ -66,8 +66,8 @@
     <h2>{{ chrome.t.cfm.title }}</h2>
     <p class="small muted">{{ chrome.t.cfm.intro }}</p>
     {% match cfm %}
-    {% when CfmPanel::Waiting { paused } %}
-    <p class="muted">{{ chrome.t.cfm.waiting }}</p>
+    {% when CfmPanel::Waiting { message, paused } %}
+    <p class="muted">{{ message }}</p>
     {% if let Some(paused) = paused %}
     <h3>{{ chrome.t.cfm.link_title }}</h3>
     <p class="small">{{ paused }}</p>

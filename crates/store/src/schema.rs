@@ -212,6 +212,18 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          FROM cfm_profiles;
      DROP TABLE cfm_profiles;
      ALTER TABLE cfm_profiles_timed RENAME TO cfm_profiles;",
+    // 8: the time of the last bundle that withheld a bound account's user,
+    // while it does (`profiles.rs`): a bundle that delivers to the user
+    // clears it, and an account whose user no bundle has named since it
+    // was bound has none. After a payment made since then, the
+    // subscription page says that the profile is being prepared. Accounts
+    // bound without a profile before this migration are taken to have been
+    // withheld by the last bundle imported, if there was one: for a
+    // payment made before it, the page goes on saying that there is no
+    // profile, rather than that one is on its way.
+    "ALTER TABLE bindings ADD COLUMN withheld_at INTEGER;
+     UPDATE bindings SET withheld_at = (SELECT generated_at FROM profile_bundle WHERE id = 1)
+         WHERE mooring_user NOT IN (SELECT mooring_user FROM cfm_profiles);",
 ];
 
 /// Applies the migrations the database lacks.

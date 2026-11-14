@@ -267,6 +267,7 @@ pub(super) const STRINGS: Strings = Strings {
         title: "在 CFM 中使用",
         intro: "只支持 CFM 0.5.x。导入后请在 CFM 里打开“中国大陆直连”。",
         waiting: "目前没有你的 CFM 配置。运营者上传后，可以在这里生成订阅链接或下载配置文件。",
+        preparing: "付款已收到，你的 CFM 配置正在准备。运营者为你生成配置后，就会出现在这里，可以生成订阅链接或下载配置文件；不用重新下单。",
         generated: "配置生成于 {}",
         update_hint: "运营者更新配置后，在 CFM 里对这份配置点「更新」即可取得新配置；CFM 不会自动更新。",
         link_title: "订阅链接",

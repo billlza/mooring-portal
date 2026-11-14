@@ -24,6 +24,10 @@
 //! Imports of either kind keep their order: a bundle from the future, or
 //! older than the last one imported, is refused whole, so an old bundle
 //! never brings back a profile that a newer one replaced.
+//!
+//! A bound account whose user a bundle withholds keeps that bundle's time
+//! until a bundle delivers to the user again. A payment made since then
+//! waits for a profile Mooring has yet to make ([`Store::cfm_delivery`]).
 
 use portal_core::account::AccountCode;
 use portal_core::profile::{CfmProfile, Named, ProfileBundle, WithheldReason};
@@ -249,7 +253,7 @@ impl Store {
             withheld.push(Withheld {
                 account: account.clone(),
                 reason,
-                link: withhold_link(&tx, *id, reason)?,
+                link: withhold(&tx, *id, reason, bundle.generated_at())?,
             });
         }
         record_bundle_time(&tx, bundle.generated_at())?;
@@ -309,7 +313,7 @@ impl Store {
                     "DELETE FROM cfm_profiles WHERE mooring_user = ?1",
                     [account.user.as_str()],
                 )?;
-                let link = withhold_link(&tx, id, reason)?;
+                let link = withhold(&tx, id, reason, bundle.generated_at())?;
                 AccountProfileImport::Withheld(Withheld {
                     account,
                     reason,
@@ -378,7 +382,7 @@ where
 }
 
 /// Stores, on `tx`, `profile` as `user`'s, in place of any the user had,
-/// with the time of the bundle it came in.
+/// with the time of the bundle it came in. The user is withheld no more.
 fn store_profile(
     tx: &Transaction<'_>,
     user: &MooringUserId,
@@ -391,17 +395,28 @@ fn store_profile(
          SET document = excluded.document, generated_at = excluded.generated_at",
         params![user.as_str(), profile.as_str(), time_to_sql(generated_at)],
     )?;
+    tx.execute(
+        "UPDATE bindings SET withheld_at = NULL WHERE mooring_user = ?1",
+        [user.as_str()],
+    )?;
     Ok(())
 }
 
-/// What withholding the user of account `id` for `reason` does to its
-/// subscription link, done on `tx`: a final reason ends the link, a
-/// passing one keeps it, serving nothing while there is no profile.
-fn withhold_link(
+/// Withholds, on `tx`, the user of account `id` for `reason`, as the
+/// bundle generated at `generated_at` does: records that bundle's time,
+/// and says what became of the account's subscription link. A final
+/// reason ends the link, a passing one keeps it, serving nothing while
+/// there is no profile.
+fn withhold(
     tx: &Transaction<'_>,
     id: AccountId,
     reason: WithheldReason,
+    generated_at: UnixTime,
 ) -> rusqlite::Result<WithheldLink> {
+    tx.execute(
+        "UPDATE bindings SET withheld_at = ?2 WHERE account_id = ?1",
+        params![id.0, time_to_sql(generated_at)],
+    )?;
     let had_link = if reason.is_final() {
         tx.execute(
             "DELETE FROM subscription_links WHERE account_id = ?1",
