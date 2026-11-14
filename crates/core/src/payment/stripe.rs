@@ -9,6 +9,7 @@
 //! for.
 
 mod event;
+mod schedule;
 mod signature;
 
 use std::fmt;
@@ -21,6 +22,7 @@ pub use event::{
     EventError, EventKind, Invoice, InvoicePayment, MAX_EVENT_BYTES, PaymentStatus, Refunded,
     Renewal, SubscriptionChange,
 };
+pub use schedule::{IntroCustomer, IntroPayment, ScheduleChange};
 pub use signature::{SecretError, SignatureError, SigningSecret, TOLERANCE_SECS, verify};
 
 /// An id as Stripe writes one: 1 to 255 ASCII letters, digits and

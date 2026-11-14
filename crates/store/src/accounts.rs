@@ -282,9 +282,11 @@ pub(crate) fn open_subscriptions(
 ) -> Result<Vec<String>, StoreError> {
     Ok(conn
         .prepare(&format!(
-            "SELECT DISTINCT o.subscription FROM {RENEWAL_TABLES}
+            "SELECT o.subscription AS stripe_id FROM {RENEWAL_TABLES}
              WHERE o.account_id = ?1 AND {RENEWS}
-             ORDER BY o.subscription"
+             UNION SELECT f.schedule FROM introductory_offers f JOIN orders o ON o.id = f.order_id
+             WHERE o.account_id = ?1 AND o.subscription IS NULL AND f.schedule_state = 'open'
+             ORDER BY stripe_id"
         ))?
         .query_map([account], |row| row.get(0))?
         .collect::<Result<_, _>>()?)
@@ -295,6 +297,16 @@ pub(crate) fn open_subscriptions(
 /// about to go. A stray payment can independently name one of these
 /// facts; in particular, it needs to remember a subscription has ended.
 pub(crate) fn forget_payments(conn: &Connection, account: i64) -> Result<(), StoreError> {
+    conn.execute(
+        "DELETE FROM intro_paid_intents WHERE payment IN (SELECT f.paid_intent
+            FROM introductory_offers f JOIN orders o ON o.id = f.order_id WHERE o.account_id = ?1)",
+        [account],
+    )?;
+    conn.execute(
+        "UPDATE introductory_offers SET customer = NULL, paid_intent = NULL WHERE order_id IN
+         (SELECT id FROM orders WHERE account_id = ?1)",
+        [account],
+    )?;
     for (table, key) in [
         ("stripe_payments", "payment_intent"),
         ("stripe_invoice_payments", "invoice"),

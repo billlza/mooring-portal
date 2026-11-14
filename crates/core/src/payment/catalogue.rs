@@ -35,6 +35,10 @@ const MAX_AMOUNT: u64 = 10_000_000;
 const GB: u64 = 1_000_000_000;
 /// Where every payment page must be: Stripe's own host for Payment Links.
 const PAYMENT_PAGES: &str = "https://buy.stripe.com/";
+/// Duration of each introductory contract period, in seconds.
+pub const INTRO_PERIOD_SECS: u64 = 30 * 86_400;
+/// Paid periods in the introductory minimum term.
+pub const INTRO_PERIODS: u64 = 12;
 /// Where the page for managing a renewal must be: Stripe's customer
 /// portal.
 const MANAGE_PAGES: &str = "https://billing.stripe.com/p/login/";
@@ -77,6 +81,16 @@ pub enum CatalogueError {
     /// A plan's price is out of range.
     #[error("plan {0:?}: its amount must be between 1 and {MAX_AMOUNT} hundredths")]
     Amount(String),
+    /// Only a test subscription can set a different price for renewals.
+    #[error(
+        "plan {0:?}: renewal_amount is only available for month_auto plans in Stripe test mode, and must be between 1 and {MAX_AMOUNT} hundredths"
+    )]
+    RenewalAmount(String),
+    /// A private introductory offer must use the sandbox contract terms.
+    #[error(
+        "plan {0:?}: the introductory offer must be the only private offer, in GBP test mode, with 30 days and 100 GB per period, 800 at checkout and 1350 thereafter"
+    )]
+    Introductory(String),
     /// A plan's payment page is not one of Stripe's Payment Links.
     #[error("plan {0:?}: its payment_link must be {PAYMENT_PAGES} and letters, digits or _")]
     PaymentLink(String),
@@ -233,8 +247,12 @@ pub struct Plan {
     /// Its traffic: a month's quota for each billing cycle, or a pack's
     /// extra traffic.
     pub traffic_bytes: u64,
-    /// Its price, in the currency's hundredths, as Stripe counts amounts.
+    /// Its price at checkout, in the currency's hundredths.
     pub amount: u64,
+    /// What Stripe charges for subsequent periods, if it differs.
+    pub renewal_amount: Option<u64>,
+    /// An operator-issued, single-use link replaces the catalogue link.
+    pub introductory: bool,
     /// Its currency.
     pub currency: Currency,
     /// Its payment page at Stripe.
@@ -270,6 +288,9 @@ struct WrittenPlan {
     days: u32,
     traffic_gb: u64,
     amount: u64,
+    renewal_amount: Option<u64>,
+    #[serde(default)]
+    introductory: bool,
     payment_link: String,
     payment_link_id: String,
 }
@@ -291,6 +312,7 @@ impl Catalogue {
         }
         let mut plans = Vec::with_capacity(written.plans.len());
         let (mut ids, mut links) = (HashSet::new(), HashSet::new());
+        let mut has_intro = false;
         for (index, plan) in written.plans.into_iter().enumerate() {
             let id = PlanId::parse(&plan.id).ok_or(CatalogueError::PlanId(index + 1))?;
             let name = || plan.id.clone();
@@ -303,6 +325,27 @@ impl Catalogue {
             }
             if !(1..=MAX_AMOUNT).contains(&plan.amount) {
                 return Err(CatalogueError::Amount(name()));
+            }
+            // The differing-price Payment Link is a rehearsal until the
+            // offer and its cancellation rules can be enforced at sale.
+            if plan.renewal_amount.is_some_and(|amount| {
+                written.livemode || !kind.renews() || !(1..=MAX_AMOUNT).contains(&amount)
+            }) {
+                return Err(CatalogueError::RenewalAmount(name()));
+            }
+            if plan.introductory {
+                if has_intro
+                    || written.livemode
+                    || kind != PlanKind::MonthAuto
+                    || currency.as_str() != "gbp"
+                    || plan.days != 30
+                    || plan.traffic_gb != 100
+                    || plan.amount != 800
+                    || plan.renewal_amount != Some(1350)
+                {
+                    return Err(CatalogueError::Introductory(name()));
+                }
+                has_intro = true;
             }
             if !page(&plan.payment_link, PAYMENT_PAGES) {
                 return Err(CatalogueError::PaymentLink(name()));
@@ -327,6 +370,8 @@ impl Catalogue {
                 days: plan.days,
                 traffic_bytes: plan.traffic_gb * GB,
                 amount: plan.amount,
+                renewal_amount: plan.renewal_amount,
+                introductory: plan.introductory,
                 currency,
                 payment_link: plan.payment_link,
                 payment_link_id: plan.payment_link_id,

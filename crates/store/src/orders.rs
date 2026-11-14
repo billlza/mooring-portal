@@ -17,12 +17,13 @@ use portal_core::snapshot::MooringUserId;
 use portal_core::time::UnixTime;
 use rusqlite::{Connection, OptionalExtension as _, Row, TransactionBehavior, params};
 
+use crate::introductory::{intro_state, recurring_waits};
 use crate::rows::{
     corrupt, count_from_sql, count_to_sql, order_from_sql, time_from_sql, time_to_sql,
     user_from_sql,
 };
 use crate::sessions::session_account_id;
-use crate::{AccountId, Store, StoreError};
+use crate::{AccountId, IntroState, Store, StoreError};
 
 /// An order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +93,9 @@ pub enum OrderError {
     /// subscription that Stripe may charge again.
     #[error("the account already has a plan that renews by itself")]
     Renewing,
+    /// The bound Mooring user has no available introductory offer.
+    #[error("this Mooring user does not have an available introductory offer")]
+    Introductory,
     /// The database failed.
     #[error(transparent)]
     Store(#[from] StoreError),
@@ -107,7 +111,8 @@ impl From<rusqlite::Error> for OrderError {
 /// has said of its payment (`stripe_payments p`).
 pub(crate) const ORDER_COLUMNS: &str =
     "o.id, o.mooring_user, o.plan, o.plan_kind, o.days, o.traffic_bytes, o.amount, o.currency,
-     o.payment_link_id, o.created_at, o.paid_at, o.state, o.review_reason, o.renewal_of,
+     o.payment_link_id, o.renewal_amount, o.created_at, o.paid_at, o.state, o.review_reason,
+     o.renewal_of,
      (SELECT e.seq FROM entitlements e WHERE e.order_id = o.id AND e.kind = 'grant'),
      COALESCE((SELECT pulled_through FROM pull_access WHERE id = 1), 0),
      COALESCE(p.refunded_amount, 0), COALESCE(p.refunded_in_full, 0),
@@ -117,7 +122,7 @@ pub(crate) const ORDER_TABLES: &str =
     "orders o LEFT JOIN stripe_payments p ON p.payment_intent = o.payment_intent";
 /// How many columns [`ORDER_COLUMNS`] names: what follows them in a query
 /// starts here.
-pub(crate) const ORDER_WIDTH: usize = 19;
+pub(crate) const ORDER_WIDTH: usize = 20;
 
 /// Whether `orders o`, joined as [`ORDER_TABLES`], has money in the air:
 /// it is paid and neither in the journal nor returned (refunded in full,
@@ -177,6 +182,7 @@ pub(crate) struct TermsRow {
     amount: i64,
     currency: String,
     payment_link_id: String,
+    renewal_amount: Option<i64>,
 }
 
 /// Reads the columns of [`ORDER_COLUMNS`].
@@ -185,20 +191,20 @@ pub(crate) fn order_row(row: &Row<'_>) -> rusqlite::Result<OrderRow> {
         id: row.get(0)?,
         user: row.get(1)?,
         terms: terms_row(row, 2)?,
-        created_at: row.get(9)?,
-        paid_at: row.get(10)?,
-        state: row.get(11)?,
-        review_reason: row.get(12)?,
-        renewal_of: row.get(13)?,
-        granted: row.get(14)?,
-        pulled_through: row.get(15)?,
-        refunded: row.get(16)?,
-        refunded_in_full: row.get(17)?,
-        disputed: row.get(18)?,
+        created_at: row.get(10)?,
+        paid_at: row.get(11)?,
+        state: row.get(12)?,
+        review_reason: row.get(13)?,
+        renewal_of: row.get(14)?,
+        granted: row.get(15)?,
+        pulled_through: row.get(16)?,
+        refunded: row.get(17)?,
+        refunded_in_full: row.get(18)?,
+        disputed: row.get(19)?,
     })
 }
 
-/// Reads an order's seven columns of terms, the first at `from`.
+/// Reads an order's eight columns of terms, the first at `from`.
 pub(crate) fn terms_row(row: &Row<'_>, from: usize) -> rusqlite::Result<TermsRow> {
     Ok(TermsRow {
         plan: row.get(from)?,
@@ -208,6 +214,7 @@ pub(crate) fn terms_row(row: &Row<'_>, from: usize) -> rusqlite::Result<TermsRow
         amount: row.get(from + 4)?,
         currency: row.get(from + 5)?,
         payment_link_id: row.get(from + 6)?,
+        renewal_amount: row.get(from + 7)?,
     })
 }
 
@@ -223,6 +230,10 @@ impl TermsRow {
                 .map_err(|_| invalid("order's days", &self.days.to_string()))?,
             traffic_bytes: count_from_sql(self.traffic_bytes, "order's traffic")?,
             amount: count_from_sql(self.amount, "order's amount")?,
+            renewal_amount: self
+                .renewal_amount
+                .map(|amount| count_from_sql(amount, "order's renewal amount"))
+                .transpose()?,
             currency: Currency::parse(&self.currency)
                 .ok_or_else(|| invalid("order's currency", &self.currency))?,
             payment_link_id: self.payment_link_id,
@@ -266,11 +277,19 @@ impl OrderRow {
     }
 }
 
-/// An order's terms as its row's seven columns: plan, kind, days,
-/// traffic, amount, currency and payment page.
-pub(crate) type TermsColumns<'a> = (&'a str, &'static str, i64, i64, i64, &'static str, &'a str);
+/// An order's terms as its row's eight columns.
+pub(crate) type TermsColumns<'a> = (
+    &'a str,
+    &'static str,
+    i64,
+    i64,
+    i64,
+    &'static str,
+    &'a str,
+    Option<i64>,
+);
 
-/// `terms` as the seven columns of an order's row.
+/// `terms` as the eight columns of an order's row.
 pub(crate) fn terms_to_sql(terms: &OrderTerms) -> Result<TermsColumns<'_>, StoreError> {
     Ok((
         terms.plan.as_str(),
@@ -280,6 +299,10 @@ pub(crate) fn terms_to_sql(terms: &OrderTerms) -> Result<TermsColumns<'_>, Store
         count_to_sql(terms.amount, "order's amount")?,
         terms.currency.as_str(),
         terms.payment_link_id.as_str(),
+        terms
+            .renewal_amount
+            .map(|amount| count_to_sql(amount, "order's renewal amount"))
+            .transpose()?,
     ))
 }
 
@@ -308,6 +331,28 @@ impl Store {
         fresh: OrderId,
         now: UnixTime,
     ) -> Result<OrderId, OrderError> {
+        self.place(session, terms, fresh, now, false)
+    }
+
+    /// Places an order on a private offer, checking the Mooring binding in the write transaction.
+    pub fn place_introductory_order(
+        &mut self,
+        session: &TokenDigest,
+        terms: &OrderTerms,
+        fresh: OrderId,
+        now: UnixTime,
+    ) -> Result<OrderId, OrderError> {
+        self.place(session, terms, fresh, now, true)
+    }
+
+    fn place(
+        &mut self,
+        session: &TokenDigest,
+        terms: &OrderTerms,
+        fresh: OrderId,
+        now: UnixTime,
+        introductory: bool,
+    ) -> Result<OrderId, OrderError> {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -324,13 +369,24 @@ impl Store {
         let Some(user) = user else {
             return Err(OrderError::Unbound);
         };
-        if terms.kind.renews() && renewing(&tx, account)? {
+        if terms.kind.renews() && (renewing(&tx, account)? || recurring_waits(&tx, &user)?) {
             return Err(OrderError::Renewing);
         }
+        let terms = if introductory {
+            let IntroState::Available(link) = intro_state(&tx, account)? else {
+                return Err(OrderError::Introductory);
+            };
+            OrderTerms {
+                payment_link_id: link.id.as_str().to_owned(),
+                ..terms.clone()
+            }
+        } else {
+            terms.clone()
+        };
         let unpaid = tx
             .query_row(
                 "SELECT id, mooring_user, plan, plan_kind, days, traffic_bytes, amount, currency,
-                        payment_link_id
+                        payment_link_id, renewal_amount
                  FROM orders WHERE account_id = ?1 AND plan = ?2 AND state = 'pending'",
                 params![account.0, terms.plan.as_str()],
                 |row| {
@@ -343,16 +399,17 @@ impl Store {
             )
             .optional()?;
         if let Some((id, placed_for, placed_on)) = unpaid {
-            if placed_for == user && placed_on.checked()? == *terms {
+            if placed_for == user && placed_on.checked()? == terms {
                 return Ok(order_from_sql(&id)?);
             }
             tx.execute("DELETE FROM orders WHERE id = ?1", [&id])?;
         }
-        let (plan, kind, days, traffic_bytes, amount, currency, link) = terms_to_sql(terms)?;
+        let (plan, kind, days, traffic_bytes, amount, currency, link, renewal_amount) =
+            terms_to_sql(&terms)?;
         tx.execute(
             "INSERT INTO orders (id, account_id, mooring_user, plan, plan_kind, days,
-                 traffic_bytes, amount, currency, payment_link_id, created_at, state)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'pending')",
+                 traffic_bytes, amount, currency, payment_link_id, renewal_amount, created_at, state)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'pending')",
             params![
                 fresh.as_str(),
                 account.0,
@@ -364,9 +421,16 @@ impl Store {
                 amount,
                 currency,
                 link,
+                renewal_amount,
                 time_to_sql(now),
             ],
         )?;
+        if introductory {
+            tx.execute(
+                "UPDATE introductory_offers SET order_id = ?2 WHERE mooring_user = ?1",
+                params![user, fresh.as_str()],
+            )?;
+        }
         tx.commit()?;
         Ok(fresh)
     }

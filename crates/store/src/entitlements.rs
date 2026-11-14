@@ -194,7 +194,7 @@ impl Store {
             .prepare(
                 "SELECT e.seq, e.kind, e.amount, e.in_full, e.recorded_at, o.id, o.mooring_user,
                         o.paid_at, o.renewal_of, o.plan, o.plan_kind, o.days, o.traffic_bytes,
-                        o.amount, o.currency, o.payment_link_id
+                        o.amount, o.currency, o.payment_link_id, o.renewal_amount
                  FROM entitlements e JOIN orders o ON o.id = e.order_id
                  WHERE e.seq > ?1 ORDER BY e.seq LIMIT ?2",
             )?

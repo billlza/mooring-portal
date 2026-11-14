@@ -12,7 +12,7 @@ use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
 use portal_store::{
     ApproveError, BanError, BindError, DeleteError, DiscardError, DismissError, ImportError,
-    ProfileImportError, StoreError, UnbindError,
+    IntroError, ProfileImportError, StoreError, UnbindError,
 };
 use portal_web::{OriginError, SecretCount, StartupError};
 
@@ -50,6 +50,9 @@ pub enum CommandError {
     /// An approval was refused.
     #[error(transparent)]
     Approve(#[from] ApproveError),
+    /// An introductory offer could not be issued.
+    #[error(transparent)]
+    Intro(#[from] IntroError),
     /// A rehearsal was not discarded.
     #[error(transparent)]
     Discard(#[from] DiscardError),

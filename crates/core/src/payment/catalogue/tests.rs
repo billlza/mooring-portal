@@ -95,6 +95,8 @@ fn a_catalogue_holds_its_plans_in_the_operators_order() {
             // Gigabytes are decimal, as quotas are set.
             traffic_bytes: 50_000_000_000,
             amount: 400,
+            renewal_amount: None,
+            introductory: false,
             currency: Currency::parse("gbp").unwrap(),
             payment_link: "https://buy.stripe.com/test_ccc".to_owned(),
             payment_link_id: "plink_1ccc".to_owned(),
@@ -109,6 +111,30 @@ fn a_catalogue_holds_its_plans_in_the_operators_order() {
 fn a_catalogue_says_whether_its_pages_take_real_payments() {
     let live = Catalogue::parse(&catalogue(&three(), &[("livemode", "true")])).unwrap();
     assert!(live.livemode());
+}
+
+#[test]
+fn an_introductory_price_is_allowed_only_on_a_test_subscription() {
+    let written = |kind, amount, changes: &[(&str, &str)]| {
+        catalogue(
+            &[plan("offer", kind, "aaa", &[("renewal_amount", amount)])],
+            changes,
+        )
+    };
+    let parsed = Catalogue::parse(&written("month_auto", "1350", &[])).unwrap();
+    assert_eq!(parsed.plans()[0].renewal_amount, Some(1350));
+    for bad in [
+        written("month_auto", "0", &[]),
+        written("month_auto", "10000001", &[]),
+        written("month", "1350", &[]),
+        written("traffic", "1350", &[]),
+        written("month_auto", "1350", &[("livemode", "true")]),
+    ] {
+        assert_eq!(
+            Catalogue::parse(&bad),
+            Err(CatalogueError::RenewalAmount("offer".to_owned()))
+        );
+    }
 }
 
 #[test]

@@ -22,6 +22,7 @@ fn terms(plan: &str, kind: PlanKind, days: u32, gigabytes: u64, amount: u64) -> 
         days,
         traffic_bytes: gigabytes * 1_000_000_000,
         amount,
+        renewal_amount: None,
         currency: gbp(),
         payment_link_id: format!("plink_1{plan}").replace('-', ""),
     }
@@ -115,6 +116,7 @@ pub(super) fn record_all(store: &mut Store, events: &[Event]) {
 pub(super) fn checkout(n: u8, order: OrderId, terms: &OrderTerms) -> CheckoutSession {
     let renews = terms.kind.renews();
     CheckoutSession {
+        customer: None,
         id: sid(&format!("cs_{n}")),
         order: Some(order),
         payment_link: Some(sid(&terms.payment_link_id)),
@@ -208,6 +210,7 @@ pub(super) fn invoiced(
     amount_paid: u64,
 ) -> EventKind {
     EventKind::InvoicePaid(Invoice {
+        introductory_order: None,
         id: sid(invoice),
         subscription: sid(subscription),
         reason,

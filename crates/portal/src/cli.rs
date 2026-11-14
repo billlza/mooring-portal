@@ -118,6 +118,23 @@ pub(crate) enum Command {
     /// the subscriptions Stripe may charge again, the latest orders, and
     /// how far Mooring has pulled.
     Orders,
+    /// Offer a single-use sandbox link to a confirmed new Mooring user.
+    IssueIntroOffer {
+        /// Portal account code.
+        #[arg(long, value_parser = account_code)]
+        account: AccountCode,
+        /// Mooring id, verified as new before issuing an offer.
+        #[arg(long, value_parser = mooring_user)]
+        user: MooringUserId,
+        /// Stripe Payment Link id.
+        #[arg(long, value_parser = stripe_id)]
+        link_id: StripeId,
+        /// HTTPS Stripe test Payment Link URL.
+        #[arg(long)]
+        link: String,
+    },
+    /// Show paid introductory orders to schedule and customer non-renewal requests.
+    IntroPayments,
     /// Let an order through the one thing it waits for, which `orders`
     /// shows. An order in review for its checkout is judged by its card
     /// next; one whose card could not be checked, or was never told of,

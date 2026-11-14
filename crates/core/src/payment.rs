@@ -26,7 +26,8 @@ pub mod stripe;
 mod terms;
 
 pub use catalogue::{
-    Catalogue, CatalogueError, Currency, MAX_CATALOGUE_BYTES, Plan, PlanId, PlanKind,
+    Catalogue, CatalogueError, Currency, INTRO_PERIOD_SECS, INTRO_PERIODS, MAX_CATALOGUE_BYTES,
+    Plan, PlanId, PlanKind,
 };
 pub use order::{OrderId, OrderIdError};
 pub use terms::{CardVerdict, OrderTerms, ReviewReason};

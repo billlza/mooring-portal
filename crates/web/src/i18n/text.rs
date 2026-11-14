@@ -275,6 +275,15 @@ pub(crate) struct PayText {
     pub(crate) terms_month: &'static str,
     pub(crate) terms_month_auto: &'static str,
     pub(crate) terms_traffic: &'static str,
+    /// First price, renewal price, then the number of days between renewals.
+    pub(crate) intro_price: &'static str,
+    pub(crate) intro_contract: &'static str,
+    pub(crate) intro_renews: &'static str,
+    pub(crate) intro_pending: &'static str,
+    pub(crate) intro_confirmed: &'static str,
+    pub(crate) intro_ended: &'static str,
+    pub(crate) intro_unavailable: &'static str,
+    pub(crate) intro_stop: &'static str,
     pub(crate) to_buy: &'static str,
     /// The catalogue's payment pages take no real payments.
     pub(crate) test_mode: &'static str,

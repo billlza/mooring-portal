@@ -3,11 +3,12 @@
 use askama::Template;
 use axum::extract::State;
 use axum::response::Response;
-use portal_store::{StoreError, Subscription};
+use portal_store::{IntroError, StoreError, Subscription};
 use serde::Deserialize;
 
-use super::{Chrome, Page, PageContext, PageQuery, login_first, render};
+use super::{Chrome, Page, PageContext, PageQuery, auth::NoFields, login_first, render, see_other};
 use crate::error::AppError;
+use crate::security::csrf::VerifiedForm;
 use crate::state::AppState;
 use crate::view::{CfmPanel, ShopView, SubscriptionView};
 
@@ -62,9 +63,11 @@ pub(crate) async fn subscription(
             let subscription = store.subscription(id)?;
             // Only a bound account can order, so only one has a shop.
             let bought = match (&subscription, selling) {
-                (Subscription::Bound { .. }, true) => {
-                    Some((store.orders_of(id, ORDERS_SHOWN)?, store.renewals_of(id)?))
-                }
+                (Subscription::Bound { .. }, true) => Some((
+                    store.orders_of(id, ORDERS_SHOWN)?,
+                    store.renewals_of(id)?,
+                    store.introductory_offer(id)?,
+                )),
                 _ => None,
             };
             Ok((subscription, store.cfm_delivery(id)?, bought))
@@ -79,8 +82,15 @@ pub(crate) async fn subscription(
     let shop = state
         .payments()
         .zip(bought)
-        .map(|(payments, (orders, renewals))| {
-            ShopView::of(payments.catalogue(), &orders, &renewals, t)
+        .map(|(payments, (orders, renewals, intro))| {
+            ShopView::with_intro(
+                payments.catalogue(),
+                &orders,
+                &renewals,
+                t,
+                &intro,
+                Some(now),
+            )
         });
     render(&SubscriptionPage {
         notice: query.notice.and_then(|notice| match notice {
@@ -96,4 +106,27 @@ pub(crate) async fn subscription(
         shop,
         chrome: ctx.chrome(Page::Subscription),
     })
+}
+
+/// The authenticated owner asks Stripe to stop at the end of the initial term.
+pub(crate) async fn stop_introductory_renewal(
+    State(state): State<AppState>,
+    ctx: PageContext,
+    VerifiedForm(_): VerifiedForm<NoFields>,
+) -> Result<Response, AppError> {
+    state.selling()?;
+    let Some(account) = ctx.account else {
+        return Ok(login_first(Page::Subscription));
+    };
+    let now = state.now()?;
+    match state
+        .database()
+        .run(move |store| store.request_introductory_stop(account.id, now))
+        .await?
+    {
+        Ok(()) => Ok(see_other("/subscription")),
+        Err(IntroError::NoContract) => Err(AppError::NotFound),
+        Err(IntroError::TooLate) => Err(AppError::BadRequest("the initial term already ended")),
+        Err(err) => Err(AppError::internal(err)),
+    }
 }

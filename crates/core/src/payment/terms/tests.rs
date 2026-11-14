@@ -41,6 +41,7 @@ fn gbp() -> Option<Currency> {
 /// The checkout an order for the one-payment plan `link` asks for.
 fn paid_once(link: &str, amount: u64) -> CheckoutSession {
     CheckoutSession {
+        customer: None,
         id: id("cs_test_1"),
         order: None,
         payment_link: Some(id(link)),
@@ -75,6 +76,7 @@ fn an_orders_terms_are_its_plans_when_it_was_placed() {
             days: 90,
             traffic_bytes: 50_000_000_000,
             amount: 300,
+            renewal_amount: None,
             currency: Currency::parse("gbp").unwrap(),
             payment_link_id: "plink_1Pack".to_owned(),
         }
@@ -239,6 +241,7 @@ fn a_payment_of_another_price_is_not_the_orders() {
 fn a_renewal_is_accepted_at_the_orders_price_only() {
     let auto = terms("auto");
     let invoice = |amount_paid, currency| Invoice {
+        introductory_order: None,
         id: id("in_2"),
         subscription: id("sub_1"),
         reason: BillingReason::Cycle,

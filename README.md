@@ -139,6 +139,8 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 |---|---|
 | `accounts` | 列出账号：编号、注册时间（UTC）、绑定的 Mooring 用户、邮箱 |
 | `bound-users` | 按编号顺序输出一行 `--user <编号> …`，即全部已绑定账号的 Mooring 用户，直接接在 Mooring 的导出命令后面（Mooring 的配置包和快照导出都用 `--user` 点名） |
+| `issue-intro-offer --account <编号> --user <编号> --link-id <plink_…> --link <测试网址>` | 运营者确认是 Mooring 新用户后，给已绑定账号发一次性沙盒首期优惠 |
+| `intro-payments` | 列出待在 Stripe 创建的沙盒首期续费日程和未确认的期满不续请求 |
 | `bind --account <编号> --user <用户编号>` | 绑定。一个账号只能绑一个用户，反过来也一样 |
 | `unbind --account <编号>` | 解绑，并删除该用户在门户上的快照记录、CFM 配置和订阅链接。订单留着；账号有 Stripe 还可能扣款的订阅时会提醒：它已经没有 Mooring 用户可以开通了 |
 | `import <文件>` | 导入快照：只保留已绑定用户；报告未绑定的人数，以及快照里缺少的已绑定用户 |

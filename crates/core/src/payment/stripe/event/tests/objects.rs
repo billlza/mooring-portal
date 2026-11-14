@@ -107,6 +107,7 @@ fn invoiced(changes: &[(&str, &str)]) -> EventKind {
 fn an_invoice_says_which_subscription_it_bills_and_why() {
     let invoice = |reason, amount_paid, currency| {
         EventKind::InvoicePaid(Invoice {
+            introductory_order: None,
             id: id("in_1"),
             subscription: id("sub_1"),
             reason,

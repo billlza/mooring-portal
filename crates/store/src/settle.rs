@@ -42,7 +42,10 @@ const GRANTED: &str =
 const PASSED: &str = "o.state = 'paid'
      AND (o.card_passed = 1 OR p.card = 'clear')
      AND COALESCE(p.refunded_in_full, 0) = 0
-     AND p.disputed_amount IS NULL";
+     AND p.disputed_amount IS NULL
+     AND NOT EXISTS (SELECT 1 FROM introductory_offers f WHERE f.order_id = o.id
+                      AND (f.paid_at IS NULL OR f.schedule IS NULL
+                           OR (f.schedule_state = 'ended' AND f.schedule_ends = 0)))";
 /// Whether the account of `orders o` is bound to the Mooring user the
 /// order names.
 const BOUND: &str = "EXISTS (SELECT 1 FROM bindings b
@@ -150,6 +153,11 @@ pub(crate) fn settle(tx: &Transaction<'_>, now: UnixTime) -> Result<(), StoreErr
     // 6.
     let before = now_sql - FORGET_AFTER_SECS;
     tx.execute("DELETE FROM stripe_events WHERE received_at < ?1", [before])?;
+    tx.execute(
+        "DELETE FROM intro_paid_intents WHERE paid_at < ?1 AND NOT EXISTS (
+                    SELECT 1 FROM introductory_offers f WHERE f.paid_intent = payment)",
+        [before],
+    )?;
     for (table, key) in [
         ("stripe_payments", "payment_intent"),
         ("stripe_invoice_payments", "invoice"),

@@ -112,6 +112,7 @@ fn checkout(
     invoice: Option<&str>,
 ) -> EventKind {
     EventKind::CheckoutCompleted(CheckoutSession {
+        customer: None,
         id: id(session),
         order: Some(order(ORDER)),
         payment_link: Some(id(link)),
@@ -134,6 +135,7 @@ fn charged(payment_intent: &str) -> EventKind {
 
 fn invoiced(invoice: &str, reason: BillingReason) -> EventKind {
     EventKind::InvoicePaid(Invoice {
+        introductory_order: None,
         id: id(invoice),
         subscription: id("sub_1SynthAuto"),
         reason,

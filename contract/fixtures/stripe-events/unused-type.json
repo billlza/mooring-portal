@@ -10,7 +10,7 @@
       "amount": 800,
       "currency": "gbp",
       "receipt_email": "payer@example.test",
-      "status": "succeeded"
+      "status": "processing"
     }
   },
   "livemode": false,
@@ -19,5 +19,5 @@
     "id": null,
     "idempotency_key": null
   },
-  "type": "payment_intent.succeeded"
+  "type": "payment_intent.processing"
 }

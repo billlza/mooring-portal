@@ -111,6 +111,7 @@ pub(crate) async fn plans(
             plans: catalogue
                 .plans()
                 .iter()
+                .filter(|plan| !plan.introductory)
                 .map(|plan| PlanView::of(plan, false, t))
                 .collect(),
             test_mode: !catalogue.livemode(),

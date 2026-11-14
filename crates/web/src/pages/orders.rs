@@ -17,7 +17,7 @@ use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use portal_core::payment::{OrderId, OrderTerms};
-use portal_store::{OrderError, StoreError};
+use portal_store::{IntroState, OrderError, StoreError};
 use serde::Deserialize;
 
 use super::{Chrome, Page, PageContext, login_first, render, see_other};
@@ -60,18 +60,26 @@ pub(crate) async fn place(
         return Ok(see_other("/subscription?notice=plan_gone"));
     };
     let terms = OrderTerms::of(plan);
+    let introductory = plan.introductory;
     let session = session.digest();
     let fresh = OrderId::generate().map_err(AppError::internal)?;
     let now = state.now()?;
     let placed = state
         .database()
-        .run(move |store| store.place_order(&session, &terms, fresh, now))
+        .run(move |store| {
+            if introductory {
+                store.place_introductory_order(&session, &terms, fresh, now)
+            } else {
+                store.place_order(&session, &terms, fresh, now)
+            }
+        })
         .await?;
     match placed {
         Ok(order) => Ok(see_other(&format!("{ORDER_PREFIX}{order}"))),
         Err(OrderError::SignedOut) => Ok(login_first(Page::Subscription)),
         Err(OrderError::Unbound) => Ok(see_other("/subscription?notice=order_unbound")),
         Err(OrderError::Renewing) => Ok(see_other("/subscription?notice=order_renewing")),
+        Err(OrderError::Introductory) => Err(AppError::NotFound),
         Err(OrderError::Store(error)) => Err(AppError::internal(error)),
     }
 }
@@ -91,10 +99,14 @@ pub(crate) async fn show(
         return Err(AppError::NotFound);
     };
     let account = account.id;
-    let (order, binding) = state
+    let (order, binding, intro) = state
         .database()
         .run(move |store| -> Result<_, StoreError> {
-            Ok((store.order_of(account, &id)?, store.binding(account)?))
+            Ok((
+                store.order_of(account, &id)?,
+                store.binding(account)?,
+                store.introductory_offer(account)?,
+            ))
         })
         .await?
         .map_err(AppError::internal)?;
@@ -102,12 +114,17 @@ pub(crate) async fn show(
         return Err(AppError::NotFound);
     };
     let catalogue = payments.catalogue();
+    let private_link = match intro {
+        IntroState::Available(link) => Some(link),
+        _ => None,
+    };
     render(&OrderPage {
-        pay: PayAction::of(
+        pay: PayAction::with_intro(
             &order,
             catalogue,
             binding.as_ref().map(|binding| &binding.user),
             ctx.lang,
+            private_link.as_ref(),
         ),
         order: OrderView::of(&order, ctx.t()),
         test_mode: !catalogue.livemode(),

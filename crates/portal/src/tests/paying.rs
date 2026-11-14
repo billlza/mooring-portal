@@ -106,6 +106,7 @@ pub(super) fn checkout(n: u8, order: OrderId, plan: &str) -> CheckoutSession {
     let terms = terms(plan);
     let renews = terms.kind.renews();
     CheckoutSession {
+        customer: None,
         id: sid(&format!("cs_{n}")),
         order: Some(order),
         payment_link: Some(sid(&terms.payment_link_id)),

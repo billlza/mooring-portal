@@ -5,6 +5,7 @@
 
 mod cli;
 mod error;
+mod introductory;
 mod operator;
 mod payments;
 mod serve;
@@ -94,6 +95,18 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
         }
         Command::Unban { email } => with_store(&mut |store| operator::unban(store, &email, out)),
         Command::Orders => with_store(&mut |store| payments::orders(store, out)),
+        Command::IntroPayments => with_store(&mut |store| introductory::list(store, out)),
+        Command::IssueIntroOffer {
+            account,
+            user,
+            link_id,
+            link,
+        } => with_store(&mut |store| {
+            let link = portal_store::IntroLink::parse(link_id.clone(), link.clone())?;
+            store.issue_introductory_offer(&account, &user, &link)?;
+            writeln!(out, "issued one sandbox offer for Mooring user {user}")?;
+            Ok(())
+        }),
         Command::ApproveOrder { order } => {
             with_store(&mut |store| payments::approve_order(store, clock, &order, out))
         }

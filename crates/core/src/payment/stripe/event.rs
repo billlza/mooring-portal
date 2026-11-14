@@ -17,6 +17,7 @@ use serde::Deserialize;
 use serde::de::{DeserializeOwned, IgnoredAny};
 use serde_json::value::RawValue;
 
+use super::schedule::{IntroPayment, ScheduleChange, read_intro_payment, read_schedule};
 use super::{CardFingerprint, StripeId};
 use crate::json::Malformation;
 use crate::payment::catalogue::Currency;
@@ -82,6 +83,10 @@ pub enum EventKind {
     /// A subscription changed or ended (`customer.subscription.updated`,
     /// `customer.subscription.deleted`).
     SubscriptionChanged(SubscriptionChange),
+    /// A Billing schedule associated with a paid introductory order changed.
+    ScheduleChanged(ScheduleChange),
+    /// A first-period Payment Link charge saved the card for later payments.
+    IntroPaymentSucceeded(IntroPayment),
     /// Some or all of a payment was refunded (`charge.refunded`).
     ChargeRefunded(Refunded),
     /// A cardholder disputed a payment with their bank
@@ -101,6 +106,8 @@ pub struct CheckoutSession {
     pub order: Option<OrderId>,
     /// The Payment Link the checkout was made on.
     pub payment_link: Option<StripeId>,
+    /// Customer whose payment method is saved by the introductory checkout.
+    pub customer: Option<super::schedule::IntroCustomer>,
     /// What the checkout set up.
     pub mode: CheckoutMode,
     /// Whether its payment is made.
@@ -168,6 +175,8 @@ pub struct Invoice {
     pub id: StripeId,
     /// The subscription it bills.
     pub subscription: StripeId,
+    /// The operator's introductory order reference copied onto the subscription.
+    pub introductory_order: Option<OrderId>,
     /// Why Stripe made it.
     pub reason: BillingReason,
     /// What was paid, in the currency's hundredths.
@@ -282,6 +291,7 @@ struct WrittenSession {
     id: StripeId,
     client_reference_id: Option<String>,
     payment_link: Option<StripeId>,
+    customer: Option<StripeId>,
     mode: String,
     payment_status: String,
     amount_total: Option<u64>,
@@ -334,6 +344,12 @@ struct WrittenParent {
 #[derive(Deserialize)]
 struct WrittenSubscriptionDetails {
     subscription: StripeId,
+    metadata: Option<WrittenInvoiceMetadata>,
+}
+
+#[derive(Deserialize)]
+struct WrittenInvoiceMetadata {
+    moorlight_intro_order: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -379,8 +395,15 @@ impl Event {
             "charge.succeeded" => Some(charge),
             "invoice.paid" => Some(invoice),
             "invoice_payment.paid" => Some(invoice_payment),
+            "payment_intent.succeeded" => Some(read_intro_payment),
             "customer.subscription.updated" => Some(subscription_updated),
             "customer.subscription.deleted" => Some(subscription_deleted),
+            "subscription_schedule.created"
+            | "subscription_schedule.updated"
+            | "subscription_schedule.completed"
+            | "subscription_schedule.canceled"
+            | "subscription_schedule.released"
+            | "subscription_schedule.aborted" => Some(read_schedule),
             "charge.refunded" => Some(refunded),
             "charge.dispute.created" => Some(dispute),
             _ => None,
@@ -414,7 +437,7 @@ impl Event {
 type Reader = fn(&RawValue) -> Result<EventKind, EventError>;
 
 /// An object as its type's shape.
-fn written<T: DeserializeOwned>(object: &RawValue) -> Result<T, EventError> {
+pub(super) fn written<T: DeserializeOwned>(object: &RawValue) -> Result<T, EventError> {
     serde_json::from_str(object.get()).map_err(|error| EventError::Object(Malformation::of(&error)))
 }
 
@@ -429,6 +452,9 @@ fn checkout(object: &RawValue) -> Result<EventKind, EventError> {
             .as_deref()
             .and_then(|reference| OrderId::parse(reference).ok()),
         payment_link: session.payment_link,
+        customer: (session.mode == "payment")
+            .then_some(session.customer.map(super::schedule::IntroCustomer::from))
+            .flatten(),
         mode: match session.mode.as_str() {
             "payment" => CheckoutMode::Payment,
             "subscription" => CheckoutMode::Subscription,
@@ -475,16 +501,20 @@ fn invoice(object: &RawValue) -> Result<EventKind, EventError> {
     let invoice: WrittenInvoice = written(object)?;
     // An invoice that bills no subscription is not for anything the
     // portal sells.
-    let Some(subscription) = invoice
+    let Some(details) = invoice
         .parent
         .and_then(|parent| parent.subscription_details)
-        .map(|details| details.subscription)
     else {
         return Ok(EventKind::Unused);
     };
     Ok(EventKind::InvoicePaid(Invoice {
         id: invoice.id,
-        subscription,
+        subscription: details.subscription,
+        introductory_order: details.metadata.and_then(|metadata| {
+            metadata
+                .moorlight_intro_order
+                .and_then(|text| OrderId::parse(&text).ok())
+        }),
         reason: match invoice.billing_reason.as_deref() {
             Some("subscription_create") => BillingReason::Create,
             Some("subscription_cycle") => BillingReason::Cycle,

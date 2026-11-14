@@ -7,7 +7,7 @@
 use portal_core::payment::stripe::Renewal;
 use portal_core::payment::{Catalogue, OrderTerms, Plan, PlanKind};
 use portal_core::snapshot::MooringUserId;
-use portal_store::{AutoRenewal, Order, Progress};
+use portal_store::{AutoRenewal, IntroLink, IntroState, IntroStop, Order, Progress};
 
 use super::Tone;
 use crate::format::{beijing, bytes, money};
@@ -39,6 +39,21 @@ fn describe(terms: &OrderTerms, t: &Strings) -> (&'static str, String) {
     }
 }
 
+/// What the first order costs, and what it will cost to renew, if different.
+fn price(terms: &OrderTerms, t: &Strings) -> String {
+    let first = money(terms.amount, terms.currency);
+    let Some(renewal) = terms.renewal_amount else {
+        return first;
+    };
+    fill(
+        &fill(
+            &fill(t.pay.intro_price, first),
+            money(renewal, terms.currency),
+        ),
+        terms.days,
+    )
+}
+
 impl PlanView {
     /// `plan` as a page lists it; `renewing` says the account has a plan
     /// that renews by itself.
@@ -48,8 +63,12 @@ impl PlanView {
         Self {
             id: plan.id.to_string(),
             name,
-            terms: described,
-            price: money(plan.amount, plan.currency),
+            terms: if plan.introductory {
+                t.pay.intro_contract.to_owned()
+            } else {
+                described
+            },
+            price: price(&terms, t),
             blocked: renewing && plan.kind.renews(),
         }
     }
@@ -115,7 +134,7 @@ impl OrderView {
             id: order.id.to_string(),
             name,
             terms,
-            price: money(order.terms.amount, order.terms.currency),
+            price: price(&order.terms, t),
             placed: beijing(order.created_at),
             paid: order.paid_at.map(beijing),
             state,
@@ -140,25 +159,46 @@ pub(crate) enum PayAction {
 
 impl PayAction {
     /// What to offer for `order`, of an account now bound to `bound_to`.
+    #[cfg(test)]
     pub(crate) fn of(
         order: &Order,
         catalogue: &Catalogue,
         bound_to: Option<&MooringUserId>,
         lang: Lang,
     ) -> Self {
+        Self::with_intro(order, catalogue, bound_to, lang, None)
+    }
+
+    pub(crate) fn with_intro(
+        order: &Order,
+        catalogue: &Catalogue,
+        bound_to: Option<&MooringUserId>,
+        lang: Lang,
+        intro: Option<&IntroLink>,
+    ) -> Self {
         if order.progress != Progress::Pending {
             return Self::None;
         }
-        let standing = catalogue
-            .plan(order.terms.plan.as_str())
-            .filter(|plan| OrderTerms::of(plan) == order.terms)
-            .filter(|_| bound_to == Some(&order.user));
+        if bound_to != Some(&order.user) {
+            return Self::Stale;
+        }
+        let standing = catalogue.plan(order.terms.plan.as_str()).and_then(|plan| {
+            let mut terms = OrderTerms::of(plan);
+            let url = if plan.introductory {
+                let intro = intro?;
+                terms.payment_link_id = intro.id.as_str().to_owned();
+                &intro.url
+            } else {
+                &plan.payment_link
+            };
+            (terms == order.terms).then_some(url)
+        });
         match standing {
             // The order's id rides to Stripe and back as the payment's
             // reference. Neither it nor the language needs escaping.
-            Some(plan) => Self::Pay(format!(
+            Some(url) => Self::Pay(format!(
                 "{}?client_reference_id={}&locale={}",
-                plan.payment_link,
+                url,
                 order.id,
                 lang.code()
             )),
@@ -177,6 +217,8 @@ pub(crate) struct ShopView {
     pub(crate) renewal: Option<&'static str>,
     /// Where such a plan is managed, at Stripe.
     pub(crate) manage_url: Option<String>,
+    pub(crate) intro_message: Option<String>,
+    pub(crate) can_stop_intro: bool,
     pub(crate) orders: Vec<OrderView>,
     /// The catalogue's payment pages take no real payments.
     pub(crate) test_mode: bool,
@@ -184,13 +226,43 @@ pub(crate) struct ShopView {
 
 impl ShopView {
     /// The shop of an account with `orders` and `renewals`.
+    #[cfg(test)]
     pub(crate) fn of(
         catalogue: &Catalogue,
         orders: &[Order],
         renewals: &[AutoRenewal],
         t: &Strings,
     ) -> Self {
+        Self::with_intro(catalogue, orders, renewals, t, &IntroState::None, None)
+    }
+
+    pub(crate) fn with_intro(
+        catalogue: &Catalogue,
+        orders: &[Order],
+        renewals: &[AutoRenewal],
+        t: &Strings,
+        intro: &IntroState,
+        now: Option<portal_core::time::UnixTime>,
+    ) -> Self {
         let renewing = !renewals.is_empty();
+        let (intro_message, can_stop_intro, lock_cancel) = match intro {
+            IntroState::Claimed { end, stop } => {
+                let before_end = now.is_some_and(|now| now < *end);
+                let msg = match stop {
+                    IntroStop::Renewing => t.pay.intro_renews,
+                    IntroStop::Pending => t.pay.intro_pending,
+                    IntroStop::Confirmed => t.pay.intro_confirmed,
+                    IntroStop::Ended => t.pay.intro_ended,
+                    IntroStop::Unavailable => t.pay.intro_unavailable,
+                };
+                (
+                    Some(fill(msg, beijing(*end))),
+                    before_end && *stop == IntroStop::Renewing,
+                    before_end,
+                )
+            }
+            _ => (None, false, false),
+        };
         // Stripe will charge again unless every one of them is ending.
         let renewal = renewing.then(|| {
             if renewals
@@ -206,12 +278,15 @@ impl ShopView {
             plans: catalogue
                 .plans()
                 .iter()
-                .map(|plan| PlanView::of(plan, renewing, t))
+                .filter(|plan| !plan.introductory || matches!(intro, IntroState::Available(_)))
+                .map(|plan| PlanView::of(plan, renewing || lock_cancel, t))
                 .collect(),
             renewal,
-            manage_url: renewing
+            manage_url: (renewing && !lock_cancel)
                 .then(|| catalogue.manage_url().map(str::to_owned))
                 .flatten(),
+            intro_message,
+            can_stop_intro,
             orders: orders.iter().map(|order| OrderView::of(order, t)).collect(),
             test_mode: !catalogue.livemode(),
         }

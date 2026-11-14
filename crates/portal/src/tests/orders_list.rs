@@ -172,6 +172,7 @@ fn a_subscription_whose_end_stripe_never_reports_is_taken_off_by_naming_it() {
     let fixture = Fixture::new();
     let renewal = |n: u8| {
         EventKind::InvoicePaid(Invoice {
+            introductory_order: None,
             id: sid(&format!("in_{n}")),
             subscription: sid("sub_7"),
             reason: BillingReason::Cycle,
@@ -317,6 +318,7 @@ fn every_reason_to_wait_is_said_in_words() {
     };
     let invoice = |id: &str, subscription: &str, reason| {
         EventKind::InvoicePaid(Invoice {
+            introductory_order: None,
             id: sid(id),
             subscription: sid(subscription),
             reason,

@@ -8,6 +8,7 @@ mod cfm_races;
 mod csrf;
 mod failures;
 mod home;
+mod introductory;
 mod logs;
 mod machines;
 mod misc;

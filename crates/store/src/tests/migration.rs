@@ -3,9 +3,14 @@
 
 use rusqlite::{Connection, params};
 
+use super::paying::{
+    auto, charged, customer, event, invoice_paid_by, invoiced, oid, record_all, sid,
+};
 use super::*;
 use crate::schema::MIGRATIONS;
-use crate::{CfmDelivery, LinkedProfile, OpenMode, Subscription};
+use crate::{CfmDelivery, LinkedProfile, OpenMode, Progress, Subscription};
+use portal_core::payment::OrderId;
+use portal_core::payment::stripe::BillingReason;
 
 #[test]
 fn a_version_1_database_keeps_its_data_and_gains_profiles_and_links() {
@@ -83,4 +88,52 @@ fn a_version_1_database_keeps_its_data_and_gains_profiles_and_links() {
         })
         .unwrap();
     assert_eq!(violations, 0);
+}
+
+#[test]
+fn a_version_5_subscription_still_renews_at_its_original_price() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = new_file(&dir);
+    let first = oid(1);
+    let account = {
+        let conn = Connection::open(&path).unwrap();
+        for sql in &MIGRATIONS[..5] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 5).unwrap();
+        let mut store = Store { conn };
+        store.enter_payment_mode(false).unwrap();
+        let account = customer(&mut store, "a@qq.com", 1, "pilotusera");
+        store.conn.execute(
+            "INSERT INTO orders (id, account_id, mooring_user, plan, plan_kind, days, traffic_bytes,
+                 amount, currency, payment_link_id, created_at, state, paid_at, subscription)
+             VALUES (?1, ?2, 'pilotusera', 'auto', 'month_auto', 30, 100000000000,
+                 750, 'gbp', 'plink_1auto', ?3, 'paid', ?3, 'sub_1')",
+            params![first.as_str(), account.id.0, NOW.cast_signed()],
+        ).unwrap();
+        account.id
+    };
+    let mut store = Store::open(&path, OpenMode::Existing).unwrap();
+    let order = store.order_of(account, &first).unwrap().unwrap();
+    assert_eq!(order.terms, auto());
+    let cycle = 30 * 86_400;
+    record_all(
+        &mut store,
+        &[
+            event(
+                1,
+                cycle,
+                invoiced("in_2", "sub_1", BillingReason::Cycle, 750),
+            ),
+            event(2, cycle, invoice_paid_by("in_2", "pi_2")),
+            event(3, cycle, charged("pi_2", 1)),
+        ],
+    );
+    let renewal = store
+        .order_of(account, &OrderId::for_renewal(&sid("in_2")))
+        .unwrap()
+        .unwrap();
+    assert_eq!(renewal.terms, auto());
+    assert_eq!(renewal.renewal_of, Some(first));
+    assert_eq!(renewal.progress, Progress::Granted { pulled: false });
 }

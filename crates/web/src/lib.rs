@@ -70,6 +70,10 @@ pub fn router(state: AppState) -> Router {
     if selling {
         pages = pages
             .route("/subscription/orders", post(orders::place))
+            .route(
+                "/subscription/intro/non-renewal",
+                post(subscription::stop_introductory_renewal),
+            )
             .route("/subscription/orders/{*id}", get(orders::show));
     }
     let pages = pages.layer(middleware::from_fn(csrf::ensure_token));

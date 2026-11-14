@@ -97,6 +97,7 @@ fn an_event_is_its_id_its_time_its_mode_and_what_it_says() {
             created: UnixTime::from_secs(MADE).unwrap(),
             livemode: false,
             kind: EventKind::CheckoutCompleted(CheckoutSession {
+                customer: None,
                 id: id("cs_test_a1"),
                 order: Some(OrderId::parse(ORDER).unwrap()),
                 payment_link: Some(id("plink_1")),
@@ -140,7 +141,7 @@ fn nothing_that_says_who_paid_is_read() {
 #[test]
 fn a_type_the_portal_does_not_act_on_is_accepted_unread() {
     for kind in [
-        "payment_intent.succeeded",
+        "payment_intent.processing",
         "customer.created",
         "checkout.session.expired",
         "checkout.session.async_payment_failed",

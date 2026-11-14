@@ -172,6 +172,45 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          id INTEGER PRIMARY KEY CHECK (id = 1),
          livemode INTEGER NOT NULL CHECK (livemode IN (0, 1))
      ) STRICT;",
+    // 6: a first order can promise a different amount for renewals.
+    // Orders already on disk have one amount for both, as before.
+    "ALTER TABLE orders ADD COLUMN renewal_amount INTEGER
+         CHECK (renewal_amount IS NULL OR (
+             renewal_amount BETWEEN 1 AND 10000000
+             AND plan_kind = 'month_auto' AND renewal_of IS NULL
+         ));",
+    // 7: a private, one-use test offer belongs to a Mooring user, not a
+    // portal account or billing email. Keep the use marker through rebinding.
+    "CREATE TABLE introductory_offers (
+         mooring_user TEXT PRIMARY KEY,
+         link_url TEXT NOT NULL,
+         link_id TEXT NOT NULL UNIQUE,
+         order_id TEXT UNIQUE REFERENCES orders (id) ON DELETE SET NULL,
+         claimed_at INTEGER,
+         customer TEXT,
+         paid_intent TEXT,
+         paid_at INTEGER,
+         schedule TEXT UNIQUE,
+         term_end INTEGER,
+         schedule_state TEXT CHECK (schedule_state IN ('open','ended')),
+         schedule_ends INTEGER CHECK (schedule_ends IN (0,1)),
+         schedule_at INTEGER,
+         requested_at INTEGER,
+         CHECK ((schedule IS NULL) = (term_end IS NULL)),
+         CHECK ((schedule IS NULL) = (schedule_state IS NULL)),
+         CHECK ((schedule IS NULL) = (schedule_ends IS NULL)),
+         CHECK ((schedule IS NULL) = (schedule_at IS NULL))
+     ) STRICT;
+     CREATE TABLE intro_paid_intents (
+         payment TEXT PRIMARY KEY, customer TEXT NOT NULL, paid_at INTEGER NOT NULL
+     ) STRICT;
+     CREATE TABLE intro_schedule_notices (
+         order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+         schedule TEXT NOT NULL, customer TEXT NOT NULL, subscription TEXT,
+         starts INTEGER NOT NULL, ends INTEGER NOT NULL, noticed INTEGER NOT NULL,
+         state TEXT NOT NULL CHECK (state IN ('open','ended')), stops INTEGER NOT NULL CHECK (stops IN (0,1)),
+         PRIMARY KEY (order_id, schedule)
+     ) STRICT;",
 ];
 
 /// Applies the migrations the database lacks.

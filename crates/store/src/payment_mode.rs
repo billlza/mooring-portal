@@ -108,7 +108,10 @@ fn forget_stripe(conn: &Connection) -> Result<(), StoreError> {
         "DELETE FROM stripe_events;
          DELETE FROM stripe_payments;
          DELETE FROM stripe_invoice_payments;
-         DELETE FROM stripe_subscriptions;",
+         DELETE FROM stripe_subscriptions;
+         DELETE FROM intro_paid_intents;
+         DELETE FROM intro_schedule_notices;
+         DELETE FROM introductory_offers;",
     )?;
     Ok(())
 }
@@ -128,7 +131,8 @@ impl Store {
             Some(entered) => {
                 let holds: bool = tx.query_row(
                     "SELECT EXISTS (SELECT 1 FROM orders)
-                         OR EXISTS (SELECT 1 FROM stray_payments)",
+                         OR EXISTS (SELECT 1 FROM stray_payments)
+                         OR EXISTS (SELECT 1 FROM introductory_offers WHERE schedule_state = 'open')",
                     [],
                     |row| row.get(0),
                 )?;
@@ -160,6 +164,7 @@ impl Store {
         Ok(self.conn.query_row(
             &format!(
                 "SELECT EXISTS (SELECT 1 FROM {RENEWAL_TABLES} WHERE {RENEWS})
+                     OR EXISTS (SELECT 1 FROM introductory_offers WHERE schedule_state = 'open')
                      OR EXISTS (SELECT 1 FROM stray_payments sp WHERE {STRAY_NEEDS_CANCELLATION})
                      OR EXISTS (SELECT 1 FROM {ORDER_TABLES} WHERE {UNSETTLED})"
             ),

@@ -25,6 +25,9 @@ pub struct OrderTerms {
     pub traffic_bytes: u64,
     /// Its price, in the currency's hundredths.
     pub amount: u64,
+    /// For the order that starts a subscription, the price of each
+    /// renewal when different from `amount`.
+    pub renewal_amount: Option<u64>,
     /// Its currency.
     pub currency: Currency,
     /// The id of its payment page at Stripe.
@@ -41,6 +44,7 @@ impl OrderTerms {
             days: plan.days,
             traffic_bytes: plan.traffic_bytes,
             amount: plan.amount,
+            renewal_amount: plan.renewal_amount,
             currency: plan.currency,
             payment_link_id: plan.payment_link_id.clone(),
         }
@@ -49,6 +53,23 @@ impl OrderTerms {
     /// Whether `checkout` is the payment an order on these terms asked
     /// for; if not, the first thing about it that is not.
     pub fn accepts(&self, checkout: &CheckoutSession) -> Result<(), ReviewReason> {
+        self.accepts_mode(checkout, self.kind.renews())
+    }
+
+    /// The introductory contract pays its first period separately, then
+    /// starts Stripe Billing on the saved card at the next period.
+    pub fn accepts_introductory_payment(
+        &self,
+        checkout: &CheckoutSession,
+    ) -> Result<(), ReviewReason> {
+        self.accepts_mode(checkout, false)
+    }
+
+    fn accepts_mode(
+        &self,
+        checkout: &CheckoutSession,
+        renews_at_checkout: bool,
+    ) -> Result<(), ReviewReason> {
         if checkout.status != PaymentStatus::Paid {
             return Err(ReviewReason::Unpaid);
         }
@@ -62,7 +83,7 @@ impl OrderTerms {
         // A renewing plan is paid by a subscription, which bills by
         // invoice; anything else by one payment. Each must carry what the
         // card check and the renewals are found by.
-        let of_this_kind = if self.kind.renews() {
+        let of_this_kind = if renews_at_checkout {
             checkout.mode == CheckoutMode::Subscription
                 && checkout.subscription.is_some()
                 && checkout.invoice.is_some()
@@ -74,7 +95,7 @@ impl OrderTerms {
         if !of_this_kind {
             return Err(ReviewReason::Mode);
         }
-        self.priced(checkout.amount_total, checkout.currency)
+        self.priced(self.amount, checkout.amount_total, checkout.currency)
     }
 
     /// Whether these terms are among `on_sale`, the terms the catalogue
@@ -91,11 +112,33 @@ impl OrderTerms {
 
     /// Whether `invoice` is a renewal at these terms.
     pub fn accepts_renewal(&self, invoice: &Invoice) -> Result<(), ReviewReason> {
-        self.priced(Some(invoice.amount_paid), invoice.currency)
+        self.priced(
+            self.renewal_price(),
+            Some(invoice.amount_paid),
+            invoice.currency,
+        )
     }
 
-    fn priced(&self, amount: Option<u64>, currency: Option<Currency>) -> Result<(), ReviewReason> {
-        if amount == Some(self.amount) && currency == Some(self.currency) {
+    /// What a renewal order buys, at the renewal price saved by its
+    /// first order.
+    #[must_use]
+    pub fn for_renewal(mut self) -> Self {
+        self.amount = self.renewal_price();
+        self.renewal_amount = None;
+        self
+    }
+
+    fn renewal_price(&self) -> u64 {
+        self.renewal_amount.unwrap_or(self.amount)
+    }
+
+    fn priced(
+        &self,
+        expected: u64,
+        amount: Option<u64>,
+        currency: Option<Currency>,
+    ) -> Result<(), ReviewReason> {
+        if amount == Some(expected) && currency == Some(self.currency) {
             Ok(())
         } else {
             Err(ReviewReason::Amount)

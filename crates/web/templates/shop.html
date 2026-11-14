@@ -2,6 +2,13 @@
   <h2>{{ chrome.t.pay.buy_title }}</h2>
   {% if shop.test_mode %}<p class="alert" role="note">{{ chrome.t.pay.test_mode }}</p>{% endif %}
   <p class="small muted">{{ chrome.t.pay.buy_intro }}</p>
+  {% if let Some(message) = shop.intro_message %}<p>{{ message }}</p>{% endif %}
+  {% if shop.can_stop_intro %}
+  <form method="post" action="/subscription/intro/non-renewal">
+    <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+    <button class="button ghost" type="submit">{{ chrome.t.pay.intro_stop }}</button>
+  </form>
+  {% endif %}
   {% if let Some(renewal) = shop.renewal %}
   <p>{{ renewal }}</p>
   {% if let Some(url) = shop.manage_url %}

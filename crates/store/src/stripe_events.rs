@@ -27,6 +27,10 @@ use portal_core::payment::{CardVerdict, Currency, OrderId, OrderTerms};
 use portal_core::time::UnixTime;
 use rusqlite::{OptionalExtension as _, Transaction, TransactionBehavior, params};
 
+use crate::introductory::{
+    claim, intro_matches_terms, is_private, match_paid_at, match_schedules, observe_schedule,
+    remember_payment,
+};
 use crate::orders::{terms_row, terms_to_sql};
 use crate::payment_mode::mode;
 use crate::rows::{count_from_sql, count_to_sql, stripe_id_from_sql, time_from_sql, time_to_sql};
@@ -118,10 +122,18 @@ impl Store {
             EventKind::InvoicePaid(invoice) => invoiced(&tx, invoice, event.created, now),
             EventKind::InvoicePaymentPaid(payment) => invoice_paid_by(&tx, payment, now),
             EventKind::SubscriptionChanged(change) => changed(&tx, change, event.created, now),
+            EventKind::IntroPaymentSucceeded(payment) => {
+                remember_payment(&tx, payment, event.created)
+            }
+            EventKind::ScheduleChanged(change) => observe_schedule(&tx, change, event.created),
             EventKind::ChargeRefunded(refund) => refunded(&tx, refund, now),
             EventKind::DisputeOpened(dispute) => disputed(&tx, dispute, now),
             EventKind::Unused => Ok(()),
         }?;
+        match_paid_at(&tx)?;
+        for subscription in match_schedules(&tx)? {
+            adopt_renewals(&tx, &subscription)?;
+        }
         settle(&tx, now)?;
         tx.commit()?;
         Ok(Recorded::New)
@@ -155,7 +167,7 @@ fn completed(
         Some(order) => tx
             .query_row(
                 "SELECT state, plan, plan_kind, days, traffic_bytes, amount, currency,
-                        payment_link_id
+                        payment_link_id, renewal_amount
                  FROM orders WHERE id = ?1",
                 [order.as_str()],
                 |row| Ok((row.get::<_, String>(0)?, terms_row(row, 1)?)),
@@ -191,9 +203,24 @@ fn completed(
         None => stray(StrayReason::NoOrder),
         Some((order, (state, terms))) if state == "pending" => {
             let terms = terms.checked()?;
-            let verdict = terms
-                .accepts(checkout)
-                .and_then(|()| terms.still_sold(on_sale));
+            let verdict = if is_private(tx, &terms.payment_link_id)? {
+                if terms.accepts_introductory_payment(checkout).is_err()
+                    || !intro_matches_terms(&terms, on_sale)
+                    || !claim(tx, order, checkout, made)?
+                {
+                    return stray(StrayReason::NoOrder);
+                }
+                Ok(())
+            } else {
+                if let Some(link) = &checkout.payment_link
+                    && is_private(tx, link.as_str())?
+                {
+                    return stray(StrayReason::NoOrder);
+                }
+                terms
+                    .accepts(checkout)
+                    .and_then(|()| terms.still_sold(on_sale))
+            };
             tx.execute(
                 "UPDATE orders SET state = ?2, review_reason = ?3, paid_at = ?4, session = ?5,
                      payment_intent = ?6, invoice = ?7, subscription = ?8
@@ -241,6 +268,7 @@ fn adopt_renewals(tx: &Transaction<'_>, subscription: &StripeId) -> Result<(), S
         let invoice = Invoice {
             id: stripe_id_from_sql(&invoice)?,
             subscription: subscription.clone(),
+            introductory_order: None,
             reason: BillingReason::Cycle,
             amount_paid: count_from_sql(amount, "stray payment's amount")?,
             currency: currency.as_deref().and_then(Currency::parse),
@@ -258,7 +286,7 @@ fn renew(tx: &Transaction<'_>, invoice: &Invoice, made: UnixTime) -> Result<bool
     let began = tx
         .query_row(
             "SELECT id, account_id, mooring_user, plan, plan_kind, days, traffic_bytes, amount,
-                    currency, payment_link_id
+                    currency, payment_link_id, renewal_amount
              FROM orders WHERE subscription = ?1 AND renewal_of IS NULL
              ORDER BY created_at, id LIMIT 1",
             [invoice.subscription.as_str()],
@@ -277,7 +305,8 @@ fn renew(tx: &Transaction<'_>, invoice: &Invoice, made: UnixTime) -> Result<bool
     };
     let terms = terms.checked()?;
     let verdict = terms.accepts_renewal(invoice);
-    let (plan, kind, days, traffic_bytes, amount, currency, link) = terms_to_sql(&terms)?;
+    let terms = terms.for_renewal();
+    let (plan, kind, days, traffic_bytes, amount, currency, link, _) = terms_to_sql(&terms)?;
     tx.execute(
         "INSERT INTO orders (id, account_id, mooring_user, plan, plan_kind, days,
              traffic_bytes, amount, currency, payment_link_id, created_at, state,
@@ -353,7 +382,7 @@ fn invoiced(
 ) -> Result<(), StoreError> {
     // A subscription's first invoice is paid by its checkout, which says
     // the same and more.
-    if invoice.reason == BillingReason::Create {
+    if invoice.reason == BillingReason::Create && invoice.introductory_order.is_none() {
         return Ok(());
     }
     let seen: bool = tx.query_row(
@@ -367,6 +396,8 @@ fn invoiced(
     }
     let reason = match invoice.reason {
         BillingReason::Cycle if renew(tx, invoice, made)? => return Ok(()),
+        BillingReason::Create if renew(tx, invoice, made)? => return Ok(()),
+        BillingReason::Create => StrayReason::NoSubscription,
         // The checkout that began the subscription may yet come: if it
         // does, it takes this renewal with it.
         BillingReason::Cycle => StrayReason::NoSubscription,
