@@ -11,13 +11,12 @@ use portal_core::feedback::MessageBody;
 use portal_store::{AsOperator, ReplyError};
 use serde::Deserialize;
 
-use super::{Confirmed, Section, chrome, turned_away};
+use super::{Confirmed, OperatorForm, Section, chrome, turned_away};
 use crate::error::AppError;
 use crate::format::beijing;
 use crate::i18n::fill;
 use crate::pages::feedback::message_problem;
 use crate::pages::{Chrome, PageContext, PageQuery, render, render_status, see_other};
-use crate::security::csrf::VerifiedForm;
 use crate::state::AppState;
 use crate::view::{MessageView, Reader};
 
@@ -124,11 +123,10 @@ pub(crate) async fn conversation(
 /// `POST /operator/feedback/<code>`: sends the operator's reply to the
 /// account.
 pub(crate) async fn reply(
-    gate: Confirmed,
     State(state): State<AppState>,
     ctx: PageContext,
     code: Result<Path<String>, PathRejection>,
-    VerifiedForm(form): VerifiedForm<ReplyForm>,
+    OperatorForm { gate, form }: OperatorForm<ReplyForm>,
 ) -> Result<Response, AppError> {
     let code = account_of(code)?;
     let body = match MessageBody::parse(&form.body) {

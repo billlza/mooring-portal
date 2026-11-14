@@ -3,7 +3,9 @@
 //! An action's outcome is shown on the page its form returns rather than
 //! after a redirect: what the operator must still do elsewhere, such as
 //! cancelling a subscription at Stripe or revoking a user in Mooring, is
-//! said once, there, from what the action's own transaction read.
+//! said once, there, from what the action's own transaction read. That
+//! transaction also reads the list the page shows, so an action is not
+//! made unless its page can say what it did.
 //! Unbinding and banning delete rows, so they end by erasing them from the
 //! database files, as the commands on the host do. An operator's account
 //! is not banned here: only the host takes away what only the host gives.
@@ -14,15 +16,14 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use portal_core::account::AccountCode;
 use portal_core::snapshot::MooringUserId;
-use portal_store::{AsOperator, BanError, BindError, UnbindError};
+use portal_store::{AccountSummary, AsOperator, BanError, BindError, UnbindError};
 use serde::Deserialize;
 
-use super::{Confirmed, Outcome, Section, chrome, turned_away};
+use super::{Confirmed, OperatorForm, Outcome, Section, chrome, turned_away};
 use crate::error::AppError;
 use crate::format::beijing;
 use crate::i18n::{Strings, fill};
 use crate::pages::{Chrome, PageContext, render_status};
-use crate::security::csrf::VerifiedForm;
 use crate::state::AppState;
 
 #[derive(Template)]
@@ -70,10 +71,9 @@ pub(crate) async fn accounts(
 /// `POST /operator/accounts/bind`: binds the account to the Mooring user
 /// the operator typed.
 pub(crate) async fn bind(
-    gate: Confirmed,
     State(state): State<AppState>,
     ctx: PageContext,
-    VerifiedForm(form): VerifiedForm<BindForm>,
+    OperatorForm { gate, form }: OperatorForm<BindForm>,
 ) -> Result<Response, AppError> {
     let account = listed(&form.account)?;
     let t = ctx.t();
@@ -84,16 +84,19 @@ pub(crate) async fn bind(
     let now = state.now()?;
     let bound = state
         .database()
-        .run(move |store| store.as_operator(&gate.digest, now, |pages| pages.bind(&account, &user)))
+        .run(move |store| {
+            store.as_operator(&gate.digest, now, |pages| {
+                pages.bind(&account, &user)?;
+                Ok(pages.accounts()?)
+            })
+        })
         .await?;
     let (outcome, status) = match bound {
         Ok(AsOperator::NotAllowed(not)) => return Ok(turned_away(not, Section::Accounts)),
-        Ok(AsOperator::Done(())) => {
+        Ok(AsOperator::Done(accounts)) => {
             tracing::info!("the operator bound an account on the operator pages");
-            (
-                Outcome::done(fill(t.operator.bound_notice, account)),
-                StatusCode::OK,
-            )
+            let bound = Outcome::done(fill(t.operator.bound_notice, account));
+            return listing(&ctx, bound, StatusCode::OK, accounts);
         }
         Err(BindError::UnknownAccount(_)) => unknown(t, account),
         Err(BindError::AccountBound { account, user }) => (
@@ -112,10 +115,9 @@ pub(crate) async fn bind(
 /// `POST /operator/accounts/unbind`: unbinds the account, which deletes
 /// its subscription record, CFM profile and subscription link.
 pub(crate) async fn unbind(
-    gate: Confirmed,
     State(state): State<AppState>,
     ctx: PageContext,
-    VerifiedForm(form): VerifiedForm<AccountForm>,
+    OperatorForm { gate, form }: OperatorForm<AccountForm>,
 ) -> Result<Response, AppError> {
     let account = listed(&form.account)?;
     let t = ctx.t();
@@ -124,13 +126,18 @@ pub(crate) async fn unbind(
         .database()
         .run(move |store| {
             store
-                .as_operator(&gate.digest, now, |pages| pages.unbind(&account))
-                .map(|unbound| unbound.map(|unbound| (unbound, store.erase_deleted())))
+                .as_operator(&gate.digest, now, |pages| {
+                    let unbound = pages.unbind(&account)?;
+                    Ok((unbound, pages.accounts()?))
+                })
+                .map(|done| {
+                    done.map(|(unbound, accounts)| (unbound, accounts, store.erase_deleted()))
+                })
         })
         .await?;
     let (outcome, status) = match unbound {
         Ok(AsOperator::NotAllowed(not)) => return Ok(turned_away(not, Section::Accounts)),
-        Ok(AsOperator::Done((unbound, erased))) => {
+        Ok(AsOperator::Done((unbound, accounts, erased))) => {
             tracing::info!("the operator unbound an account on the operator pages");
             // Its orders stay, and with them its subscriptions at Stripe.
             let mut outcome = Outcome::done(fill(
@@ -143,7 +150,7 @@ pub(crate) async fn unbind(
                     .iter()
                     .map(|subscription| fill(t.operator.unbind_stripe, subscription)),
             );
-            (outcome.erased(t, erased), StatusCode::OK)
+            return listing(&ctx, outcome.erased(t, erased), StatusCode::OK, accounts);
         }
         Err(UnbindError::UnknownAccount(_)) => unknown(t, account),
         Err(UnbindError::NotBound(_)) => (
@@ -159,10 +166,9 @@ pub(crate) async fn unbind(
 /// does without cards: deletes it with everything of it, and keeps its
 /// email address from registering again.
 pub(crate) async fn ban(
-    gate: Confirmed,
     State(state): State<AppState>,
     ctx: PageContext,
-    VerifiedForm(form): VerifiedForm<AccountForm>,
+    OperatorForm { gate, form }: OperatorForm<AccountForm>,
 ) -> Result<Response, AppError> {
     let account = listed(&form.account)?;
     let t = ctx.t();
@@ -171,13 +177,22 @@ pub(crate) async fn ban(
         .database()
         .run(move |store| {
             store
-                .as_operator(&gate.digest, now, |pages| pages.ban(&account))
-                .map(|banned| banned.map(|ban| ban.map(|ban| (ban, store.erase_deleted()))))
+                .as_operator(&gate.digest, now, |pages| {
+                    pages
+                        .ban(&account)?
+                        .map(|ban| Ok((ban, pages.accounts()?)))
+                        .transpose()
+                })
+                .map(|done| {
+                    done.map(|banned| {
+                        banned.map(|(ban, accounts)| (ban, accounts, store.erase_deleted()))
+                    })
+                })
         })
         .await?;
     let (outcome, status) = match banned {
         Ok(AsOperator::NotAllowed(not)) => return Ok(turned_away(not, Section::Accounts)),
-        Ok(AsOperator::Done(Some((ban, erased)))) => {
+        Ok(AsOperator::Done(Some((ban, accounts, erased)))) => {
             tracing::info!("the operator banned an account on the operator pages");
             let mut outcome = Outcome::done(fill(t.operator.banned_notice, account));
             outcome.warnings.extend(
@@ -190,7 +205,7 @@ pub(crate) async fn ban(
                     .warnings
                     .push(fill(t.operator.revoke_in_mooring, user));
             }
-            (outcome.erased(t, erased), StatusCode::OK)
+            return listing(&ctx, outcome.erased(t, erased), StatusCode::OK, accounts);
         }
         Ok(AsOperator::Done(None)) => (
             Outcome::refused(t, t.operator.ban_operator),
@@ -217,7 +232,7 @@ fn unknown(t: &Strings, account: AccountCode) -> (Outcome, StatusCode) {
     )
 }
 
-/// The accounts page, after `outcome`.
+/// The accounts page, after `outcome`, listing the accounts as they are.
 async fn page(
     state: &AppState,
     ctx: &PageContext,
@@ -229,6 +244,16 @@ async fn page(
         .run(|store| store.accounts())
         .await?
         .map_err(AppError::internal)?;
+    listing(ctx, outcome, status, accounts)
+}
+
+/// The accounts page, after `outcome`, listing `accounts`.
+fn listing(
+    ctx: &PageContext,
+    outcome: Outcome,
+    status: StatusCode,
+    accounts: Vec<AccountSummary>,
+) -> Result<Response, AppError> {
     render_status(
         status,
         &AccountsPage {

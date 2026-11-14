@@ -1,8 +1,10 @@
 //! An operator's form whose body is still arriving when its session may no
 //! longer act on the operator pages: the operator is revoked, logs out,
 //! changes the password, or lets the confirmation run out. Nothing may be
-//! written. The session is checked when the request's headers arrive, and
-//! again in the transaction that writes, which is the check that counts.
+//! written, and nothing only an operator may see is shown, not even on
+//! the page that refuses a form. The session is checked when the request's
+//! headers arrive, again once its body has, and again in the transaction
+//! that writes.
 
 use axum::http::StatusCode;
 use portal_core::account::AccountCode;
@@ -21,24 +23,35 @@ enum Stop {
     Expired,
 }
 
-/// The forms of the operator pages that write, each with the section its
-/// address belongs to.
+/// The forms of the operator pages: those that write, and those whose
+/// fields the page refuses by showing what only an operator may see.
 #[derive(Debug, Clone, Copy)]
 enum Form {
     Bind,
+    /// A Mooring user id that is none: refused with every account.
+    BindBadUser,
     Unbind,
     Ban,
     Close,
     Reply,
+    /// An empty reply: refused with the conversation.
+    ReplyBlank,
 }
 
-const FORMS: [Form; 5] = [
+const FORMS: [Form; 7] = [
     Form::Bind,
+    Form::BindBadUser,
     Form::Unbind,
     Form::Ban,
     Form::Close,
     Form::Reply,
+    Form::ReplyBlank,
 ];
+
+/// What only an operator may see of the target: its email, and what it
+/// wrote to the operator.
+const TARGET_EMAIL: &str = "target@qq.com";
+const TARGET_WROTE: &str = "只给运营者看的话";
 
 /// What a form changes: who the target is bound to, whether it is there,
 /// how many bookings there are, and how many messages its conversation
@@ -73,8 +86,11 @@ async fn state_of(app: &TestApp, target: AccountCode) -> (Option<String>, bool, 
 async fn held_while(form: Form, stop: Stop) {
     let app = TestApp::new();
     let (mut op, op_code) = operator(&app).await;
-    let (mut target_browser, target) = app.signed_up("target@qq.com").await;
+    let (mut target_browser, target) = app.signed_up(TARGET_EMAIL).await;
     app.bind(target, "pilotusera").await;
+    target_browser
+        .post(&app, "/feedback", &[("body", TARGET_WROTE)])
+        .await;
     target_browser.get(&app, "/mac").await;
     target_browser
         .post(
@@ -94,6 +110,11 @@ async fn held_while(form: Form, stop: Stop) {
             vec![("account", code.as_str()), ("user", "pilotuserz")],
             "accounts",
         ),
+        Form::BindBadUser => (
+            "/operator/accounts/bind",
+            vec![("account", code.as_str()), ("user", "no user")],
+            "accounts",
+        ),
         Form::Unbind => (
             "/operator/accounts/unbind",
             vec![("account", code.as_str())],
@@ -106,6 +127,7 @@ async fn held_while(form: Form, stop: Stop) {
         ),
         Form::Close => ("/operator/bookings/close", vec![("id", "1")], "bookings"),
         Form::Reply => (&conversation, vec![("body", "你好")], "feedback"),
+        Form::ReplyBlank => (&conversation, vec![("body", "  ")], "feedback"),
     };
     let before = state_of(&app, target).await;
     let (release, pending) = op.held_post(&app, path, &fields).await;
@@ -152,6 +174,39 @@ async fn held_while(form: Form, stop: Stop) {
         }
     }
     assert_eq!(state_of(&app, target).await, before, "{case}");
+    for secret in [TARGET_EMAIL, TARGET_WROTE] {
+        assert!(!reply.body.contains(secret), "{case}: {}", reply.body);
+    }
+}
+
+#[tokio::test]
+async fn a_refused_form_shows_what_only_an_operator_may_see() {
+    // What the held-back forms must not show, the operator's own forms do.
+    let app = TestApp::new();
+    let (mut op, _) = operator(&app).await;
+    let (mut target_browser, target) = app.signed_up(TARGET_EMAIL).await;
+    target_browser
+        .post(&app, "/feedback", &[("body", TARGET_WROTE)])
+        .await;
+    let code = target.to_string();
+    let bad_user = op
+        .post(
+            &app,
+            "/operator/accounts/bind",
+            &[("account", &code), ("user", "no user")],
+        )
+        .await;
+    assert_eq!(bad_user.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(bad_user.body.contains(TARGET_EMAIL), "{}", bad_user.body);
+    let blank = op
+        .post(
+            &app,
+            &format!("/operator/feedback/{code}"),
+            &[("body", "  ")],
+        )
+        .await;
+    assert_eq!(blank.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(blank.body.contains(TARGET_WROTE), "{}", blank.body);
 }
 
 #[tokio::test]

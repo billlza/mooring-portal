@@ -9,12 +9,11 @@ use axum::response::Response;
 use portal_store::AsOperator;
 use serde::Deserialize;
 
-use super::{Confirmed, Outcome, Section, chrome, turned_away};
+use super::{Confirmed, OperatorForm, Outcome, Section, chrome, turned_away};
 use crate::error::AppError;
 use crate::format::beijing;
 use crate::i18n::fill;
 use crate::pages::{Chrome, PageContext, render_status};
-use crate::security::csrf::VerifiedForm;
 use crate::state::AppState;
 use crate::view::BookingView;
 
@@ -55,10 +54,9 @@ pub(crate) async fn bookings(
 /// `POST /operator/bookings/close`: closes the booking with the number
 /// the form names.
 pub(crate) async fn close_booking(
-    gate: Confirmed,
     State(state): State<AppState>,
     ctx: PageContext,
-    VerifiedForm(form): VerifiedForm<CloseForm>,
+    OperatorForm { gate, form }: OperatorForm<CloseForm>,
 ) -> Result<Response, AppError> {
     let t = ctx.t();
     let id = form.id;

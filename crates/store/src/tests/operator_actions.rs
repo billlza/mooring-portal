@@ -167,12 +167,22 @@ fn each_write_is_the_hosts_own() {
             let unbound = pages.unbind(&renewing.code)?;
             let ban = pages.ban(&banned.code)?;
             let closed = pages.close_booking(booking)?;
-            Ok::<_, Box<dyn std::error::Error + Send + Sync>>((unbound, ban, closed))
+            // What the page will list, as this transaction leaves it.
+            let listed = pages.accounts()?;
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>((unbound, ban, closed, listed))
         })
         .unwrap();
-    let AsOperator::Done((unbound, ban, closed)) = done else {
+    let AsOperator::Done((unbound, ban, closed, listed)) = done else {
         panic!("{done:?}");
     };
+    assert_eq!(listed, store.accounts().unwrap());
+    assert_eq!(
+        listed
+            .iter()
+            .map(|account| (account.code, account.binding.is_some()))
+            .collect::<Vec<_>>(),
+        [(renewing.code, false), (AccountCode::from_bits(50), false)]
+    );
     assert_eq!(
         unbound,
         Unbound {

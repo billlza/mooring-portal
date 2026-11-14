@@ -150,3 +150,56 @@ async fn getting_the_cfm_profile_reports_a_broken_database() {
         assert_eq!(reply.status, StatusCode::INTERNAL_SERVER_ERROR, "{path}");
     }
 }
+
+#[tokio::test]
+async fn an_operators_action_whose_page_cannot_be_read_is_not_made() {
+    let (app, file) = TestApp::on_disk();
+    let (mut op, _) = super::operator::operator(&app).await;
+    let (_, alice) = app.signed_up("alice@qq.com").await;
+    app.bind(alice, "pilotusera").await;
+    let (_, carol) = app.signed_up("carol@qq.com").await;
+    let (_, broken) = app.signed_up("broken@qq.com").await;
+    // One account's row reads as no account, and with it the list of
+    // accounts every one of these actions' pages shows.
+    let conn = rusqlite::Connection::open(file.path()).unwrap();
+    let break_row = |created_at: i64| {
+        conn.execute(
+            "UPDATE accounts SET created_at = ?1 WHERE code = ?2",
+            rusqlite::params![created_at, broken.to_string()],
+        )
+        .unwrap();
+    };
+    let created_at: i64 = conn
+        .query_row(
+            "SELECT created_at FROM accounts WHERE code = ?1",
+            [broken.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    break_row(-1);
+    let (alice_code, carol_code) = (alice.to_string(), carol.to_string());
+    for (path, fields) in [
+        (
+            "/operator/accounts/bind",
+            vec![("account", carol_code.as_str()), ("user", "pilotuserc")],
+        ),
+        (
+            "/operator/accounts/unbind",
+            vec![("account", alice_code.as_str())],
+        ),
+        (
+            "/operator/accounts/ban",
+            vec![("account", alice_code.as_str())],
+        ),
+    ] {
+        let failed = op.post(&app, path, &fields).await;
+        assert_eq!(failed.status, StatusCode::INTERNAL_SERVER_ERROR, "{path}");
+    }
+    // Nothing was done: what was done would have gone unsaid.
+    break_row(created_at);
+    assert_eq!(
+        super::operating::binding(&app, alice).await,
+        Some(Some("pilotusera".to_owned()))
+    );
+    assert_eq!(super::operating::binding(&app, carol).await, Some(None));
+}

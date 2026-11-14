@@ -25,13 +25,12 @@ fn files_hold(file: &DatabaseFile, trace: &str) -> bool {
         })
 }
 
-#[tokio::test]
-async fn an_erasure_a_reader_holds_up_is_reported_with_how_to_finish_it() {
-    let (app, file) = TestApp::on_disk();
-    let (mut op, _) = operator(&app).await;
-    let (_, alice) = app.signed_up("alice@qq.com").await;
-    app.bind(alice, "pilotusera").await;
-    // Another connection reads, as a command on the host may.
+/// What an action's page says when a reader held up its erasure.
+const BUSY: &str = "<p class=\"caution\" role=\"alert\">操作已完成，但数据库正忙，删除的内容可能还留在数据库文件里。数据库空闲时，请在主机上运行 erase-deleted。</p>";
+
+/// Starts a read of the database `file` on another connection, as a
+/// command on the host may, and holds it open until told to end.
+fn hold_a_read(file: &DatabaseFile) -> (thread::JoinHandle<()>, mpsc::Sender<()>) {
     let path = file.path().to_owned();
     let (began, begun) = mpsc::channel();
     let (end, ended) = mpsc::channel::<()>();
@@ -46,21 +45,67 @@ async fn an_erasure_a_reader_holds_up_is_reported_with_how_to_finish_it() {
         tx.commit().unwrap();
     });
     begun.recv().unwrap();
-    let unbound = op
+    (reader, end)
+}
+
+#[tokio::test]
+async fn an_erasure_a_reader_holds_up_is_reported_with_how_to_finish_it() {
+    let (app, file) = TestApp::on_disk();
+    let (mut op, _) = operator(&app).await;
+    let (_, alice) = app.signed_up("alice@qq.com").await;
+    app.bind(alice, "pilotusera").await;
+    let (_, bob) = app.signed_up("bob@qq.com").await;
+    let (mut booker, _) = app.signed_up("booker@qq.com").await;
+    booker.get(&app, "/mac").await;
+    booker
         .post(
             &app,
-            "/operator/accounts/unbind",
-            &[("account", &alice.to_string())],
+            "/mac/bookings",
+            &[("machine", "m6-16-256"), ("period", "month")],
         )
         .await;
-    end.send(()).unwrap();
-    reader.join().unwrap();
-    assert_eq!(unbound.status, StatusCode::OK);
-    assert!(unbound.body.contains(&format!("已解绑账号 {alice}")));
-    assert!(unbound.body.contains(
-        "<p class=\"caution\" role=\"alert\">操作已完成，但数据库正忙，删除的内容可能还留在数据库文件里。数据库空闲时，请在主机上运行 erase-deleted。</p>"
-    ));
+    let booking = app.store(|store| store.bookings()).await.unwrap()[0]
+        .booking
+        .id
+        .to_string();
+    let (unbound, banned) = (alice.to_string(), bob.to_string());
+    for (path, field, value, notice) in [
+        (
+            "/operator/accounts/unbind",
+            "account",
+            &unbound,
+            format!("已解绑账号 {unbound}"),
+        ),
+        (
+            "/operator/accounts/ban",
+            "account",
+            &banned,
+            format!("已封禁账号 {banned}"),
+        ),
+        (
+            "/operator/bookings/close",
+            "id",
+            &booking,
+            format!("已关闭预订 {booking}"),
+        ),
+    ] {
+        let (reader, end) = hold_a_read(&file);
+        let done = op.post(&app, path, &[(field, value.as_str())]).await;
+        end.send(()).unwrap();
+        reader.join().unwrap();
+        assert_eq!(done.status, StatusCode::OK, "{path}");
+        assert!(done.body.contains(&notice), "{path}: {}", done.body);
+        assert!(done.body.contains(BUSY), "{path}: {}", done.body);
+    }
+    // Each was done all the same.
     assert_eq!(binding(&app, alice).await, Some(None));
+    assert_eq!(binding(&app, bob).await, None);
+    assert!(
+        app.store(|store| store.bookings())
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]

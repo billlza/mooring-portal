@@ -8,19 +8,22 @@
 //! told the page does not exist, and an operator whose confirmation is
 //! missing or too old is asked for the password first. Confirming gives
 //! the browser a new session. The pages answer feedback, bind, unbind and
-//! ban accounts, and close Mac bookings, each a write that checks the
-//! session again in its own transaction ([`Store::as_operator`]): the
-//! check made when a request's headers arrive is not the one that lets
-//! its write through. The pages show no CFM profile, subscription link or
-//! credential; importing snapshots, bundles and releases, the pull token
-//! and the rest stay with the commands on the host.
+//! ban accounts, and close Mac bookings. A form's body can arrive long
+//! after its headers, so a form is read only for a session that may still
+//! act once its body has arrived ([`OperatorForm`]), and each write checks
+//! the session once more in its own transaction ([`Store::as_operator`]):
+//! the check made when a request's headers arrive is not the one that
+//! lets its write through, nor the one that lets a page answer the form.
+//! The pages show no CFM profile, subscription link or credential;
+//! importing snapshots, bundles and releases, the pull token and the rest
+//! stay with the commands on the host.
 
 mod accounts;
 mod bookings;
 mod conversations;
 
 use askama::Template;
-use axum::extract::{FromRequestParts, State};
+use axum::extract::{FromRequest, FromRequestParts, Request, State};
 use axum::http::header::SET_COOKIE;
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode};
@@ -30,6 +33,7 @@ use portal_core::auth::{TokenDigest, Verification};
 use portal_core::time::UnixTime;
 use portal_store::{NotAllowed, OPERATOR_CONFIRM_SECS, OperatorSession, Store, StoreError};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use super::{Chrome, Page, PageContext, PageQuery, login_first, render, render_status, see_other};
 use crate::error::{AppError, chain};
@@ -141,10 +145,29 @@ fn turned_away(not: NotAllowed, section: Section) -> Response {
     }
 }
 
+/// Whether the session `headers` present may act on the operator pages at
+/// the time of asking: the digest of its token if it may, or what it
+/// lacks.
+async fn may_act(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Result<TokenDigest, NotAllowed>, AppError> {
+    Ok(match visitor(state, headers, state.now()?).await? {
+        // The visitor's session came from a token the headers hold.
+        Visitor::Operator(session) if session.confirmed => presented_token(headers)
+            .map(|token| token.digest())
+            .ok_or(NotAllowed::SignedOut),
+        Visitor::Operator(_) => Err(NotAllowed::Unconfirmed),
+        Visitor::NotOperator => Err(NotAllowed::NotOperator),
+        Visitor::SignedOut => Err(NotAllowed::SignedOut),
+    })
+}
+
 /// An operator whose session confirmed its password lately when the
 /// request's headers arrived: what every operator page but the
-/// confirmation asks for. Anyone else is [`turned_away`]. A write checks
-/// the session again as it runs, by its token's digest.
+/// confirmation asks for. Anyone else is [`turned_away`]. A form asks for
+/// more ([`OperatorForm`]), and a write checks the session again as it
+/// runs, by its token's digest.
 #[derive(Debug)]
 pub(crate) struct Confirmed {
     /// The digest of the session's token.
@@ -155,25 +178,53 @@ impl FromRequestParts<AppState> for Confirmed {
     type Rejection = Response;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Response> {
-        let section = Section::of(parts.uri.path());
-        let now = state.now().map_err(IntoResponse::into_response)?;
-        let not = match visitor(state, &parts.headers, now)
+        match may_act(state, &parts.headers)
             .await
             .map_err(IntoResponse::into_response)?
         {
-            Visitor::Operator(session) if session.confirmed => {
-                // The visitor's session came from a token the headers hold.
-                let token =
-                    presented_token(&parts.headers).ok_or_else(|| login_first(Page::Operator))?;
-                return Ok(Self {
-                    digest: token.digest(),
-                });
-            }
-            Visitor::Operator(_) => NotAllowed::Unconfirmed,
-            Visitor::NotOperator => NotAllowed::NotOperator,
-            Visitor::SignedOut => NotAllowed::SignedOut,
-        };
-        Err(turned_away(not, section))
+            Ok(digest) => Ok(Self { digest }),
+            Err(not) => Err(turned_away(not, Section::of(parts.uri.path()))),
+        }
+    }
+}
+
+/// A form of the operator pages, read for a session that could act on
+/// them when the form's headers arrived ([`Confirmed`]) and still can once
+/// its body has: what every operator form asks for. The body may come long
+/// after the headers, and the page that answers a form, even one that
+/// refuses it, shows what only an operator may see. A write checks the
+/// session once more as it runs ([`Store::as_operator`]).
+#[derive(Debug)]
+pub(crate) struct OperatorForm<T> {
+    /// The session, as it was when the body had arrived.
+    gate: Confirmed,
+    /// The form, which passed the CSRF checks.
+    form: T,
+}
+
+impl<T: DeserializeOwned + Send> FromRequest<AppState> for OperatorForm<T> {
+    type Rejection = Response;
+
+    async fn from_request(request: Request, state: &AppState) -> Result<Self, Response> {
+        let (mut parts, body) = request.into_parts();
+        // A session that may not act already is turned away unread.
+        Confirmed::from_request_parts(&mut parts, state).await?;
+        let headers = parts.headers.clone();
+        let path = parts.uri.path().to_owned();
+        let VerifiedForm(form) =
+            VerifiedForm::from_request(Request::from_parts(parts, body), state)
+                .await
+                .map_err(IntoResponse::into_response)?;
+        match may_act(state, &headers)
+            .await
+            .map_err(IntoResponse::into_response)?
+        {
+            Ok(digest) => Ok(Self {
+                gate: Confirmed { digest },
+                form,
+            }),
+            Err(not) => Err(turned_away(not, Section::of(&path))),
+        }
     }
 }
 
@@ -349,7 +400,10 @@ pub(crate) async fn confirm(
     let digest = token.digest();
     // The browser that confirmed gets a new session, which alone is
     // confirmed: a copy of the old token, taken before, opens nothing.
+    // Both cookies are made before the old session is deleted, so nothing
+    // can fail between that and the browser receiving its new one.
     let (replacement, cookie) = session::new_session(&state, id)?;
+    let csrf = rotated_cookie()?;
     let confirmed = state
         .database()
         .run(move |store| store.confirm_session(&digest, &replacement))
@@ -360,7 +414,7 @@ pub(crate) async fn confirm(
     }
     let mut response = see_other(form.next.path());
     response.headers_mut().append(SET_COOKIE, cookie);
-    response.headers_mut().append(SET_COOKIE, rotated_cookie()?);
+    response.headers_mut().append(SET_COOKIE, csrf);
     Ok(response)
 }
 

@@ -170,34 +170,7 @@ impl Store {
 
     /// Every account, oldest first, with its binding.
     pub fn accounts(&self) -> Result<Vec<AccountSummary>, StoreError> {
-        let mut statement = self.conn.prepare(
-            "SELECT a.code, a.email, a.created_at, b.mooring_user, b.bound_at,
-                 EXISTS (SELECT 1 FROM operators o WHERE o.account_id = a.id)
-             FROM accounts a LEFT JOIN bindings b ON b.account_id = a.id
-             ORDER BY a.created_at, a.id",
-        )?;
-        let rows = statement.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, i64>(2)?,
-                row.get::<_, Option<String>>(3)?,
-                row.get::<_, Option<i64>>(4)?,
-                row.get::<_, bool>(5)?,
-            ))
-        })?;
-        let mut accounts = Vec::new();
-        for row in rows {
-            let (code, email, created_at, user, bound_at, operator) = row?;
-            accounts.push(AccountSummary {
-                code: code_from_sql(&code)?,
-                email: email_from_sql(&email)?,
-                created_at: time_from_sql(created_at, "account creation time")?,
-                binding: binding_from_sql(user, bound_at)?,
-                operator,
-            });
-        }
-        Ok(accounts)
+        accounts_on(&self.conn)
     }
 
     /// Deletes the account with `code`, with its sessions, binding,
@@ -278,6 +251,39 @@ impl Store {
             })
             .transpose()
     }
+}
+
+/// [`Store::accounts`] on `conn`: the store's connection, or a
+/// transaction that reads what it has written.
+pub(crate) fn accounts_on(conn: &Connection) -> Result<Vec<AccountSummary>, StoreError> {
+    let mut statement = conn.prepare(
+        "SELECT a.code, a.email, a.created_at, b.mooring_user, b.bound_at,
+             EXISTS (SELECT 1 FROM operators o WHERE o.account_id = a.id)
+         FROM accounts a LEFT JOIN bindings b ON b.account_id = a.id
+         ORDER BY a.created_at, a.id",
+    )?;
+    let rows = statement.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, Option<i64>>(4)?,
+            row.get::<_, bool>(5)?,
+        ))
+    })?;
+    let mut accounts = Vec::new();
+    for row in rows {
+        let (code, email, created_at, user, bound_at, operator) = row?;
+        accounts.push(AccountSummary {
+            code: code_from_sql(&code)?,
+            email: email_from_sql(&email)?,
+            created_at: time_from_sql(created_at, "account creation time")?,
+            binding: binding_from_sql(user, bound_at)?,
+            operator,
+        });
+    }
+    Ok(accounts)
 }
 
 /// The subscriptions of the account with row id `account` that Stripe
