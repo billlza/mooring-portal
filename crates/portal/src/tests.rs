@@ -8,6 +8,7 @@ mod import;
 mod orders_list;
 mod paying;
 mod payments;
+mod profile_for_account;
 mod profiles;
 mod release;
 mod rentals;

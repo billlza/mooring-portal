@@ -20,7 +20,7 @@ mod bundle;
 mod document;
 mod error;
 
-pub use bundle::{ProfileBundle, WithheldReason};
+pub use bundle::{Named, ProfileBundle, WithheldReason};
 pub use document::{CfmProfile, DocumentError};
 pub use error::{FoundFormat, Malformation, ProfileError};
 

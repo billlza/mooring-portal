@@ -134,6 +134,10 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 第 6 节的前三条重新查过，结果和以前一样；`/mac` 和其他公开页面都是 `200`。
 - 旧的二进制留在主机的 `/root/mooring-portal-af2e7ce`。要换回它，先停掉门户，用门户的账号删掉 `mac_bookings` 表，并把 `user_version` 改回 5，否则它拒绝启动。
 
+数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，尚未部署）：
+- 部署前先确认线上的 `cfm_profiles` 是空的；不空的话，每份配置都要有绑定，`profile_bundle` 也要有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
+- 要换回第 6 版的程序，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：旧版本照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
+
 ## 3. DNS
 
 - Porkbun 注册时自动加了两条记录，把 `moorlight.app` 和它的所有子域名都指向 Porkbun 的停放页（一条 `ALIAS`、一条 `*` 的 `CNAME`，目标都是 `pixie.porkbun.com`）。先删掉这两条，否则 `www` 这类子域名会指向 Porkbun。

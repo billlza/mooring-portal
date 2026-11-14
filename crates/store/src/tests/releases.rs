@@ -214,7 +214,7 @@ fn a_database_from_before_releases_gains_the_table_and_keeps_its_data() {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
     assert_eq!(usize::try_from(found).unwrap(), MIGRATIONS.len());
-    assert_eq!(MIGRATIONS.len(), 6);
+    assert_eq!(MIGRATIONS.len(), 7);
     assert_eq!(store.accounts().unwrap().len(), 1);
     assert_eq!(store.offered_release().unwrap(), None);
     let offered = release("0.5.1", NOW, SHA_A);

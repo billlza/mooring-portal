@@ -190,6 +190,28 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          placed_at INTEGER NOT NULL,
          UNIQUE (account_id, machine)
      ) STRICT;",
+    // 7: each profile keeps the time of the bundle it came in, so that a
+    // bundle for one account (`import-profile`) leaves the times of the
+    // others true; `profile_bundle` keeps the last bundle's time, which
+    // keeps imports in order. Profiles stored so far came in the last
+    // bundle. A profile stored without that bundle's time cannot be
+    // carried over: the migration fails, and the database is not opened.
+    // SQLite adds a NOT NULL column only with a default, which would let
+    // a profile be stored without its time, so the table is built anew
+    // and the old one dropped. That is safe only because no table refers
+    // to `cfm_profiles`: foreign keys are on while migrating, and dropping
+    // a table that others refer to first deletes its rows, and with them
+    // every row that refers to them `ON DELETE CASCADE`.
+    "CREATE TABLE cfm_profiles_timed (
+         mooring_user TEXT PRIMARY KEY REFERENCES bindings (mooring_user) ON DELETE CASCADE,
+         document TEXT NOT NULL,
+         generated_at INTEGER NOT NULL
+     ) STRICT;
+     INSERT INTO cfm_profiles_timed (mooring_user, document, generated_at)
+         SELECT mooring_user, document, (SELECT generated_at FROM profile_bundle WHERE id = 1)
+         FROM cfm_profiles;
+     DROP TABLE cfm_profiles;
+     ALTER TABLE cfm_profiles_timed RENAME TO cfm_profiles;",
 ];
 
 /// Applies the migrations the database lacks.

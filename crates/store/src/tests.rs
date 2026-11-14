@@ -16,6 +16,7 @@ mod orders;
 mod paying;
 mod payment_failures;
 mod payments;
+mod profile_for_account;
 mod profiles;
 mod releases;
 mod renewals;

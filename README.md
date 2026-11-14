@@ -10,13 +10,13 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里引船进
 - 订阅页：状态、本计费周期用量、配额、到期时间，数据来自 Mooring 导出的快照；以及 CFM 配置：生成订阅链接（CFM 0.5.x「导入链接」，之后「更新」）或下载 JSON 配置文件（「导入文件」）；
 - 下单与付款（给门户配了套餐文件时）：订阅页列出套餐，已绑定的用户下单后到 Stripe 的页面上用银行卡付款；门户接收 Stripe 的付款通知，核对后把该开通的订单列进清单，等 Mooring 来取（`docs/payments.md`）；
 - Mac 租赁：`/mac` 页面列出可租的 Mac mini 配置和价格，像租云电脑那样选配置和计费方式，登录后预订；运营者收到预订后在 Apple 官网下单，最快第二天开通。门户只记预订，不收钱（`docs/rentals.md`）；
-- 运营者命令：列出账号、按账号编号绑定或解绑 Mooring 用户、导入快照、导入 CFM 配置包、导入 CFM 的最新发布、删除账号、封禁与解除封禁、查看和处理订单与付款、管理 Mooring 的拉取令牌、收真钱之前清掉演练的付款记录、列出和关闭 Mac 租赁的预订。
+- 运营者命令：列出账号、按账号编号绑定或解绑 Mooring 用户、导入快照、导入 CFM 配置包（全部已绑定账号，或只给一个账号）、导入 CFM 的最新发布、删除账号、封禁与解除封禁、查看和处理订单与付款、管理 Mooring 的拉取令牌、收真钱之前清掉演练的付款记录、列出和关闭 Mac 租赁的预订。
 
 门户保存运营者导入的 CFM 配置，其中含节点凭据，所以门户主机按存放凭据的机器对待（`docs/security.md` 第 9 节）。付款在 Stripe 的页面上完成：门户不经手卡号，也不持有任何能动钱的密钥（`docs/security.md` 第 11 节）。付款这一部分还没有接过真实的 Stripe 账户，Mooring 一侧来取清单的程序也还没有写。
 
 ## 当前状态
 
-2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。2026-11-10：重做全站样式，首页主图加上会动的场景；下载页改为跟随 CFM 的最新发布；同日按运营者给的设计图重排首页和配色，主图换成灯塔夜景，场景改为完全由着色器画出，不再加载任何图片（分支 `feature/ui-refresh`，接在前一个分支之后）。2026-11-11：接入付款（分支 `feature/payments`，接在 `feature/ui-refresh` 之后）：下单、接收 Stripe 的通知、给 Mooring 的清单、运营者核对用的命令；只用合成的事件在本机走通过。只在本地运行过，没有部署。2026-11-14：加入 Mac 租赁的选配置页面和预订（分支 `feature/mac-rental`），同日部署到 moorlight.app。许可证尚未选定。
+2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。2026-11-10：重做全站样式，首页主图加上会动的场景；下载页改为跟随 CFM 的最新发布；同日按运营者给的设计图重排首页和配色，主图换成灯塔夜景，场景改为完全由着色器画出，不再加载任何图片（分支 `feature/ui-refresh`，接在前一个分支之后）。2026-11-11：接入付款（分支 `feature/payments`，接在 `feature/ui-refresh` 之后）：下单、接收 Stripe 的通知、给 Mooring 的清单、运营者核对用的命令；只用合成的事件在本机走通过。只在本地运行过，没有部署。2026-11-14：加入 Mac 租赁的选配置页面和预订（分支 `feature/mac-rental`），同日部署到 moorlight.app。同日起可以只给一个账号导入 CFM 配置（分支 `feature/one-account-profile`），只在本机运行过，没有部署。许可证尚未选定。
 
 ## 仓库结构
 
@@ -131,11 +131,17 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-release contrac
 cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contract/fixtures/cfm-profiles-v2/valid/pilot.json
 ```
 
+之后只给绑定了 `pilotusera` 的账号换一份配置（这份配置包晚一小时生成，订阅页上的"配置生成于"随之改变，其他账号不变）：
+
+```bash
+cargo run -p mooring-portal -- --db target/demo/portal.db import-profile --account <账号编号> contract/fixtures/cfm-profiles-v2/valid/one-user.json
+```
+
 5. 下单和付款的演练不需要 Stripe 账户：用合成的套餐文件启动门户，下单，再把合成的 Stripe 事件签名后发给它，步骤见 `docs/payments.md` 第 7 节。
 
 ## 运营者命令
 
-所有命令都在门户主机上运行，数据库就是 `serve` 用的那个文件，服务运行时也可以执行（SQLite WAL 模式，写操作在事务里串行；有测试）。数据库由 `serve` 第一次启动时创建；运营者命令要求文件已经存在，`--db` 写错时报 `there is no database at …`，不会新建一个空库。删除或改写数据的命令（`unbind`、`import`、`import-profiles`、`delete-account`、`ban`、`unban`、`dismiss-payment`、`discard-test-payments`、`close-booking`）做完后，会把被删的内容从数据库文件和日志里抹掉，最后一行是 `erased the deleted rows from the database files`（`docs/security.md` 第 8 节）。
+所有命令都在门户主机上运行，数据库就是 `serve` 用的那个文件，服务运行时也可以执行（SQLite WAL 模式，写操作在事务里串行；有测试）。数据库由 `serve` 第一次启动时创建；运营者命令要求文件已经存在，`--db` 写错时报 `there is no database at …`，不会新建一个空库。删除或改写数据的命令（`unbind`、`import`、`import-profiles`、`import-profile`、`delete-account`、`ban`、`unban`、`dismiss-payment`、`discard-test-payments`、`close-booking`）做完后，会把被删的内容从数据库文件和日志里抹掉，最后一行是 `erased the deleted rows from the database files`（`docs/security.md` 第 8 节）。
 
 | 命令 | 作用 |
 |---|---|
@@ -145,7 +151,8 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profiles contra
 | `unbind --account <编号>` | 解绑，并删除该用户在门户上的快照记录、CFM 配置和订阅链接。订单留着；账号有 Stripe 还可能扣款的订阅时会提醒：它已经没有 Mooring 用户可以开通了 |
 | `import <文件>` | 导入快照：只保留已绑定用户；报告未绑定的人数，以及快照里缺少的已绑定用户 |
 | `import-release <文件>` | 把 GitHub 上 CFM 的最新正式发布放到下载页上。文件是 GitHub 对 `releases/latest` 的回答，由主机上的定时器取来（`docs/releases.md` 第 4 节）。校验不过就什么也不改；版本没变时只更新"上次核对的时间"。不删除、不改写任何用户的数据，所以不做抹除 |
-| `import-profiles <文件>` | 导入 CFM 配置包。配置包必须点名每一个已绑定账号的 Mooring 用户，漏了谁就整份拒绝，什么也不改，并列出漏掉的账号。导入后只保留其中已绑定用户的配置，其余全部删除。Mooring 不交付（列入 `withheld`）的已绑定账号没有配置：作废的，订阅链接永久停用；暂停或未确认约定的，链接暂停，再交付后照常可用。报告这些账号、原因和链接的去向，以及点名了却没有绑定账号的用户。导入后删除配置包文件 |
+| `import-profiles <文件>` | 导入 CFM 配置包。配置包必须点名每一个已绑定账号的 Mooring 用户，漏了谁就整份拒绝，什么也不改，并列出漏掉的账号。导入后只保留其中已绑定用户的配置，其余全部删除。Mooring 不交付（列入 `withheld`）的已绑定账号没有配置：作废的，订阅链接永久停用；暂停或未确认约定的，链接暂停，再交付后照常可用。报告这些账号、原因和链接的去向，以及点名了却没有绑定账号的用户。命令不删除配置包文件，导入后由运营者删掉 |
+| `import-profile --account <编号> <文件>` | 只给一个账号导入 CFM 配置。文件是 Mooring 只为这个账号的用户导出的配置包（`mooringctl user export-profiles --user <编号>`），只能点名这一个用户；点名了几个用户，或点名的不是这个账号绑定的用户，整份拒绝，什么也不改。对这个账号做的事和 `import-profiles` 一样，其他账号的配置和链接不动。命令不删除配置包文件，导入后由运营者删掉（`docs/contract/cfm-profiles-v2.md` 第 4 节） |
 | `delete-account --account <编号>` | 删除账号，连同会话、绑定、快照记录、CFM 配置、订阅链接、订单和 Mac 租赁的预订。账号有 Stripe 还可能扣款的订阅，或有没了结的订单（付了款还没被 Mooring 取走，或在等核对、既没有全额退款也没有被争议）时拒绝，并说明先要做什么（`docs/payments.md` 第 2.8 节） |
 | `ban --account <编号> [--card <指纹> …]` | 封禁：删除账号和它的一切，并记下该账号邮箱的摘要，这个邮箱以后不能再注册；`--card` 给出的银行卡指纹（在 Stripe 后台读出，可以重复）也记下摘要，以后用这些卡付的款不开通。不等付款了结，并列出还要在 Stripe 取消的订阅。换邮箱、换卡都拦不住（`docs/security.md` 第 10 节）。绑定过 Mooring 用户的，还要在 Mooring 里作废那个用户 |
 | `ban-cards --email <地址> --card <指纹> …` | 给已经封禁的邮箱补记银行卡 |

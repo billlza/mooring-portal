@@ -62,7 +62,8 @@ pub use payment_review::{
     UnmatchedPayment,
 };
 pub use profiles::{
-    ProfileImportError, ProfileImportReport, StoredProfile, Withheld, WithheldLink,
+    AccountProfileError, AccountProfileImport, BundleTimeError, ProfileImportError,
+    ProfileImportReport, StoredProfile, Withheld, WithheldLink,
 };
 pub use releases::{OfferedRelease, ReleaseChange};
 pub use rentals::{Booking, BookingError, OperatorBooking};

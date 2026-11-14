@@ -17,7 +17,7 @@ use portal_core::time::UnixTime;
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
 use crate::profiles::stored_profile;
-use crate::rows::{corrupt, time_from_sql, time_to_sql};
+use crate::rows::{time_from_sql, time_to_sql};
 use crate::sessions::session_account_id;
 use crate::{AccountId, Store, StoreError};
 
@@ -165,21 +165,21 @@ impl Store {
 
     /// How `account` gets its profile.
     pub fn cfm_delivery(&self, account: AccountId) -> Result<CfmDelivery, StoreError> {
-        let found: Option<(bool, Option<i64>, Option<i64>)> = self
+        // A profile always has its time, so a time means a profile.
+        let found: Option<(Option<i64>, Option<i64>)> = self
             .conn
             .query_row(
-                "SELECT p.mooring_user IS NOT NULL, pb.generated_at, l.created_at
+                "SELECT p.generated_at, l.created_at
                  FROM bindings b
                  LEFT JOIN cfm_profiles p ON p.mooring_user = b.mooring_user
-                 LEFT JOIN profile_bundle pb ON pb.id = 1
                  LEFT JOIN subscription_links l ON l.account_id = b.account_id
                  WHERE b.account_id = ?1",
                 [account.0],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
         // An unbound account has no link: links go with bindings.
-        let Some((has_profile, generated_at, link_created_at)) = found else {
+        let Some((generated_at, link_created_at)) = found else {
             return Ok(CfmDelivery::NoProfile {
                 paused_link_created_at: None,
             });
@@ -187,20 +187,13 @@ impl Store {
         let link_created_at = link_created_at
             .map(|secs| time_from_sql(secs, "link creation time"))
             .transpose()?;
-        if !has_profile {
+        let Some(generated_at) = generated_at else {
             return Ok(CfmDelivery::NoProfile {
                 paused_link_created_at: link_created_at,
             });
-        }
-        // An import writes the bundle's time with its profiles.
-        let generated_at = generated_at.ok_or_else(|| {
-            corrupt(
-                "profile bundle time",
-                "a profile is stored without it".to_owned(),
-            )
-        })?;
+        };
         Ok(CfmDelivery::Profile {
-            generated_at: time_from_sql(generated_at, "profile bundle time")?,
+            generated_at: time_from_sql(generated_at, "CFM profile time")?,
             link_created_at,
         })
     }

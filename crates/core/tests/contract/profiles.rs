@@ -5,8 +5,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use portal_core::profile::{
-    DocumentError, FoundFormat, MAX_BUNDLE_BYTES, Malformation, ProfileBundle, ProfileError,
-    WithheldReason,
+    CfmProfile, DocumentError, FoundFormat, MAX_BUNDLE_BYTES, Malformation, Named, ProfileBundle,
+    ProfileError, WithheldReason,
 };
 use portal_core::snapshot::MooringUserId;
 
@@ -110,9 +110,54 @@ fn a_bundle_may_withhold_every_user_it_names() {
 }
 
 #[test]
+fn a_bundle_for_one_user_says_what_it_does_with_them() {
+    let pilot = ProfileBundle::parse(profile_fixture("valid/pilot.json").as_bytes()).unwrap();
+    // What `mooringctl user export-profiles --user pilotusera` writes: the
+    // pilot bundle's first entry, an hour later.
+    let one = ProfileBundle::parse(profile_fixture("valid/one-user.json").as_bytes()).unwrap();
+    assert_eq!(one.generated_at().to_string(), "2026-11-06T10:00:00Z");
+    assert_eq!(one.named_count(), 1);
+    let (first, first_profile) = pilot.profiles().next().unwrap();
+    assert_eq!(
+        one.sole_user(),
+        Some((first, Named::Delivered(first_profile)))
+    );
+    // One withheld user is a sole user too, with why.
+    let revoked = ProfileBundle::new(
+        one.generated_at(),
+        Vec::<(MooringUserId, CfmProfile)>::new(),
+        [(user("pilotuserc"), WithheldReason::Revoked)],
+    )
+    .unwrap();
+    assert_eq!(revoked.named_count(), 1);
+    assert_eq!(
+        revoked.sole_user(),
+        Some((
+            &user("pilotuserc"),
+            Named::Withheld(WithheldReason::Revoked)
+        ))
+    );
+    // A bundle naming more than one user has no sole user, however many it
+    // delivers to.
+    assert_eq!(pilot.named_count(), 3);
+    assert_eq!(pilot.sole_user(), None);
+    let all = ProfileBundle::parse(profile_fixture("valid/all-withheld.json").as_bytes()).unwrap();
+    assert_eq!(all.named_count(), 2);
+    assert_eq!(all.sole_user(), None);
+    let two = ProfileBundle::new(
+        one.generated_at(),
+        [(first.clone(), first_profile.clone())],
+        [(user("pilotuserc"), WithheldReason::Suspended)],
+    )
+    .unwrap();
+    assert_eq!(two.named_count(), 2);
+    assert_eq!(two.sole_user(), None);
+}
+
+#[test]
 fn every_valid_bundle_has_a_case() {
     let listed = fs::read_dir(profile_path("valid")).unwrap().count();
-    assert_eq!(listed, 2, "pilot.json and all-withheld.json");
+    assert_eq!(listed, 3, "pilot.json, all-withheld.json and one-user.json");
 }
 
 /// What an invalid fixture must be refused with.

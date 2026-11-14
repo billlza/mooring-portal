@@ -11,7 +11,7 @@ use portal_core::profile::{MAX_BUNDLE_BYTES, ProfileBundle};
 use portal_core::release::{CfmRelease, MAX_RELEASE_BYTES};
 use portal_core::snapshot::{MAX_DOCUMENT_BYTES, MooringUserId, Snapshot};
 use portal_core::time::Clock;
-use portal_store::{ReleaseChange, Store, WithheldLink};
+use portal_store::{AccountProfileImport, ReleaseChange, Store, Withheld, WithheldLink};
 
 use crate::CommandError;
 
@@ -152,20 +152,7 @@ pub(crate) fn import_profiles(
             stored.join(", ")
         )?;
         for withheld in &report.withheld {
-            writeln!(
-                out,
-                "withheld by Mooring ({}): account {} has no profile now{}",
-                withheld.reason,
-                withheld.account,
-                match withheld.link {
-                    WithheldLink::NoLink => "",
-                    WithheldLink::Paused => {
-                        ", and its subscription link is paused until Mooring delivers to the \
-                         user again"
-                    }
-                    WithheldLink::Ended => ", and its subscription link has ended for good",
-                }
-            )?;
+            withheld_line(out, withheld)?;
         }
         if !report.unbound_profiles.is_empty() {
             writeln!(
@@ -186,6 +173,58 @@ pub(crate) fn import_profiles(
         }
         Ok(())
     })
+}
+
+/// Imports a bundle Mooring exported for one user, for the account bound
+/// to that user: that account's profile and link change as a full import
+/// would change them, and no other account's do.
+pub(crate) fn import_profile(
+    store: &mut Store,
+    clock: &dyn Clock,
+    account: &AccountCode,
+    file: &Path,
+    out: &mut dyn Write,
+) -> Result<(), CommandError> {
+    let document = read_bounded(file, BUNDLE_READ_LIMIT)?;
+    let bundle = ProfileBundle::parse(&document).map_err(|source| CommandError::Profiles {
+        path: file.to_owned(),
+        source,
+    })?;
+    let imported = store.import_profile_for(account, &bundle, clock.now()?)?;
+    erase_then_report(store, out, |out| match &imported {
+        AccountProfileImport::Stored(bound) => writeln!(
+            out,
+            "profile bundle generated at {}: stored the profile of account {bound}; no other \
+             account changed",
+            bundle.generated_at()
+        ),
+        AccountProfileImport::Withheld(withheld) => {
+            writeln!(
+                out,
+                "profile bundle generated at {}: stored no profile; no other account changed",
+                bundle.generated_at()
+            )?;
+            withheld_line(out, withheld)
+        }
+    })
+}
+
+/// Says that Mooring withholds an account's user, and what became of the
+/// account's subscription link.
+fn withheld_line(out: &mut dyn Write, withheld: &Withheld) -> io::Result<()> {
+    writeln!(
+        out,
+        "withheld by Mooring ({}): account {} has no profile now{}",
+        withheld.reason,
+        withheld.account,
+        match withheld.link {
+            WithheldLink::NoLink => "",
+            WithheldLink::Paused => {
+                ", and its subscription link is paused until Mooring delivers to the user again"
+            }
+            WithheldLink::Ended => ", and its subscription link has ended for good",
+        }
+    )
 }
 
 /// Puts the release a file describes on the download page. The file is

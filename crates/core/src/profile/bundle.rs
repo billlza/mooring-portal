@@ -196,6 +196,39 @@ impl ProfileBundle {
     pub fn names(&self, user: &MooringUserId) -> bool {
         self.profiles.contains_key(user) || self.withheld.contains_key(user)
     }
+
+    /// How many users the bundle names, delivered or withheld.
+    #[must_use]
+    pub fn named_count(&self) -> usize {
+        self.profiles.len() + self.withheld.len()
+    }
+
+    /// The user the bundle names, and what it does with them, if it names
+    /// exactly one: a bundle Mooring exported for one user.
+    #[must_use]
+    pub fn sole_user(&self) -> Option<(&MooringUserId, Named<'_>)> {
+        if self.named_count() != 1 {
+            return None;
+        }
+        let delivered = self
+            .profiles
+            .iter()
+            .map(|(user, profile)| (user, Named::Delivered(profile)));
+        let withheld = self
+            .withheld
+            .iter()
+            .map(|(user, reason)| (user, Named::Withheld(*reason)));
+        delivered.chain(withheld).next()
+    }
+}
+
+/// What a bundle does with a user it names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Named<'a> {
+    /// Mooring delivers this profile to the user.
+    Delivered(&'a CfmProfile),
+    /// Mooring withholds the user, for this reason.
+    Withheld(WithheldReason),
 }
 
 /// A decoding failure, without the decoder's message.

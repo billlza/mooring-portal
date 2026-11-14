@@ -11,8 +11,8 @@ use portal_core::release::ReleaseError;
 use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
 use portal_store::{
-    ApproveError, BanError, BindError, DeleteError, DiscardError, DismissError, ImportError,
-    ProfileImportError, StoreError, UnbindError,
+    AccountProfileError, ApproveError, BanError, BindError, DeleteError, DiscardError,
+    DismissError, ImportError, ProfileImportError, StoreError, UnbindError,
 };
 use portal_web::{OriginError, SecretCount, StartupError};
 
@@ -34,6 +34,9 @@ pub enum CommandError {
     /// A profile import was refused.
     #[error(transparent)]
     ProfileImport(#[from] ProfileImportError),
+    /// A profile import for one account was refused.
+    #[error(transparent)]
+    AccountProfile(#[from] AccountProfileError),
     /// A deletion was refused.
     #[error(transparent)]
     Delete(#[from] DeleteError),

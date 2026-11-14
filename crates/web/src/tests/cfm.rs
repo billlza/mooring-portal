@@ -9,8 +9,10 @@ use axum::http::header::{
 };
 use portal_core::account::AccountCode;
 use portal_core::auth::SecretToken;
+use portal_core::profile::ProfileBundle;
+use portal_core::time::UnixTime;
 
-use super::support::{Browser, ORIGIN_URL, PASSWORD, Reply, TestApp, cfm_document};
+use super::support::{Browser, NOW, ORIGIN_URL, PASSWORD, Reply, TestApp, cfm_document};
 use crate::security::limits::{FETCHES_PER_LINK, LINK_FETCHES_PER_NETWORK};
 
 /// Where CFM fetches from in these tests, unless a test says otherwise.
@@ -92,6 +94,39 @@ async fn only_a_bound_account_has_a_cfm_panel_and_it_waits_for_a_profile() {
     );
     let download = browser.get(&app, "/subscription/profile.json").await;
     assert_eq!(download.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn each_account_sees_when_its_own_profile_was_made() {
+    let app = TestApp::new();
+    let (mut lilei, lilei_code) = bound(&app, "lilei@qq.com", "pilotusera").await;
+    let (mut hanmeimei, _) = bound(&app, "hanmeimei@163.com", "pilotuserb").await;
+    app.import_profiles(&["pilotusera", "pilotuserb"]).await;
+    // An hour later the operator imports a bundle for Li Lei alone.
+    let later = NOW + 3600;
+    let bundle = format!(
+        "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 2, \"generated_at\": \
+         {later}, \"profiles\": [{{\"user\": \"pilotusera\", \"document\": {}}}], \
+         \"withheld\": []}}",
+        cfm_document("pilotusera")
+    );
+    let bundle = ProfileBundle::parse(bundle.as_bytes()).unwrap();
+    let now = UnixTime::from_secs(later).unwrap();
+    app.store(move |store| store.import_profile_for(&lilei_code, &bundle, now))
+        .await
+        .unwrap();
+    let page = lilei.get(&app, "/subscription").await;
+    assert!(
+        page.body.contains("配置生成于 2026-11-05 21:00"),
+        "{}",
+        page.body
+    );
+    let page = hanmeimei.get(&app, "/subscription").await;
+    assert!(
+        page.body.contains("配置生成于 2026-11-05 20:00"),
+        "{}",
+        page.body
+    );
 }
 
 #[tokio::test]

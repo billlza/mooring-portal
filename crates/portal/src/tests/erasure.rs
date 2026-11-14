@@ -167,6 +167,41 @@ fn a_profile_a_bundle_withholds_leaves_nothing() {
 }
 
 #[test]
+fn a_profile_a_bundle_for_one_account_replaces_leaves_nothing() {
+    let (fixture, server) = two_users();
+    let renewed = "11111111-1111-4111-8111-11111111111a";
+    let bundle = format!(
+        "{{\"format\": \"mooring-portal-cfm-profiles\", \"version\": 2, \"generated_at\": {}, \
+         \"profiles\": [{{\"user\": \"{}\", \"document\": {{\"outbounds\": [{{\"type\": \
+         \"vless\", \"tag\": \"lon1-reality\", \"uuid\": \"{renewed}\"}}]}}}}], \
+         \"withheld\": []}}",
+        GENERATED + 60,
+        ALICE.user
+    );
+    fixture
+        .clock
+        .set(UnixTime::from_secs(GENERATED + 60).unwrap());
+    let file = fixture.file("alice.json", bundle.as_bytes());
+    let imported = fixture.run(&[
+        "import-profile",
+        "--account",
+        ALICE.code,
+        file.to_str().unwrap(),
+    ]);
+    assert_eq!(imported.code, ExitCode::SUCCESS, "{}", imported.err);
+    // Alice's old credential is gone and her new one is there; Bob is as
+    // he was.
+    assert_held(
+        &fixture,
+        &ALICE,
+        &["email", "code", "user", "session", "link"],
+    );
+    assert!(fixture.files_hold(renewed.as_bytes()));
+    assert_held(&fixture, &BOB, ALL);
+    drop(server);
+}
+
+#[test]
 fn a_newer_snapshot_leaves_nothing_of_the_record_it_replaces() {
     let (fixture, server) = two_users();
     let pilot = std::fs::read_to_string(contract_fixture("valid/pilot.json")).unwrap();

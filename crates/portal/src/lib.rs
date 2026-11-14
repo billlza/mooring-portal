@@ -82,6 +82,9 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
         Command::ImportProfiles { file } => {
             with_store(&mut |store| operator::import_profiles(store, clock, &file, out))
         }
+        Command::ImportProfile { account, file } => {
+            with_store(&mut |store| operator::import_profile(store, clock, &account, &file, out))
+        }
         Command::ImportRelease { file } => {
             with_store(&mut |store| operator::import_release(store, clock, &file, out))
         }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
-    BoundAccount, MAX_CLOCK_SKEW_SECS, ProfileImportError, ProfileImportReport, StoreError,
-    Withheld, WithheldLink,
+    BoundAccount, BundleTimeError, MAX_CLOCK_SKEW_SECS, ProfileImportError, ProfileImportReport,
+    StoreError, Withheld, WithheldLink,
 };
 
 #[test]
@@ -219,7 +219,7 @@ fn a_bundle_replaces_every_profile_and_an_older_one_changes_nothing() {
     assert_eq!(store.cfm_profile(second.id).unwrap(), None);
     assert!(matches!(
         store.import_profiles(&bundle(NOW + 10, &["pilotusera", "pilotuserb"]), at(NOW + 30)),
-        Err(ProfileImportError::Older { stored, incoming })
+        Err(ProfileImportError::Time(BundleTimeError::Older { stored, incoming }))
             if stored == at(NOW + 20) && incoming == at(NOW + 10)
     ));
     assert_eq!(store.cfm_profile(first.id).unwrap(), renewed);
@@ -239,7 +239,7 @@ fn a_bundle_from_beyond_the_clock_skew_is_refused() {
     let edge = NOW + MAX_CLOCK_SKEW_SECS;
     assert!(matches!(
         store.import_profiles(&bundle(edge + 1, &["pilotusera"]), at(NOW)),
-        Err(ProfileImportError::FromTheFuture { generated_at, now })
+        Err(ProfileImportError::Time(BundleTimeError::FromTheFuture { generated_at, now }))
             if generated_at == at(edge + 1) && now == at(NOW)
     ));
     assert_eq!(store.cfm_profile(account.id).unwrap(), None);
@@ -306,21 +306,18 @@ fn a_stored_profile_that_no_longer_reads_is_corrupt() {
         .unwrap();
     store
         .conn
-        .execute("DELETE FROM profile_bundle", [])
+        .execute("UPDATE cfm_profiles SET generated_at = -5", [])
         .unwrap();
     assert!(matches!(
         store.cfm_profile(account.id),
         Err(StoreError::Corrupt {
-            what: "profile bundle time",
+            what: "CFM profile time",
             ..
         })
     ));
     store
         .conn
-        .execute(
-            "INSERT INTO profile_bundle (id, generated_at) VALUES (1, -5)",
-            [],
-        )
+        .execute("UPDATE profile_bundle SET generated_at = -5", [])
         .unwrap();
     assert!(matches!(
         store.import_profiles(&bundle(NOW, &["pilotusera"]), at(NOW)),

@@ -63,6 +63,17 @@ pub(crate) enum Command {
         #[arg(value_name = "FILE")]
         file: PathBuf,
     },
+    /// Import a CFM profile bundle that Mooring exported for one user
+    /// (`mooringctl user export-profiles --user <id>`), for the account
+    /// bound to that user. No other account's profile changes.
+    ImportProfile {
+        /// The account's code; it must be bound to the bundle's user.
+        #[arg(long, value_name = "CODE", value_parser = account_code)]
+        account: AccountCode,
+        /// The bundle file.
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+    },
     /// Put GitHub's latest CFM release on the download page. The file is
     /// GitHub's description of the release, as its API answers for
     /// `releases/latest`; the host fetches it on a timer.

@@ -493,7 +493,7 @@ fn the_delivery_reads_the_profile_and_the_link_together() {
             ..
         })
     ));
-    // With the link sound again, a profile without the bundle's time is
+    // With the link sound again, a profile whose time is no time is
     // corrupt.
     store
         .import_profiles(&bundle(NOW, &["pilotusera", "pilotuserb"]), at(NOW))
@@ -504,12 +504,15 @@ fn the_delivery_reads_the_profile_and_the_link_together() {
         .unwrap();
     store
         .conn
-        .execute("DELETE FROM profile_bundle", [])
+        .execute(
+            "UPDATE cfm_profiles SET generated_at = -5 WHERE mooring_user = 'pilotusera'",
+            [],
+        )
         .unwrap();
     assert!(matches!(
         store.cfm_delivery(first.id),
         Err(StoreError::Corrupt {
-            what: "profile bundle time",
+            what: "CFM profile time",
             ..
         })
     ));

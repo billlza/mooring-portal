@@ -104,21 +104,13 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let found: Option<(i64, Option<String>)> = tx
-            .query_row(
-                "SELECT a.id, b.mooring_user FROM accounts a
-                 LEFT JOIN bindings b ON b.account_id = a.id WHERE a.code = ?1",
-                [code.to_string()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?;
-        let Some((account, bound)) = found else {
+        let Some((account, bound)) = account_by_code(&tx, code)? else {
             return Err(UnknownAccount(*code).into());
         };
         if let Some(bound) = bound {
             return Err(BindError::AccountBound {
                 account: *code,
-                user: user_from_sql(&bound)?,
+                user: bound,
             });
         }
         let holder: Option<String> = tx
@@ -137,7 +129,7 @@ impl Store {
         }
         tx.execute(
             "INSERT INTO bindings (account_id, mooring_user, bound_at) VALUES (?1, ?2, ?3)",
-            params![account, user.as_str(), time_to_sql(now)],
+            params![account.0, user.as_str(), time_to_sql(now)],
         )?;
         tx.commit()?;
         Ok(())
@@ -149,22 +141,13 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let found: Option<(i64, Option<String>)> = tx
-            .query_row(
-                "SELECT a.id, b.mooring_user FROM accounts a
-                 LEFT JOIN bindings b ON b.account_id = a.id WHERE a.code = ?1",
-                [code.to_string()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?;
-        let Some((account, bound)) = found else {
+        let Some((account, bound)) = account_by_code(&tx, code)? else {
             return Err(UnknownAccount(*code).into());
         };
-        let Some(bound) = bound else {
+        let Some(user) = bound else {
             return Err(UnbindError::NotBound(*code));
         };
-        let user = user_from_sql(&bound)?;
-        tx.execute("DELETE FROM bindings WHERE account_id = ?1", [account])?;
+        tx.execute("DELETE FROM bindings WHERE account_id = ?1", [account.0])?;
         tx.commit()?;
         Ok(user)
     }
@@ -231,4 +214,25 @@ pub(crate) fn bound_accounts(
         bound.insert(user, (AccountId(id), account));
     }
     Ok(bound)
+}
+
+/// The account with `code`, as `tx` sees it, and the Mooring user it is
+/// bound to, if it is; `None` if no account has the code.
+pub(crate) fn account_by_code(
+    tx: &Transaction<'_>,
+    code: &AccountCode,
+) -> Result<Option<(AccountId, Option<MooringUserId>)>, StoreError> {
+    let found: Option<(i64, Option<String>)> = tx
+        .query_row(
+            "SELECT a.id, b.mooring_user FROM accounts a
+             LEFT JOIN bindings b ON b.account_id = a.id WHERE a.code = ?1",
+            [code.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let Some((id, bound)) = found else {
+        return Ok(None);
+    };
+    let bound = bound.as_deref().map(user_from_sql).transpose()?;
+    Ok(Some((AccountId(id), bound)))
 }

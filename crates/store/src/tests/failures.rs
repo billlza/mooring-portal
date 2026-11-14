@@ -5,8 +5,8 @@ use portal_core::account::AccountCode;
 
 use super::*;
 use crate::{
-    BanError, BindError, DeleteError, ImportError, LinkError, LinkedProfile, ProfileImportError,
-    RegisterError, RevokeError, StoreError, UnbindError,
+    AccountProfileError, BanError, BindError, DeleteError, ImportError, LinkError, LinkedProfile,
+    ProfileImportError, RegisterError, RevokeError, StoreError, UnbindError,
 };
 
 /// A store whose tables are gone after `account` registered.
@@ -85,6 +85,10 @@ fn writes_fail_loudly() {
         Err(ProfileImportError::Store(StoreError::Sqlite(_)))
     ));
     assert!(matches!(
+        store.import_profile_for(&account.code, &bundle(NOW, &["pilotusera"]), at(NOW)),
+        Err(AccountProfileError::Store(StoreError::Sqlite(_)))
+    ));
+    assert!(matches!(
         store.replace_subscription_link(&digest(1), &digest(2), at(NOW)),
         Err(LinkError::Store(StoreError::Sqlite(_)))
     ));
@@ -117,6 +121,43 @@ fn a_failure_part_way_through_leaves_nothing_behind() {
     ));
     store.conn.execute_batch("DROP TRIGGER refuse;").unwrap();
     assert!(store.accounts().unwrap().is_empty());
+}
+
+#[test]
+fn a_binding_whose_write_fails_changes_nothing() {
+    // Binding and unbinding check the account, then write: with the write
+    // made to fail, each is an error and the accounts stay as they were.
+    let mut store = store();
+    let first = register(&mut store, "a@qq.com", 1);
+    let second = register(&mut store, "b@qq.com", 2);
+    store
+        .bind(&second.code, &user("pilotuserb"), at(NOW))
+        .unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE TRIGGER refuse_bind BEFORE INSERT ON bindings \
+             BEGIN SELECT RAISE(ABORT, 'refused'); END; \
+             CREATE TRIGGER refuse_unbind BEFORE DELETE ON bindings \
+             BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+        )
+        .unwrap();
+    assert!(matches!(
+        store.bind(&first.code, &user("pilotusera"), at(NOW)),
+        Err(BindError::Store(StoreError::Sqlite(_)))
+    ));
+    assert!(matches!(
+        store.unbind(&second.code),
+        Err(UnbindError::Store(StoreError::Sqlite(_)))
+    ));
+    assert_eq!(store.binding(first.id).unwrap(), None);
+    assert_eq!(
+        store
+            .binding(second.id)
+            .unwrap()
+            .map(|binding| binding.user),
+        Some(user("pilotuserb"))
+    );
 }
 
 #[test]
