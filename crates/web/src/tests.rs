@@ -15,6 +15,7 @@ mod misc;
 mod operating;
 mod operator;
 mod operator_erasure;
+mod operator_payments;
 mod operator_races;
 mod paying;
 mod public;

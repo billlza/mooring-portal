@@ -14,15 +14,17 @@
 //! request's session is read when its headers arrive, and by the time its
 //! body has, the session may have ended, its account may be an operator no
 //! more, or its confirmation may have run out. [`OperatorActions`] holds
-//! the writes the pages may make, and only that check makes one. It also
-//! reads what a page shows after a write, in the write's transaction: a
-//! write commits together with what its page will say of it, or not at
-//! all.
+//! the writes the pages may make (answering feedback, binding, unbinding
+//! and banning accounts, closing bookings and approving orders), and only
+//! that check makes one. It also reads what a page shows after a write,
+//! in the write's transaction: a write commits together with what its
+//! page will say of it, or not at all.
 
 use portal_core::account::AccountCode;
 use portal_core::auth::TokenDigest;
 use portal_core::feedback::MessageBody;
 use portal_core::payment::stripe::StripeId;
+use portal_core::payment::{OrderId, ReviewReason};
 use portal_core::snapshot::MooringUserId;
 use portal_core::time::UnixTime;
 use rusqlite::{Connection, OptionalExtension as _, Transaction, TransactionBehavior, params};
@@ -31,12 +33,13 @@ use crate::accounts::{accounts_on, open_subscriptions};
 use crate::bans::ban_on;
 use crate::bindings::{account_by_code, bind_on, unbind_on};
 use crate::feedback::reply_on;
+use crate::payment_review::{Shown, approve_order_on};
 use crate::rentals::close_booking_on;
 use crate::rows::{stripe_id_from_sql, time_from_sql, time_to_sql};
 use crate::sessions::insert_session;
 use crate::{
-    AccountId, AccountSummary, Ban, BanError, BindError, NewSession, OperatorBooking, ReplyError,
-    Store, StoreError, UnbindError, UnknownAccount,
+    AccountId, AccountSummary, ApproveError, Approved, Ban, BanError, BindError, NewSession,
+    OperatorBooking, ReplyError, Store, StoreError, UnbindError, UnknownAccount,
 };
 
 /// How long a confirmation of the password lets a session act on the
@@ -322,6 +325,20 @@ impl OperatorActions<'_> {
     /// Sends the operator's `body` to the account with `code`.
     pub fn reply(&self, code: &AccountCode, body: &MessageBody) -> Result<(), ReplyError> {
         reply_on(self.tx, code, body, self.now)
+    }
+
+    /// Approves the order `id`, as [`Store::approve_order`] does, if it
+    /// still waits for what the operator pages showed, `shown`: why it was
+    /// in review, or `None` for word of its card. One that waits for
+    /// anything else is not approved ([`ApproveError::Changed`]):
+    /// approving waives what the operator saw, so a form sent twice waives
+    /// nothing more.
+    pub fn approve_order(
+        &self,
+        id: &OrderId,
+        shown: Option<ReviewReason>,
+    ) -> Result<Approved, ApproveError> {
+        approve_order_on(self.tx, id, Shown::Waiting(shown), self.now)
     }
 
     /// Every account, as [`Store::accounts`] lists them, with what this

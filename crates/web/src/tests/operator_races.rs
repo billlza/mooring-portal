@@ -2,7 +2,8 @@
 //! longer act on the operator pages: the operator is revoked, logs out,
 //! changes the password, or lets the confirmation run out. Nothing may be
 //! written, and nothing only an operator may see is shown, not even on
-//! the page that refuses a form. The session is checked when the request's
+//! the page that refuses a form: no account's email, no conversation, no
+//! order. The session is checked when the request's
 //! headers arrive, again once its body has, and again in the transaction
 //! that writes.
 
@@ -23,8 +24,9 @@ enum Stop {
     Expired,
 }
 
-/// The forms of the operator pages: those that write, and those whose
-/// fields the page refuses by showing what only an operator may see.
+/// The forms of the operator pages: those that write, those whose fields
+/// the page refuses by showing what only an operator may see, and one it
+/// refuses before asking the database anything.
 #[derive(Debug, Clone, Copy)]
 enum Form {
     Bind,
@@ -36,9 +38,15 @@ enum Form {
     Reply,
     /// An empty reply: refused with the conversation.
     ReplyBlank,
+    Approve,
+    /// An order there is none of: refused with every order that waits.
+    ApproveUnknown,
+    /// No order's id at all: refused as no page's form, whose refusal
+    /// would tell a session that may not act that the pages are there.
+    ApproveMalformed,
 }
 
-const FORMS: [Form; 7] = [
+const FORMS: [Form; 10] = [
     Form::Bind,
     Form::BindBadUser,
     Form::Unbind,
@@ -46,6 +54,9 @@ const FORMS: [Form; 7] = [
     Form::Close,
     Form::Reply,
     Form::ReplyBlank,
+    Form::Approve,
+    Form::ApproveUnknown,
+    Form::ApproveMalformed,
 ];
 
 /// What only an operator may see of the target: its email, and what it
@@ -54,9 +65,12 @@ const TARGET_EMAIL: &str = "target@qq.com";
 const TARGET_WROTE: &str = "只给运营者看的话";
 
 /// What a form changes: who the target is bound to, whether it is there,
-/// how many bookings there are, and how many messages its conversation
-/// holds.
-async fn state_of(app: &TestApp, target: AccountCode) -> (Option<String>, bool, usize, usize) {
+/// how many bookings there are, how many messages its conversation holds,
+/// and how many orders wait.
+async fn state_of(
+    app: &TestApp,
+    target: AccountCode,
+) -> (Option<String>, bool, usize, usize, usize) {
     app.store(move |store| {
         let account = store
             .accounts()
@@ -75,6 +89,7 @@ async fn state_of(app: &TestApp, target: AccountCode) -> (Option<String>, bool, 
             account.is_some(),
             store.bookings().unwrap().len(),
             messages,
+            store.orders_waiting().unwrap().len(),
         )
     })
     .await
@@ -84,13 +99,15 @@ async fn state_of(app: &TestApp, target: AccountCode) -> (Option<String>, bool, 
 /// lets the body come: nothing changes, and the reply turns the request
 /// away as the gate would have.
 async fn held_while(form: Form, stop: Stop) {
-    let app = TestApp::new();
+    let app = TestApp::shop();
     let (mut op, op_code) = operator(&app).await;
-    let (mut target_browser, target) = app.signed_up(TARGET_EMAIL).await;
-    app.bind(target, "pilotusera").await;
+    let (mut target_browser, target) = app.customer(TARGET_EMAIL, "pilotusera").await;
     target_browser
         .post(&app, "/feedback", &[("body", TARGET_WROTE)])
         .await;
+    // Paid, and waiting for word of its card.
+    let order = target_browser.order(&app, "month-100").await;
+    app.deliver_events(&["checkout-payment"], &order).await;
     target_browser.get(&app, "/mac").await;
     target_browser
         .post(
@@ -128,6 +145,21 @@ async fn held_while(form: Form, stop: Stop) {
         Form::Close => ("/operator/bookings/close", vec![("id", "1")], "bookings"),
         Form::Reply => (&conversation, vec![("body", "你好")], "feedback"),
         Form::ReplyBlank => (&conversation, vec![("body", "  ")], "feedback"),
+        Form::Approve => (
+            "/operator/payments/approve",
+            vec![("order", order.as_str()), ("shown", "checking")],
+            "payments",
+        ),
+        Form::ApproveUnknown => (
+            "/operator/payments/approve",
+            vec![("order", "zzzzzzzzzzzzzzzzzzzz"), ("shown", "checking")],
+            "payments",
+        ),
+        Form::ApproveMalformed => (
+            "/operator/payments/approve",
+            vec![("order", "no order"), ("shown", "checking")],
+            "payments",
+        ),
     };
     let before = state_of(&app, target).await;
     let (release, pending) = op.held_post(&app, path, &fields).await;
@@ -174,7 +206,7 @@ async fn held_while(form: Form, stop: Stop) {
         }
     }
     assert_eq!(state_of(&app, target).await, before, "{case}");
-    for secret in [TARGET_EMAIL, TARGET_WROTE] {
+    for secret in [TARGET_EMAIL, TARGET_WROTE, order.as_str()] {
         assert!(!reply.body.contains(secret), "{case}: {}", reply.body);
     }
 }
@@ -182,12 +214,14 @@ async fn held_while(form: Form, stop: Stop) {
 #[tokio::test]
 async fn a_refused_form_shows_what_only_an_operator_may_see() {
     // What the held-back forms must not show, the operator's own forms do.
-    let app = TestApp::new();
+    let app = TestApp::shop();
     let (mut op, _) = operator(&app).await;
-    let (mut target_browser, target) = app.signed_up(TARGET_EMAIL).await;
+    let (mut target_browser, target) = app.customer(TARGET_EMAIL, "pilotusera").await;
     target_browser
         .post(&app, "/feedback", &[("body", TARGET_WROTE)])
         .await;
+    let order = target_browser.order(&app, "month-100").await;
+    app.deliver_events(&["checkout-payment"], &order).await;
     let code = target.to_string();
     let bad_user = op
         .post(
@@ -207,6 +241,15 @@ async fn a_refused_form_shows_what_only_an_operator_may_see() {
         .await;
     assert_eq!(blank.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(blank.body.contains(TARGET_WROTE), "{}", blank.body);
+    let unknown = op
+        .post(
+            &app,
+            "/operator/payments/approve",
+            &[("order", "zzzzzzzzzzzzzzzzzzzz"), ("shown", "checking")],
+        )
+        .await;
+    assert_eq!(unknown.status, StatusCode::CONFLICT);
+    assert!(unknown.body.contains(&order), "{}", unknown.body);
 }
 
 #[tokio::test]
@@ -309,6 +352,11 @@ async fn a_form_from_a_session_not_confirmed_lately_writes_nothing() {
             ),
             ("/operator/bookings/close", vec![("id", "1")], "bookings"),
             (conversation.as_str(), vec![("body", "你好")], "feedback"),
+            (
+                "/operator/payments/approve",
+                vec![("order", "0123456789abcdefghjk"), ("shown", "checking")],
+                "payments",
+            ),
         ] {
             let reply = op.post(&app, path, &fields).await;
             assert_eq!(

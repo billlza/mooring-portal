@@ -1,6 +1,6 @@
 /* Feedback: the box at the bottom right of a signed-in user's pages, and a
-   conversation with the operator. The operator pages: their tables, and
-   the actions in them. */
+   conversation with the operator. The operator pages: their tables, the
+   actions in them, and why a payment waits. */
 
 /* The box opens without a script: it is a disclosure. */
 .dock {
@@ -328,4 +328,17 @@ a.tile:hover {
   border-radius: var(--radius-small);
   background: rgba(243, 206, 149, 0.1);
   color: #fbe7c6;
+}
+
+/* Why an order waits, and the ids the Stripe Dashboard finds it by. */
+.why {
+  margin: 0 0 6px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stripe-ids > span + span::before {
+  content: "·";
+  margin: 0 6px;
+  color: var(--muted);
 }

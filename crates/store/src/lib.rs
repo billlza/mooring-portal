@@ -45,6 +45,7 @@ mod rows;
 mod schema;
 mod sessions;
 mod settle;
+mod signals;
 mod stripe_events;
 mod subscriptions;
 
@@ -59,7 +60,7 @@ pub use bindings::{BindError, Binding, BoundAccount, UnbindError};
 pub use entitlements::{PullError, PullState, Pulled};
 pub use error::{StoreError, UnknownAccount};
 pub use feedback::{
-    Conversation, FeedbackMessage, MAX_KEPT, MAX_SENT_PER_DAY, ReplyError, SendError, Signals,
+    Conversation, FeedbackMessage, MAX_KEPT, MAX_SENT_PER_DAY, ReplyError, SendError,
 };
 pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
 pub use operators::{
@@ -79,6 +80,7 @@ pub use profiles::{
 pub use releases::{OfferedRelease, ReleaseChange};
 pub use rentals::{Booking, BookingError, OperatorBooking};
 pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
+pub use signals::Signals;
 pub use stripe_events::{Recorded, StrayReason};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};
 

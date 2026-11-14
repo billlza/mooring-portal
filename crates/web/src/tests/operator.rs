@@ -10,16 +10,17 @@ use super::support::{Browser, NOW, PASSWORD, Reply, TestApp};
 
 /// Every operator page a browser fetches, and the section each asks the
 /// confirmation to return to.
-const PAGES: [(&str, &str); 4] = [
+const PAGES: [(&str, &str); 5] = [
     ("/operator", "overview"),
     ("/operator/feedback", "feedback"),
     ("/operator/accounts", "accounts"),
     ("/operator/bookings", "bookings"),
+    ("/operator/payments", "payments"),
 ];
 
 /// Every form of the operator pages but the confirmation, with fields a
 /// page would send.
-fn forms(target: &str) -> [(String, Vec<(&'static str, String)>); 5] {
+fn forms(target: &str) -> [(String, Vec<(&'static str, String)>); 6] {
     [
         (
             "/operator/accounts/bind".to_owned(),
@@ -43,6 +44,13 @@ fn forms(target: &str) -> [(String, Vec<(&'static str, String)>); 5] {
         (
             format!("/operator/feedback/{target}"),
             vec![("body", "你好".to_owned())],
+        ),
+        (
+            "/operator/payments/approve".to_owned(),
+            vec![
+                ("order", "0123456789abcdefghjk".to_owned()),
+                ("shown", "checking".to_owned()),
+            ],
         ),
     ]
 }

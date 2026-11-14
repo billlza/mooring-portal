@@ -8,7 +8,8 @@
 //! told the page does not exist, and an operator whose confirmation is
 //! missing or too old is asked for the password first. Confirming gives
 //! the browser a new session. The pages answer feedback, bind, unbind and
-//! ban accounts, and close Mac bookings. A form's body can arrive long
+//! ban accounts, close Mac bookings, and approve orders that wait for the
+//! operator (`docs/payments.md`). A form's body can arrive long
 //! after its headers, so a form is read only for a session that may still
 //! act once its body has arrived ([`OperatorForm`]), and each write checks
 //! the session once more in its own transaction ([`Store::as_operator`]):
@@ -21,6 +22,7 @@
 mod accounts;
 mod bookings;
 mod conversations;
+mod payments;
 
 use askama::Template;
 use axum::extract::{FromRequest, FromRequestParts, Request, State};
@@ -46,6 +48,7 @@ use crate::state::AppState;
 pub(crate) use accounts::{accounts, ban, bind, unbind};
 pub(crate) use bookings::{bookings, close_booking};
 pub(crate) use conversations::{conversation, conversations, reply};
+pub(crate) use payments::{approve, payments};
 
 /// A section of the operator pages, as their tabs and the confirmation
 /// name it.
@@ -56,6 +59,7 @@ pub(crate) enum Section {
     Feedback,
     Accounts,
     Bookings,
+    Payments,
 }
 
 impl Section {
@@ -66,6 +70,7 @@ impl Section {
             Self::Feedback => "/operator/feedback",
             Self::Accounts => "/operator/accounts",
             Self::Bookings => "/operator/bookings",
+            Self::Payments => "/operator/payments",
         }
     }
 
@@ -76,6 +81,7 @@ impl Section {
             Self::Feedback => "feedback",
             Self::Accounts => "accounts",
             Self::Bookings => "bookings",
+            Self::Payments => "payments",
         }
     }
 
@@ -88,6 +94,7 @@ impl Section {
             Some("feedback") => Self::Feedback,
             Some("accounts") => Self::Accounts,
             Some("bookings") => Self::Bookings,
+            Some("payments") => Self::Payments,
             _ => Self::Overview,
         }
     }
@@ -424,6 +431,7 @@ struct OverviewPage {
     chrome: Chrome,
     section: Section,
     awaiting: u64,
+    payments: u64,
     accounts: usize,
     unbound: usize,
     bookings: usize,
@@ -450,6 +458,7 @@ pub(crate) async fn overview(
     render(&OverviewPage {
         section: Section::Overview,
         awaiting: ctx.signals.awaiting_reply,
+        payments: ctx.signals.payments_waiting,
         accounts,
         unbound,
         bookings,
@@ -471,6 +480,8 @@ mod tests {
             ("/operator/feedback/abcd-efgh-2345", Section::Feedback),
             ("/operator/accounts/ban", Section::Accounts),
             ("/operator/bookings/close", Section::Bookings),
+            ("/operator/payments", Section::Payments),
+            ("/operator/payments/approve", Section::Payments),
         ] {
             assert_eq!(Section::of(path), section, "{path}");
             assert!(section.path().starts_with("/operator"));

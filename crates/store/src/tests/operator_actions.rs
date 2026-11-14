@@ -2,13 +2,18 @@
 //! on them when the write runs, all of a write or none of it.
 
 use portal_core::feedback::MessageBody;
+use portal_core::payment::stripe::CardUsed;
+use portal_core::payment::{OrderId, ReviewReason};
 use portal_core::rental::{BookingTerms, Machine, Period};
 
-use super::paying::{auto, completed, customer, event, place, record_all, shop, sid};
+use super::paying::{
+    auto, charged_otherwise, completed, customer, event, month, place, progress, record_all, shop,
+    short_paid, sid,
+};
 use super::*;
 use crate::{
-    AsOperator, BindError, NotAllowed, OPERATOR_CONFIRM_SECS, OperatorActions, ReplyError,
-    StoreError, Unbound,
+    ApproveError, Approved, AsOperator, BindError, NotAllowed, OPERATOR_CONFIRM_SECS,
+    OperatorActions, Progress, ReplyError, StoreError, Unbound,
 };
 
 /// The operator of the tests: registered with code 50, signed in with the
@@ -39,6 +44,18 @@ fn bind_as(
 ) -> Result<AsOperator<()>, BindError> {
     let to = user(to);
     store.as_operator(&digest(byte), at(now), |pages| pages.bind(&code, &to))
+}
+
+/// Approves `order` from the operator pages, as the confirmed operator,
+/// having shown that it waits for `shown`.
+fn approve_as(
+    store: &mut Store,
+    order: OrderId,
+    shown: Option<ReviewReason>,
+) -> Result<AsOperator<Approved>, ApproveError> {
+    store.as_operator(&digest(51), at(NOW + 1), |pages| {
+        pages.approve_order(&order, shown)
+    })
 }
 
 /// Whether `code` is bound.
@@ -227,4 +244,89 @@ fn a_reply_reaches_only_an_account_there_is() {
             .reply(&nobody, &body)),
         Err(ReplyError::UnknownAccount(_))
     ));
+}
+
+#[test]
+fn an_order_is_approved_from_the_pages_for_what_they_showed_alone() {
+    let mut store = shop();
+    confirmed_operator(&mut store);
+    let account = customer(&mut store, "a@qq.com", 1, "pilotusera");
+    // Paid at the wrong price, and from a wallet.
+    let order = short_paid(&mut store, 1, 1);
+    record_all(
+        &mut store,
+        &[event(101, 61, charged_otherwise("pi_1", CardUsed::Wallet))],
+    );
+    let review = |why| Progress::Review(why);
+    assert_eq!(
+        progress(&store, &account, order),
+        review(ReviewReason::Amount)
+    );
+    // What the page did not show is not waived.
+    for shown in [None, Some(ReviewReason::CardUnchecked)] {
+        assert!(
+            matches!(
+                approve_as(&mut store, order, shown),
+                Err(ApproveError::Changed(id)) if id == order
+            ),
+            "{shown:?}"
+        );
+    }
+    assert_eq!(
+        progress(&store, &account, order),
+        review(ReviewReason::Amount)
+    );
+    assert_eq!(
+        approve_as(&mut store, order, Some(ReviewReason::Amount)).unwrap(),
+        AsOperator::Done(Approved {
+            account: account.code,
+            waived: Some(ReviewReason::Amount),
+            standing: review(ReviewReason::CardUnchecked),
+        })
+    );
+    // The same form again waives nothing: the order waits for its card
+    // now, which that page never showed.
+    assert!(matches!(
+        approve_as(&mut store, order, Some(ReviewReason::Amount)),
+        Err(ApproveError::Changed(_))
+    ));
+    assert_eq!(
+        progress(&store, &account, order),
+        review(ReviewReason::CardUnchecked)
+    );
+    assert_eq!(
+        approve_as(&mut store, order, Some(ReviewReason::CardUnchecked)).unwrap(),
+        AsOperator::Done(Approved {
+            account: account.code,
+            waived: Some(ReviewReason::CardUnchecked),
+            standing: Progress::Granted { pulled: false },
+        })
+    );
+    // Granted, it is said to be, whatever the page showed.
+    assert!(matches!(
+        approve_as(&mut store, order, Some(ReviewReason::CardUnchecked)),
+        Err(ApproveError::Granted(_))
+    ));
+}
+
+#[test]
+fn a_paid_order_is_passed_unchecked_from_the_pages_while_it_waits_for_its_card() {
+    let mut store = shop();
+    confirmed_operator(&mut store);
+    let account = customer(&mut store, "a@qq.com", 1, "pilotusera");
+    let order = place(&mut store, 1, &month(), 1);
+    record_all(&mut store, &[event(1, 60, completed(1, order, &month()))]);
+    assert_eq!(progress(&store, &account, order), Progress::Checking);
+    assert!(matches!(
+        approve_as(&mut store, order, Some(ReviewReason::CardUnchecked)),
+        Err(ApproveError::Changed(_))
+    ));
+    assert_eq!(
+        approve_as(&mut store, order, None).unwrap(),
+        AsOperator::Done(Approved {
+            account: account.code,
+            waived: None,
+            standing: Progress::Granted { pulled: false },
+        })
+    );
 }

@@ -8,7 +8,8 @@
 //! for the operator to buy and let to them. A signed-in user writes to the
 //! operator from any page and reads the reply on the feedback page; the
 //! operator answers on the operator pages, where it also binds, unbinds
-//! and bans accounts and closes bookings. Only an account the host made an
+//! and bans accounts, closes bookings and approves orders that wait for it.
+//! Only an account the host made an
 //! operator opens them, and only after confirming its password lately
 //! (`pages::operator`). Every state-changing request is a form protected
 //! against CSRF; every response carries security headers; no asset comes
@@ -97,6 +98,8 @@ pub fn router(state: AppState) -> Router {
         .route("/operator/accounts/ban", post(operator::ban))
         .route("/operator/bookings", get(operator::bookings))
         .route("/operator/bookings/close", post(operator::close_booking))
+        .route("/operator/payments", get(operator::payments))
+        .route("/operator/payments/approve", post(operator::approve))
         .route("/lang", post(lang::switch));
     if selling {
         pages = pages

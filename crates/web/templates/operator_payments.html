@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.review.tab }}{% endblock %}
+{% block main %}
+{% include "operator_head.html" %}
+<div class="container">
+  {% include "operator_outcome.html" %}
+  <p class="lead">{{ chrome.t.review.lead }}</p>
+  <section class="panel">
+    <h2>{{ chrome.t.review.waiting_title }}</h2>
+    {% if waiting.is_empty() %}
+    <p class="muted">{{ chrome.t.review.waiting_empty }}</p>
+    {% else %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{{ chrome.t.review.col_order }}</th>
+            <th scope="col">{{ chrome.t.operator.col_account }}</th>
+            <th scope="col">{{ chrome.t.review.col_plan }}</th>
+            <th scope="col">{{ chrome.t.review.col_paid }}</th>
+          </tr>
+        </thead>
+        {% for row in waiting %}
+{% include "operator_waiting_row.html" %}
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+    {% if let Some(strays) = strays %}<p class="caution">{{ strays }}</p>{% endif %}
+    {% if let Some(unmatched) = unmatched %}<p class="small muted">{{ unmatched }}</p>{% endif %}
+  </section>
+  {% if !disputed.is_empty() %}
+  <section class="panel">
+    <h2>{{ chrome.t.review.disputed_title }}</h2>
+    <p class="muted">{{ chrome.t.review.disputed_lead }}</p>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{{ chrome.t.review.col_order }}</th>
+            <th scope="col">{{ chrome.t.operator.col_account }}</th>
+            <th scope="col">{{ chrome.t.review.col_plan }}</th>
+            <th scope="col">{{ chrome.t.review.col_paid }}</th>
+          </tr>
+        </thead>
+        {% for row in disputed %}
+{% include "operator_waiting_row.html" %}
+        {% endfor %}
+      </table>
+    </div>
+  </section>
+  {% endif %}
+  <section class="panel">
+    <h2>{{ chrome.t.review.latest_title }}</h2>
+    {% if latest.is_empty() %}
+    <p class="muted">{{ chrome.t.review.latest_empty }}</p>
+    {% else %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{{ chrome.t.review.col_order }}</th>
+            <th scope="col">{{ chrome.t.operator.col_account }}</th>
+            <th scope="col">{{ chrome.t.review.col_plan }}</th>
+            <th scope="col">{{ chrome.t.review.col_placed }}</th>
+            <th scope="col">{{ chrome.t.operator.col_state }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in latest %}
+          <tr>
+            <td class="mono">{{ row.order.id }}</td>
+            <td class="mono">{{ row.account }}</td>
+            <td>{{ row.order.name }} · {{ row.order.price }}</td>
+            <td class="when">{{ row.order.placed }}</td>
+            <td class="{{ row.order.tone.class() }}">{{ row.order.state }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

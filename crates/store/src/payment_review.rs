@@ -11,12 +11,14 @@
 //!
 //! Approving waives the one thing the operator was shown, and nothing
 //! else: an order let through for its amount is still judged by its card.
+//! The operator pages say what they showed, and an order that waits for
+//! something else by then is not approved.
 
 use portal_core::account::AccountCode;
 use portal_core::payment::stripe::{Renewal, StripeId};
 use portal_core::payment::{CardVerdict, Currency, OrderId, PlanId, ReviewReason};
 use portal_core::time::UnixTime;
-use rusqlite::{OptionalExtension as _, Row, TransactionBehavior, params};
+use rusqlite::{OptionalExtension as _, Row, Transaction, TransactionBehavior, params};
 
 use crate::orders::{
     ORDER_COLUMNS, ORDER_TABLES, ORDER_WIDTH, Order, OrderRow, Progress, RENEWAL_TABLES, RENEWS,
@@ -150,9 +152,24 @@ pub enum ApproveError {
          first"
     )]
     Unbound(OrderId),
+    /// It waits for something else than the operator pages showed: it
+    /// changed after the page was made, or the form was sent twice.
+    #[error("order {0} no longer waits for what the page showed; nothing changed")]
+    Changed(OrderId),
     /// The database failed.
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+/// What the operator was shown an order waits for, before approving it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Shown {
+    /// Whatever it waits for as it is approved: `approve-order` on the
+    /// host, run on what `orders` listed.
+    Current,
+    /// What the operator pages showed: why it was in review, or `None` if
+    /// it was paid and waiting for word of its card.
+    Waiting(Option<ReviewReason>),
 }
 
 impl From<rusqlite::Error> for ApproveError {
@@ -192,6 +209,13 @@ impl From<rusqlite::Error> for DismissError {
         Self::Store(error.into())
     }
 }
+
+/// Whether `orders o`, joined as [`ORDER_TABLES`], waits: for the operator
+/// (in review), or for its card to be checked. One whose payment was
+/// refunded in full waits for nothing.
+pub(crate) const WAITING: &str = "(o.state = 'review' OR (o.state = 'paid' AND NOT EXISTS
+         (SELECT 1 FROM entitlements e WHERE e.order_id = o.id AND e.kind = 'grant')))
+     AND COALESCE(p.refunded_in_full, 0) = 0";
 
 /// What follows [`ORDER_COLUMNS`] in an operator's query.
 const OPERATOR_COLUMNS: &str =
@@ -271,13 +295,7 @@ impl Store {
     /// card to be checked. Oldest first. One whose payment was refunded
     /// in full waits for nothing.
     pub fn orders_waiting(&self) -> Result<Vec<OperatorOrder>, StoreError> {
-        self.operator_orders(
-            "(o.state = 'review' OR (o.state = 'paid' AND NOT EXISTS
-                 (SELECT 1 FROM entitlements e WHERE e.order_id = o.id AND e.kind = 'grant')))
-             AND COALESCE(p.refunded_in_full, 0) = 0",
-            "o.created_at, o.id",
-            -1,
-        )
+        self.operator_orders(WAITING, "o.created_at, o.id", -1)
     }
 
     /// The `limit` newest orders, newest first.
@@ -429,75 +447,9 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let found: Option<(String, String, Option<String>, [bool; 3])> = tx
-            .query_row(
-                "SELECT a.code, o.state, o.review_reason,
-                        EXISTS (SELECT 1 FROM entitlements e
-                                WHERE e.order_id = o.id AND e.kind = 'grant'),
-                        COALESCE(p.refunded_in_full, 0) = 1 OR p.disputed_amount IS NOT NULL,
-                        EXISTS (SELECT 1 FROM bindings b WHERE b.account_id = o.account_id
-                                AND b.mooring_user = o.mooring_user)
-                 FROM orders o JOIN accounts a ON a.id = o.account_id
-                 LEFT JOIN stripe_payments p ON p.payment_intent = o.payment_intent
-                 WHERE o.id = ?1",
-                [id.as_str()],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        [row.get(3)?, row.get(4)?, row.get(5)?],
-                    ))
-                },
-            )
-            .optional()?;
-        let Some((account, state, reason, [granted, returned, bound])) = found else {
-            return Err(ApproveError::Unknown(*id));
-        };
-        if state == "pending" {
-            return Err(ApproveError::Unpaid(*id));
-        }
-        if granted {
-            return Err(ApproveError::Granted(*id));
-        }
-        if returned {
-            return Err(ApproveError::Returned(*id));
-        }
-        let waived = reason
-            .map(|reason| {
-                ReviewReason::parse(&reason)
-                    .ok_or_else(|| corrupt("order's review reason", format!("{reason:?}")))
-            })
-            .transpose()?;
-        if waived == Some(ReviewReason::CardBanned) {
-            return Err(ApproveError::CardBanned(*id));
-        }
-        if !bound {
-            return Err(ApproveError::Unbound(*id));
-        }
-        // Only the card's check is ever waived for good: every other
-        // reason was a judgement of the checkout, made once.
-        let passes_card = matches!(waived, None | Some(ReviewReason::CardUnchecked));
-        tx.execute(
-            "UPDATE orders SET state = 'paid', review_reason = NULL, card_passed = ?2
-             WHERE id = ?1",
-            params![id.as_str(), passes_card],
-        )?;
-        settle(&tx, now)?;
-        let standing = tx
-            .query_row(
-                &format!("SELECT {ORDER_COLUMNS} FROM {ORDER_TABLES} WHERE o.id = ?1"),
-                [id.as_str()],
-                order_row,
-            )?
-            .checked()?
-            .progress;
+        let approved = approve_order_on(&tx, id, Shown::Current, now)?;
         tx.commit()?;
-        Ok(Approved {
-            account: code_from_sql(&account)?,
-            waived,
-            standing,
-        })
+        Ok(approved)
     }
 
     /// Takes the stray payment numbered `id` off the operator's list.
@@ -536,4 +488,85 @@ impl Store {
         tx.commit()?;
         Ok(())
     }
+}
+
+/// [`Store::approve_order`] on `tx`, at `now`, for an order that waits
+/// for what the operator was `shown`.
+pub(crate) fn approve_order_on(
+    tx: &Transaction<'_>,
+    id: &OrderId,
+    shown: Shown,
+    now: UnixTime,
+) -> Result<Approved, ApproveError> {
+    let found: Option<(String, String, Option<String>, [bool; 3])> = tx
+        .query_row(
+            "SELECT a.code, o.state, o.review_reason,
+                    EXISTS (SELECT 1 FROM entitlements e
+                            WHERE e.order_id = o.id AND e.kind = 'grant'),
+                    COALESCE(p.refunded_in_full, 0) = 1 OR p.disputed_amount IS NOT NULL,
+                    EXISTS (SELECT 1 FROM bindings b WHERE b.account_id = o.account_id
+                            AND b.mooring_user = o.mooring_user)
+             FROM orders o JOIN accounts a ON a.id = o.account_id
+             LEFT JOIN stripe_payments p ON p.payment_intent = o.payment_intent
+             WHERE o.id = ?1",
+            [id.as_str()],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    [row.get(3)?, row.get(4)?, row.get(5)?],
+                ))
+            },
+        )
+        .optional()?;
+    let Some((account, state, reason, [granted, returned, bound])) = found else {
+        return Err(ApproveError::Unknown(*id));
+    };
+    if state == "pending" {
+        return Err(ApproveError::Unpaid(*id));
+    }
+    if granted {
+        return Err(ApproveError::Granted(*id));
+    }
+    if returned {
+        return Err(ApproveError::Returned(*id));
+    }
+    let waived = reason
+        .map(|reason| {
+            ReviewReason::parse(&reason)
+                .ok_or_else(|| corrupt("order's review reason", format!("{reason:?}")))
+        })
+        .transpose()?;
+    if matches!(shown, Shown::Waiting(shown) if shown != waived) {
+        return Err(ApproveError::Changed(*id));
+    }
+    if waived == Some(ReviewReason::CardBanned) {
+        return Err(ApproveError::CardBanned(*id));
+    }
+    if !bound {
+        return Err(ApproveError::Unbound(*id));
+    }
+    // Only the card's check is ever waived for good: every other
+    // reason was a judgement of the checkout, made once.
+    let passes_card = matches!(waived, None | Some(ReviewReason::CardUnchecked));
+    tx.execute(
+        "UPDATE orders SET state = 'paid', review_reason = NULL, card_passed = ?2
+         WHERE id = ?1",
+        params![id.as_str(), passes_card],
+    )?;
+    settle(tx, now)?;
+    let standing = tx
+        .query_row(
+            &format!("SELECT {ORDER_COLUMNS} FROM {ORDER_TABLES} WHERE o.id = ?1"),
+            [id.as_str()],
+            order_row,
+        )?
+        .checked()?
+        .progress;
+    Ok(Approved {
+        account: code_from_sql(&account)?,
+        waived,
+        standing,
+    })
 }

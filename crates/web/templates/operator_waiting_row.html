@@ -1,0 +1,31 @@
+        <tbody>
+          <tr>
+            <td class="mono">{{ row.order.id }}</td>
+            <td class="mono">{{ row.account }}</td>
+            <td>{{ row.order.name }} · {{ row.order.price }}</td>
+            <td class="when">{% if let Some(paid) = row.order.paid %}{{ paid }}{% endif %}</td>
+          </tr>
+          <tr class="actions-row-of">
+            <td colspan="4">
+              <p class="why">{{ row.why }}</p>
+              {% for line in row.todo %}<p class="small">{{ line }}</p>{% endfor %}
+              {% if !row.at_stripe.is_empty() %}
+              <p class="small muted stripe-ids">{{ chrome.t.review.at_stripe }}{% for (what, id) in row.at_stripe %} <span>{{ what }} <span class="mono">{{ id }}</span></span>{% endfor %}</p>
+              {% endif %}
+              {% if row.approvable %}
+              <div class="row-actions">
+                <details class="confirm">
+                  <summary>{{ chrome.t.review.approve }}</summary>
+                  <form method="post" action="/operator/payments/approve">
+                    <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+                    <input type="hidden" name="order" value="{{ row.order.id }}">
+                    <input type="hidden" name="shown" value="{{ row.shown }}">
+                    <p class="small">{{ chrome.t.review.approve_warning }}</p>
+                    <button class="button" type="submit">{{ chrome.t.review.approve_confirm }}</button>
+                  </form>
+                </details>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>

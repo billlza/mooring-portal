@@ -56,19 +56,6 @@ pub struct Conversation {
     pub messages: u64,
 }
 
-/// What every page shows a signed-in account besides its content.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Signals {
-    /// The account may use the operator pages.
-    pub operator: bool,
-    /// The operator wrote to the account after its owner last read the
-    /// conversation.
-    pub unread_reply: bool,
-    /// How many conversations wait for a reply; counted for an operator
-    /// alone, and 0 for anyone else.
-    pub awaiting_reply: u64,
-}
-
 /// Why a user's message was not sent.
 #[derive(Debug, thiserror::Error)]
 pub enum SendError {
@@ -214,34 +201,6 @@ impl Store {
                 })
             })
             .collect()
-    }
-
-    /// What every page shows `account` besides its content.
-    pub fn signals(&self, account: AccountId) -> Result<Signals, StoreError> {
-        let (operator, unread_reply): (bool, bool) = self.conn.query_row(
-            "SELECT EXISTS (SELECT 1 FROM operators WHERE account_id = ?1),
-                 EXISTS (SELECT 1 FROM feedback
-                     WHERE account_id = ?1 AND from_operator = 1 AND seen_at IS NULL)",
-            [account.0],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        let awaiting_reply = if operator {
-            let awaiting: i64 = self.conn.query_row(
-                "SELECT count(*) FROM feedback last
-                 WHERE last.from_operator = 0 AND last.id =
-                     (SELECT max(f.id) FROM feedback f WHERE f.account_id = last.account_id)",
-                [],
-                |row| row.get(0),
-            )?;
-            count_from_sql(awaiting, "feedback count")?
-        } else {
-            0
-        };
-        Ok(Signals {
-            operator,
-            unread_reply,
-            awaiting_reply,
-        })
     }
 }
 

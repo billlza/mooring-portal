@@ -159,7 +159,11 @@ async fn logs_hold_no_link_token_and_no_profile() {
 #[tokio::test]
 async fn the_operator_pages_log_what_was_done_and_no_one_it_was_done_to() {
     capture_logs();
-    let app = TestApp::new();
+    let app = TestApp::shop();
+    // A customer whose order waits for word of its card.
+    let (mut buyer, buyer_code) = app.customer("zhangsan@qq.com", "pilotuserz").await;
+    let order = buyer.order(&app, "month-100").await;
+    app.deliver_events(&["checkout-payment"], &order).await;
     let (mut user, code) = app.signed_up("lilei@qq.com").await;
     user.get(&app, "/mac").await;
     user.post(
@@ -193,6 +197,10 @@ async fn the_operator_pages_log_what_was_done_and_no_one_it_was_done_to() {
             "/operator/accounts/ban".to_owned(),
             vec![("account", code.as_str())],
         ),
+        (
+            "/operator/payments/approve".to_owned(),
+            vec![("order", order.as_str()), ("shown", "checking")],
+        ),
     ] {
         let done = op.post(&app, &path, &fields).await;
         assert!(
@@ -206,6 +214,7 @@ async fn the_operator_pages_log_what_was_done_and_no_one_it_was_done_to() {
         "the operator unbound an account on the operator pages",
         "the operator closed a Mac booking on the operator pages",
         "the operator banned an account on the operator pages",
+        "the operator approved an order on the operator pages",
     ] {
         assert!(log.contains(expected), "{expected} is logged: {log}");
     }
@@ -223,6 +232,10 @@ async fn the_operator_pages_log_what_was_done_and_no_one_it_was_done_to() {
         "m6-16-256",
         reply,
         CHOSEN,
+        "zhangsan",
+        "pilotuserz",
+        &buyer_code.to_string(),
+        order.as_str(),
     ] {
         assert!(!log.contains(secret), "{secret} leaked: {log}");
     }

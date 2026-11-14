@@ -458,6 +458,7 @@ async fn the_operator_pages_show_no_profile_link_or_password() {
         conversation.as_str(),
         "/operator/accounts",
         "/operator/bookings",
+        "/operator/payments",
     ] {
         let page = op.get(&app, path).await;
         assert_eq!(page.status, StatusCode::OK, "{path}");

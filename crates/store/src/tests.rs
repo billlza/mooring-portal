@@ -27,6 +27,7 @@ mod rentals;
 mod review;
 mod sessions;
 mod sharing;
+mod signals;
 mod strays;
 mod subscriptions;
 

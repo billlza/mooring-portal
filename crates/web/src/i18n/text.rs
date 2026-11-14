@@ -17,6 +17,7 @@ pub(crate) struct Strings {
     pub(crate) rental: RentalText,
     pub(crate) feedback: FeedbackText,
     pub(crate) operator: OperatorText,
+    pub(crate) review: ReviewText,
 }
 
 /// Text on every page.
@@ -498,4 +499,79 @@ pub(crate) struct OperatorText {
     pub(crate) closed_notice: &'static str,
     /// "No booking has the number {}."
     pub(crate) no_booking: &'static str,
+}
+
+/// The operator's page of payments: the orders that wait, approving one,
+/// and the latest orders.
+#[derive(Debug)]
+pub(crate) struct ReviewText {
+    /// The tab, and the page's title.
+    pub(crate) tab: &'static str,
+    /// The overview's figure.
+    pub(crate) count_waiting: &'static str,
+    pub(crate) lead: &'static str,
+    pub(crate) waiting_title: &'static str,
+    pub(crate) waiting_empty: &'static str,
+    /// The orders disputed before they were granted, listed apart and
+    /// not counted.
+    pub(crate) disputed_title: &'static str,
+    pub(crate) disputed_lead: &'static str,
+    pub(crate) col_order: &'static str,
+    pub(crate) col_plan: &'static str,
+    pub(crate) col_paid: &'static str,
+    pub(crate) col_placed: &'static str,
+    /// Before the ids the Stripe Dashboard finds a payment by.
+    pub(crate) at_stripe: &'static str,
+    pub(crate) id_checkout: &'static str,
+    pub(crate) id_payment: &'static str,
+    pub(crate) id_invoice: &'static str,
+    pub(crate) id_subscription: &'static str,
+    /// Why an order in review waits, by its reason.
+    pub(crate) why_unpaid: &'static str,
+    pub(crate) why_link: &'static str,
+    pub(crate) why_mode: &'static str,
+    pub(crate) why_amount: &'static str,
+    pub(crate) why_terms: &'static str,
+    pub(crate) why_card_banned: &'static str,
+    pub(crate) why_card_unchecked: &'static str,
+    pub(crate) why_binding: &'static str,
+    /// Paid, and waiting for Stripe to say which payment paid its invoice.
+    pub(crate) waits_invoice: &'static str,
+    /// Paid, and waiting for Stripe to tell of its charge.
+    pub(crate) waits_charge: &'static str,
+    pub(crate) disputed: &'static str,
+    /// What approving an order in review for its checkout leads to, by what is known of its card.
+    pub(crate) next_clear: &'static str,
+    pub(crate) next_banned: &'static str,
+    pub(crate) next_unchecked: &'static str,
+    pub(crate) next_unknown: &'static str,
+    /// What the operator may do about an order that waits.
+    pub(crate) todo_card_banned: &'static str,
+    pub(crate) todo_card_unchecked: &'static str,
+    pub(crate) todo_binding: &'static str,
+    pub(crate) todo_checkout: &'static str,
+    pub(crate) todo_checking: &'static str,
+    pub(crate) approve: &'static str,
+    pub(crate) approve_warning: &'static str,
+    pub(crate) approve_confirm: &'static str,
+    /// "Approved order {} …", by where it stands after.
+    pub(crate) approved_granted: &'static str,
+    /// "Approved order {}, but it waits for you again: {}"
+    pub(crate) approved_again: &'static str,
+    pub(crate) approved_checking: &'static str,
+    /// "No order has the id {}."
+    pub(crate) unknown_order: &'static str,
+    /// Why the order {} was not approved.
+    pub(crate) refused_unpaid: &'static str,
+    pub(crate) refused_granted: &'static str,
+    pub(crate) refused_returned: &'static str,
+    pub(crate) refused_card_banned: &'static str,
+    pub(crate) refused_unbound: &'static str,
+    pub(crate) refused_changed: &'static str,
+    /// "There are also {} payment(s) that are no order's …"
+    pub(crate) elsewhere_strays: &'static str,
+    /// "{} refund(s) or dispute(s) of payments no order names …"
+    pub(crate) elsewhere_unmatched: &'static str,
+    pub(crate) latest_title: &'static str,
+    pub(crate) latest_empty: &'static str,
 }

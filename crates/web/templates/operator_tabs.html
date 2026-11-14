@@ -3,4 +3,5 @@
   <a href="/operator/feedback" aria-current="{{ section.current("feedback") }}">{{ chrome.t.operator.tab_feedback }}{% if chrome.signals.awaiting_reply > 0 %} <span class="count">{{ chrome.signals.awaiting_reply }}</span>{% endif %}</a>
   <a href="/operator/accounts" aria-current="{{ section.current("accounts") }}">{{ chrome.t.operator.tab_accounts }}</a>
   <a href="/operator/bookings" aria-current="{{ section.current("bookings") }}">{{ chrome.t.operator.tab_bookings }}</a>
+  <a href="/operator/payments" aria-current="{{ section.current("payments") }}">{{ chrome.t.review.tab }}{% if chrome.signals.payments_waiting > 0 %} <span class="count">{{ chrome.signals.payments_waiting }}</span>{% endif %}</a>
 </nav>

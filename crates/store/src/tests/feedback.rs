@@ -268,6 +268,7 @@ fn the_operator_sees_who_waits_for_a_reply_first() {
             operator: true,
             unread_reply: false,
             awaiting_reply: 2,
+            payments_waiting: 0,
         }
     );
     // Only an operator is told what waits.

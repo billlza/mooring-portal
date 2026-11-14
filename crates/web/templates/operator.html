@@ -9,6 +9,10 @@
       <p class="label">{{ chrome.t.operator.count_awaiting }}</p>
       <p class="value{% if awaiting > 0 %} tone-warn{% endif %}">{{ awaiting }}</p>
     </a>
+    <a class="panel fact tile" href="/operator/payments">
+      <p class="label">{{ chrome.t.review.count_waiting }}</p>
+      <p class="value{% if payments > 0 %} tone-warn{% endif %}">{{ payments }}</p>
+    </a>
     <a class="panel fact tile" href="/operator/accounts">
       <p class="label">{{ chrome.t.operator.count_accounts }}</p>
       <p class="value">{{ accounts }}</p>
