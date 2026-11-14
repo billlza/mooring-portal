@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.feedback.title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.account.title }}</h1>
+  {% include "tabs.html" %}
+</div>
+<div class="container">
+  {% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  <section class="panel">
+    <h2>{{ chrome.t.feedback.title }}</h2>
+    <p class="muted">{{ chrome.t.feedback.lead }}</p>
+    {% include "thread.html" %}
+  </section>
+  <section class="panel">
+    {% if let Some(error) = error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+    <form class="form" method="post" action="/feedback">
+      <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+      <label>{{ chrome.t.feedback.label }}
+        <textarea name="body" rows="5" maxlength="{{ chrome.max_message_chars() }}" required>{{ draft }}</textarea>
+        <span class="hint">{{ chrome.message_limit() }}</span>
+      </label>
+      <button class="button" type="submit">{{ chrome.t.feedback.send }}</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

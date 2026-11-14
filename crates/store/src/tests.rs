@@ -6,12 +6,15 @@ mod bans;
 mod bindings;
 mod erasure;
 mod failures;
+mod feedback;
 mod file;
 mod journal;
 mod leaving;
 mod links;
 mod migration;
 mod modes;
+mod operator_actions;
+mod operators;
 mod orders;
 mod paying;
 mod payment_failures;
@@ -33,7 +36,7 @@ use portal_core::profile::{CfmProfile, ProfileBundle, WithheldReason};
 use portal_core::snapshot::{BillingCycle, MooringUserId, Snapshot, UserRecord, UserStatus};
 use portal_core::time::{CalendarDate, UnixTime};
 
-use crate::{Account, NewAccount, NewSession, Store, StoredProfile};
+use crate::{Account, NewAccount, NewSession, ReplyError, Store, StoredProfile};
 
 /// 2026-11-05T12:00:00Z.
 const NOW: u64 = 1_793_880_000;
@@ -107,6 +110,23 @@ fn session(account: &Account, byte: u8, created: u64, ttl: u64) -> NewSession {
         created_at: at(created),
         expires_at: at(created + ttl),
     }
+}
+
+/// The operator's `body` to the account with `code` at `now`, as the
+/// operator pages send it but without their check of the session, which
+/// `operator_actions` tests.
+fn reply(
+    store: &mut Store,
+    code: &AccountCode,
+    body: &portal_core::feedback::MessageBody,
+    now: UnixTime,
+) -> Result<(), ReplyError> {
+    let tx = store
+        .conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    crate::feedback::reply_on(&tx, code, body, now)?;
+    tx.commit()?;
+    Ok(())
 }
 
 /// A snapshot of November 2026 generated at `generated`, with usage

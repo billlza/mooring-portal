@@ -9,16 +9,17 @@ use axum::http::HeaderMap;
 use axum::http::HeaderValue;
 use axum::http::request::Parts;
 use portal_core::auth::SecretToken;
-use portal_store::{Account, AccountId, NewSession};
+use portal_store::{Account, AccountId, NewSession, Signals, StoreError};
 
 use super::cookies::{self, SameSite};
 use crate::config::SESSION_TTL_SECS;
 use crate::error::AppError;
 use crate::state::AppState;
 
-/// The account signed in on this request, if any.
+/// The account signed in on this request, if any, with what every page
+/// shows it besides its content.
 #[derive(Debug, Clone)]
-pub(crate) struct Viewer(pub(crate) Option<Account>);
+pub(crate) struct Viewer(pub(crate) Option<(Account, Signals)>);
 
 impl FromRequestParts<AppState> for Viewer {
     type Rejection = AppError;
@@ -29,12 +30,18 @@ impl FromRequestParts<AppState> for Viewer {
         };
         let now = state.now()?;
         let digest = token.digest();
-        let account = state
+        let viewer = state
             .database()
-            .run(move |store| store.session_account(&digest, now))
+            .run(move |store| -> Result<_, StoreError> {
+                let Some(account) = store.session_account(&digest, now)? else {
+                    return Ok(None);
+                };
+                let signals = store.signals(account.id)?;
+                Ok(Some((account, signals)))
+            })
             .await?
             .map_err(AppError::internal)?;
-        Ok(Self(account))
+        Ok(Self(viewer))
     }
 }
 

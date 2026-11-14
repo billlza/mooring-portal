@@ -212,6 +212,28 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          FROM cfm_profiles;
      DROP TABLE cfm_profiles;
      ALTER TABLE cfm_profiles_timed RENAME TO cfm_profiles;",
+    // 8: the operator pages and feedback (docs/security.md, section 13).
+    // Only the operator's command on the host makes an account an
+    // operator. A session's `confirmed_at` is when it last confirmed its
+    // account's password; the operator pages ask for that lately. Each
+    // account has one conversation with the operator, which goes with the
+    // account; `seen_at` is when the account's owner saw an operator's
+    // message, so a user's own messages have none.
+    "CREATE TABLE operators (
+         account_id INTEGER PRIMARY KEY REFERENCES accounts (id) ON DELETE CASCADE,
+         granted_at INTEGER NOT NULL
+     ) STRICT;
+     ALTER TABLE sessions ADD COLUMN confirmed_at INTEGER;
+     CREATE TABLE feedback (
+         id INTEGER PRIMARY KEY,
+         account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+         from_operator INTEGER NOT NULL CHECK (from_operator IN (0, 1)),
+         body TEXT NOT NULL,
+         sent_at INTEGER NOT NULL,
+         seen_at INTEGER,
+         CHECK (from_operator = 1 OR seen_at IS NULL)
+     ) STRICT;
+     CREATE INDEX feedback_by_account ON feedback (account_id, id);",
 ];
 
 /// Applies the migrations the database lacks.

@@ -23,7 +23,7 @@ use portal_core::auth::{BanDigest, HashError};
 use portal_core::payment::stripe::{CardDigest, StripeId};
 use portal_core::snapshot::MooringUserId;
 use portal_core::time::UnixTime;
-use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
+use rusqlite::{OptionalExtension as _, Transaction, TransactionBehavior, params};
 
 use crate::accounts::{forget_payments, open_subscriptions};
 use crate::rows::{email_from_sql, stripe_id_from_sql, time_to_sql, user_from_sql};
@@ -63,8 +63,9 @@ impl From<rusqlite::Error> for BanError {
 
 impl Store {
     /// Bans the account with `code`: deletes it with its sessions,
-    /// binding, subscription record, CFM profile, subscription link, orders
-    /// and Mac bookings, keeps its email address from registering again, and
+    /// binding, subscription record, CFM profile, subscription link, orders,
+    /// Mac bookings, conversation with the operator and operator rights,
+    /// keeps its email address from registering again, and
     /// keeps `cards` from paying for anyone. Copies of the rows stay in the
     /// database files until [`Store::erase_deleted`].
     pub fn ban(
@@ -76,41 +77,9 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let found: Option<(i64, String, Option<String>, bool)> = tx
-            .query_row(
-                "SELECT a.id, a.email, b.mooring_user,
-                        EXISTS (SELECT 1 FROM subscription_links l WHERE l.account_id = a.id)
-                 FROM accounts a LEFT JOIN bindings b ON b.account_id = a.id
-                 WHERE a.code = ?1",
-                [code.to_string()],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )
-            .optional()?;
-        let Some((id, email, user, link_ended)) = found else {
-            return Err(UnknownAccount(*code).into());
-        };
-        let email = email_from_sql(&email)?;
-        let user = user.map(|user| user_from_sql(&user)).transpose()?;
-        let subscriptions = open_subscriptions(&tx, id)?
-            .iter()
-            .map(|subscription| stripe_id_from_sql(subscription))
-            .collect::<Result<_, _>>()?;
-        // Slow, and inside the write lock; an operator's command waits for
-        // it once, and the server's writes wait as long.
-        let digest = BanDigest::of(&email)?;
-        tx.execute(
-            "INSERT INTO banned_emails (email_digest, banned_at) VALUES (?1, ?2)",
-            params![digest.as_bytes(), time_to_sql(now)],
-        )?;
-        insert_cards(&tx, &digest, cards)?;
-        forget_payments(&tx, id)?;
-        tx.execute("DELETE FROM accounts WHERE id = ?1", [id])?;
+        let ban = ban_on(&tx, code, cards, now)?;
         tx.commit()?;
-        Ok(Ban {
-            user,
-            link_ended,
-            subscriptions,
-        })
+        Ok(ban)
     }
 
     /// Adds `cards` to the ban of the address whose ban digest is
@@ -145,6 +114,49 @@ impl Store {
         )?;
         Ok(removed > 0)
     }
+}
+
+/// Bans the account with `code` on `tx`, as [`Store::ban`] does.
+pub(crate) fn ban_on(
+    tx: &Transaction<'_>,
+    code: &AccountCode,
+    cards: &[CardDigest],
+    now: UnixTime,
+) -> Result<Ban, BanError> {
+    let found: Option<(i64, String, Option<String>, bool)> = tx
+        .query_row(
+            "SELECT a.id, a.email, b.mooring_user,
+                    EXISTS (SELECT 1 FROM subscription_links l WHERE l.account_id = a.id)
+             FROM accounts a LEFT JOIN bindings b ON b.account_id = a.id
+             WHERE a.code = ?1",
+            [code.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()?;
+    let Some((id, email, user, link_ended)) = found else {
+        return Err(UnknownAccount(*code).into());
+    };
+    let email = email_from_sql(&email)?;
+    let user = user.map(|user| user_from_sql(&user)).transpose()?;
+    let subscriptions = open_subscriptions(tx, id)?
+        .iter()
+        .map(|subscription| stripe_id_from_sql(subscription))
+        .collect::<Result<_, _>>()?;
+    // Slow, and inside the write lock; an operator's command waits for
+    // it once, and the server's writes wait as long.
+    let digest = BanDigest::of(&email)?;
+    tx.execute(
+        "INSERT INTO banned_emails (email_digest, banned_at) VALUES (?1, ?2)",
+        params![digest.as_bytes(), time_to_sql(now)],
+    )?;
+    insert_cards(tx, &digest, cards)?;
+    forget_payments(tx, id)?;
+    tx.execute("DELETE FROM accounts WHERE id = ?1", [id])?;
+    Ok(Ban {
+        user,
+        link_ended,
+        subscriptions,
+    })
 }
 
 /// Keeps `cards` with the ban of the address whose digest is `digest`. A

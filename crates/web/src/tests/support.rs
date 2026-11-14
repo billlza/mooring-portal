@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::Router;
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::extract::ConnectInfo;
 use axum::http::header::{CONTENT_TYPE, COOKIE, LOCATION, ORIGIN, SET_COOKIE};
 use axum::http::{HeaderMap, Request, StatusCode};
@@ -16,6 +16,7 @@ use portal_core::release::{CfmRelease, Version};
 use portal_core::snapshot::{MooringUserId, Snapshot};
 use portal_core::time::{ManualClock, UnixTime};
 use portal_store::{OpenMode, Store};
+use tokio::sync::oneshot;
 use tower::ServiceExt as _;
 
 use crate::config::{ClientIpSource, Payments, PublicOrigin, WebConfig};
@@ -339,6 +340,42 @@ impl Browser {
             .await;
         self.remember(&reply);
         reply
+    }
+
+    /// Posts `fields` to `path` as [`Self::post`] does, but holds the body
+    /// back: returns once the portal asks for the body, with a sender
+    /// that releases it and the reply to come. The browser's cookies are
+    /// those it holds now; the reply does not change them.
+    pub(crate) async fn held_post(
+        &self,
+        app: &TestApp,
+        path: &str,
+        fields: &[(&str, &str)],
+    ) -> (oneshot::Sender<()>, tokio::task::JoinHandle<Reply>) {
+        let (asked, asked_for_body) = oneshot::channel::<()>();
+        let (release, released) = oneshot::channel::<()>();
+        let token = self.cookies.get("__Host-csrf").cloned().unwrap_or_default();
+        let mut all = vec![("csrf", token.as_str())];
+        all.extend_from_slice(fields);
+        let form = serde_urlencoded::to_string(&all).unwrap();
+        let body = futures_util::stream::once(async move {
+            asked.send(()).unwrap();
+            released.await.unwrap();
+            Ok::<_, std::io::Error>(Bytes::from(form))
+        });
+        let request = self
+            .request("POST", path)
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(ORIGIN, ORIGIN_URL)
+            .header("sec-fetch-site", "same-origin")
+            .body(Body::from_stream(body))
+            .unwrap();
+        let pending = tokio::spawn({
+            let app = app.clone();
+            async move { app.send(request).await }
+        });
+        asked_for_body.await.unwrap();
+        (release, pending)
     }
 
     /// Logs in with `email` and the test password.

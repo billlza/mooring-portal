@@ -13,7 +13,7 @@ use portal_core::account::{AccountCode, Email};
 use portal_core::auth::TokenDigest;
 use portal_core::rental::{BookingTerms, ChipName, MachineId, Period};
 use portal_core::time::UnixTime;
-use rusqlite::{Connection, OptionalExtension as _, Row, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension as _, Row, Transaction, TransactionBehavior, params};
 
 use crate::rows::{
     code_from_sql, corrupt, count_from_sql, count_to_sql, email_from_sql, time_from_sql,
@@ -241,32 +241,41 @@ impl Store {
     /// and gives what it was, if there was one. Copies of the row stay in
     /// the database files until [`Store::erase_deleted`].
     pub fn close_booking(&mut self, id: u64) -> Result<Option<OperatorBooking>, StoreError> {
-        // A number no row can have names no booking.
-        let Ok(id) = i64::try_from(id) else {
-            return Ok(None);
-        };
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let found = tx
-            .query_row(
-                &format!(
-                    "SELECT {BOOKING_COLUMNS}, a.code, a.email
-                     FROM mac_bookings b JOIN accounts a ON a.id = b.account_id
-                     WHERE b.id = ?1"
-                ),
-                [id],
-                operator_row,
-            )
-            .optional()?;
-        let Some(found) = found else {
-            return Ok(None);
-        };
-        let closed = operator_booking(found)?;
-        tx.execute("DELETE FROM mac_bookings WHERE id = ?1", [id])?;
+        let closed = close_booking_on(&tx, id)?;
         tx.commit()?;
-        Ok(Some(closed))
+        Ok(closed)
     }
+}
+
+/// Closes booking `id` on `tx`, as [`Store::close_booking`] does.
+pub(crate) fn close_booking_on(
+    tx: &Transaction<'_>,
+    id: u64,
+) -> Result<Option<OperatorBooking>, StoreError> {
+    // A number no row can have names no booking.
+    let Ok(id) = i64::try_from(id) else {
+        return Ok(None);
+    };
+    let found = tx
+        .query_row(
+            &format!(
+                "SELECT {BOOKING_COLUMNS}, a.code, a.email
+                 FROM mac_bookings b JOIN accounts a ON a.id = b.account_id
+                 WHERE b.id = ?1"
+            ),
+            [id],
+            operator_row,
+        )
+        .optional()?;
+    let Some(found) = found else {
+        return Ok(None);
+    };
+    let closed = operator_booking(found)?;
+    tx.execute("DELETE FROM mac_bookings WHERE id = ?1", [id])?;
+    Ok(Some(closed))
 }
 
 /// Reads [`BOOKING_COLUMNS`] and the account's code and address after

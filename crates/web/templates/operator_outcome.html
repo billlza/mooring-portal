@@ -1,0 +1,3 @@
+{% if let Some(notice) = outcome.notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+{% if let Some(refusal) = outcome.refusal %}<p class="alert" role="alert">{{ refusal }}</p>{% endif %}
+{% for warning in outcome.warnings %}<p class="caution" role="alert">{{ warning }}</p>{% endfor %}

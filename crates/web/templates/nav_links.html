@@ -3,3 +3,4 @@
 <a href="/download" aria-current="{{ chrome.current("download") }}">{{ chrome.t.nav.download }}</a>
 <a href="/mac" aria-current="{{ chrome.current("mac") }}">{{ chrome.t.nav.mac }}</a>
 <a href="/help" aria-current="{{ chrome.current("help") }}">{{ chrome.t.nav.help }}</a>
+{% if chrome.signals.operator %}<a href="/operator" aria-current="{{ chrome.current("operator") }}">{{ chrome.t.operator.nav }}{% if chrome.signals.awaiting_reply > 0 %} <span class="count">{{ chrome.signals.awaiting_reply }}</span>{% endif %}</a>{% endif %}

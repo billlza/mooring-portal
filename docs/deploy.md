@@ -138,6 +138,11 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 部署前先确认线上的 `cfm_profiles` 是空的；不空的话，每份配置都要有绑定，`profile_bundle` 也要有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
 - 要换回第 6 版的程序，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：旧版本照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
 
+数据库第 8 版（运营者名单、会话确认密码的时间、反馈；分支 `feature/feedback-and-operator-pages`，接在第 7 版之后，尚未部署）：
+- 迁移只新建两张表、给 `sessions` 加一列，不改已有的行，线上的数据不会让它失败。
+- 部署后在主机上用 `grant-operator --account <编号>` 把运营者自己的账号设为运营者，网页上才有"运营"。
+- 要换回第 7 版的程序，先停掉门户，用门户的账号在数据库上执行 `DROP TABLE feedback; DROP TABLE operators; ALTER TABLE sessions DROP COLUMN confirmed_at; PRAGMA user_version = 7;`。反馈和运营者名单随之删除，会话保留。执行后的结构和第 7 版完全相同（`crates/store/src/tests/operators.rs` 里有测试）。`sqlite3` 删表时不抹掉表占过的页面，反馈的原文会留在数据库文件里：换回第 7 版的程序后、启动门户之前，运行一次它的 `erase-deleted`，把这些内容从文件里抹掉。
+
 ## 3. DNS
 
 - Porkbun 注册时自动加了两条记录，把 `moorlight.app` 和它的所有子域名都指向 Porkbun 的停放页（一条 `ALIAS`、一条 `*` 的 `CNAME`，目标都是 `pixie.porkbun.com`）。先删掉这两条，否则 `www` 这类子域名会指向 Porkbun。

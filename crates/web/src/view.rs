@@ -19,11 +19,13 @@ use crate::format::{beijing, beijing_date, bytes};
 use crate::i18n::{Strings, fill};
 
 mod cfm;
+mod feedback;
 mod release;
 mod rental;
 mod shop;
 
 pub(crate) use cfm::CfmPanel;
+pub(crate) use feedback::{MessageView, Reader};
 pub(crate) use release::ReleaseView;
 pub(crate) use rental::{BookingView, MachineView, PeriodView};
 pub(crate) use shop::{OrderView, PayAction, PlanView, ShopView};

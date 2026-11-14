@@ -308,7 +308,7 @@ fn a_command_that_cannot_erase_says_what_it_did_and_how_to_finish() {
     assert_eq!(
         deleted.out,
         "deleted account 0000-0000-0001 with its sessions, binding, subscription record, CFM \
-         profile, subscription link, orders and Mac bookings\n"
+         profile, subscription link, orders, Mac bookings and feedback\n"
     );
     assert_eq!(
         deleted.err,

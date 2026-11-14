@@ -242,18 +242,27 @@ async fn every_page_has_the_same_bar_and_footer() {
             footer.contains("<a class=\"footer-help\" href=\"/help\">帮助中心<svg"),
             "{path}"
         );
-        // Help is reached from the bar and the footer; nothing floats over
-        // the page.
+        // Help is reached from the bar and the footer. The one thing that
+        // floats over a signed-in user's page is the box that writes to the
+        // operator (2026-11-14), after the footer.
         assert!(!body.contains("help-float"), "{path}");
+        let after = body.split("</footer>\n").nth(1).unwrap();
+        assert!(after.starts_with("<details class=\"dock\">"), "{path}");
+        assert_eq!(
+            body.matches("<details class=\"dock\">").count(),
+            1,
+            "{path}"
+        );
         assert!(
-            body.ends_with("</footer>\n</body>\n</html>\n")
-                || body.ends_with("</footer>\n</body>\n</html>"),
+            after.trim_end().ends_with("</details>\n</body>\n</html>"),
             "{path}"
         );
     }
-    // A visitor who is not signed in is shown the way in instead.
+    // A visitor who is not signed in is shown the way in instead, and
+    // nothing floats over the page.
     let mut stranger = Browser::new([203, 0, 113, 9]);
     let home = stranger.get(&app, "/").await.body;
     assert!(home.contains("<a class=\"pill\" href=\"/login\">登录 / 注册<svg"));
     assert!(!home.contains("我的账户"));
+    assert!(home.trim_end().ends_with("</footer>\n</body>\n</html>"));
 }

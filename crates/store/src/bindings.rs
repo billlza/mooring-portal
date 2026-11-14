@@ -104,33 +104,7 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let Some((account, bound)) = account_by_code(&tx, code)? else {
-            return Err(UnknownAccount(*code).into());
-        };
-        if let Some(bound) = bound {
-            return Err(BindError::AccountBound {
-                account: *code,
-                user: bound,
-            });
-        }
-        let holder: Option<String> = tx
-            .query_row(
-                "SELECT a.code FROM accounts a JOIN bindings b ON b.account_id = a.id
-                 WHERE b.mooring_user = ?1",
-                [user.as_str()],
-                |row| row.get(0),
-            )
-            .optional()?;
-        if let Some(holder) = holder {
-            return Err(BindError::UserBound {
-                user: user.clone(),
-                account: code_from_sql(&holder)?,
-            });
-        }
-        tx.execute(
-            "INSERT INTO bindings (account_id, mooring_user, bound_at) VALUES (?1, ?2, ?3)",
-            params![account.0, user.as_str(), time_to_sql(now)],
-        )?;
+        bind_on(&tx, code, user, now)?;
         tx.commit()?;
         Ok(())
     }
@@ -141,13 +115,7 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let Some((account, bound)) = account_by_code(&tx, code)? else {
-            return Err(UnknownAccount(*code).into());
-        };
-        let Some(user) = bound else {
-            return Err(UnbindError::NotBound(*code));
-        };
-        tx.execute("DELETE FROM bindings WHERE account_id = ?1", [account.0])?;
+        let (_, user) = unbind_on(&tx, code)?;
         tx.commit()?;
         Ok(user)
     }
@@ -166,6 +134,59 @@ impl Store {
             .map(|(user, bound_at)| binding_row(&user, bound_at))
             .transpose()
     }
+}
+
+/// Binds the account with `code` to `user` on `tx`, as of `now`.
+pub(crate) fn bind_on(
+    tx: &Transaction<'_>,
+    code: &AccountCode,
+    user: &MooringUserId,
+    now: UnixTime,
+) -> Result<(), BindError> {
+    let Some((account, bound)) = account_by_code(tx, code)? else {
+        return Err(UnknownAccount(*code).into());
+    };
+    if let Some(bound) = bound {
+        return Err(BindError::AccountBound {
+            account: *code,
+            user: bound,
+        });
+    }
+    let holder: Option<String> = tx
+        .query_row(
+            "SELECT a.code FROM accounts a JOIN bindings b ON b.account_id = a.id
+             WHERE b.mooring_user = ?1",
+            [user.as_str()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(holder) = holder {
+        return Err(BindError::UserBound {
+            user: user.clone(),
+            account: code_from_sql(&holder)?,
+        });
+    }
+    tx.execute(
+        "INSERT INTO bindings (account_id, mooring_user, bound_at) VALUES (?1, ?2, ?3)",
+        params![account.0, user.as_str(), time_to_sql(now)],
+    )?;
+    Ok(())
+}
+
+/// Unbinds the account with `code` on `tx`: the account, and the Mooring
+/// user it was bound to.
+pub(crate) fn unbind_on(
+    tx: &Transaction<'_>,
+    code: &AccountCode,
+) -> Result<(AccountId, MooringUserId), UnbindError> {
+    let Some((account, bound)) = account_by_code(tx, code)? else {
+        return Err(UnknownAccount(*code).into());
+    };
+    let Some(user) = bound else {
+        return Err(UnbindError::NotBound(*code));
+    };
+    tx.execute("DELETE FROM bindings WHERE account_id = ?1", [account.0])?;
+    Ok((account, user))
 }
 
 /// A binding row read back.

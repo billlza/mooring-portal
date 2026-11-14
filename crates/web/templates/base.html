@@ -61,5 +61,24 @@
     <a class="footer-help" href="/help">{{ chrome.t.common.help }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
   </div>
 </footer>
+{% if chrome.feedback_box() -%}
+<details class="dock">
+  <summary>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+    <span>{{ chrome.t.feedback.title }}</span>
+    {% if chrome.signals.unread_reply %}<span class="dock-unread">{{ chrome.t.feedback.unread }}</span>{% endif %}
+  </summary>
+  <div class="dock-panel">
+    <form class="form" method="post" action="/feedback">
+      <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+      <label>{{ chrome.t.feedback.label }}
+        <textarea name="body" rows="4" maxlength="{{ chrome.max_message_chars() }}" required></textarea>
+      </label>
+      <button class="button wide" type="submit">{{ chrome.t.feedback.send }}</button>
+    </form>
+    <p class="small"><a class="link" href="/feedback">{{ chrome.t.feedback.see_all }}</a></p>
+  </div>
+</details>
+{% endif -%}
 </body>
 </html>

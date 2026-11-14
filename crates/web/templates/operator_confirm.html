@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.operator.confirm_title }}{% endblock %}
+{% block main %}
+<div class="container auth">
+  <section class="panel auth-panel">
+    <h1>{{ chrome.t.operator.confirm_title }}</h1>
+    <p class="muted">{{ lead }}</p>
+    {% if let Some(error) = error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+    <form class="form" method="post" action="/operator/confirm">
+      <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+      <input type="hidden" name="next" value="{{ next.key() }}">
+      <label>{{ chrome.t.operator.confirm_password }}
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button class="button wide" type="submit">{{ chrome.t.operator.confirm_button }}</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

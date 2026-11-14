@@ -121,7 +121,9 @@ pub(crate) fn session_account_id(
     Ok(account.map(AccountId))
 }
 
-fn insert_session(tx: &Transaction<'_>, session: &NewSession) -> Result<(), StoreError> {
+/// Records `session` on `tx`, dropping expired sessions and the
+/// account's oldest beyond [`MAX_SESSIONS_PER_ACCOUNT`].
+pub(crate) fn insert_session(tx: &Transaction<'_>, session: &NewSession) -> Result<(), StoreError> {
     tx.execute(
         "DELETE FROM sessions WHERE expires_at <= ?1",
         [time_to_sql(session.created_at)],

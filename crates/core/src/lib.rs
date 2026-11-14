@@ -7,6 +7,7 @@
 
 pub mod account;
 pub mod auth;
+pub mod feedback;
 pub mod json;
 pub mod payment;
 pub mod profile;

@@ -1,0 +1,12 @@
+{% if messages.is_empty() %}
+<p class="muted">{{ chrome.t.feedback.empty }}</p>
+{% else %}
+<ol class="thread">
+  {% for message in messages %}
+  <li class="message{% if message.mine %} mine{% endif %}{% if message.from_operator %} from-operator{% endif %}">
+    <p class="message-meta"><span class="message-who">{{ message.who }}</span> <span class="muted small">{{ message.sent }}</span></p>
+    <p class="message-body">{{ message.body }}</p>
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}

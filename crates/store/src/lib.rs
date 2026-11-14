@@ -6,8 +6,10 @@
 //! has said of each payment and the journal Mooring pulls (of one mode,
 //! Stripe's test mode or real money, never both), the ban list
 //! (digests of banned accounts' email addresses and of their cards'
-//! fingerprints), the CFM release the download page offers, and the Mac
-//! rental bookings that wait for the operator. The server and the
+//! fingerprints), the CFM release the download page offers, the Mac
+//! rental bookings that wait for the operator, which accounts are
+//! operators, and each account's conversation with the operator. The
+//! server and the
 //! operator's commands open the same file: SQLite's write lock serialises
 //! them (WAL journal, five-second busy timeout), and every operation that
 //! reads before it writes runs in an immediate transaction, so its checks
@@ -29,8 +31,10 @@ mod bans;
 mod bindings;
 mod entitlements;
 mod error;
+mod feedback;
 mod file;
 mod links;
+mod operators;
 mod orders;
 mod payment_mode;
 mod payment_review;
@@ -54,7 +58,14 @@ pub use bans::{Ban, BanError};
 pub use bindings::{BindError, Binding, BoundAccount, UnbindError};
 pub use entitlements::{PullError, PullState, Pulled};
 pub use error::{StoreError, UnknownAccount};
+pub use feedback::{
+    Conversation, FeedbackMessage, MAX_KEPT, MAX_SENT_PER_DAY, ReplyError, SendError, Signals,
+};
 pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
+pub use operators::{
+    AsOperator, NotAllowed, OPERATOR_CONFIRM_SECS, OperatorActions, OperatorError, OperatorSession,
+    Unbound,
+};
 pub use orders::{AutoRenewal, Order, OrderError, Progress};
 pub use payment_mode::{DiscardError, Discarded, ModeError};
 pub use payment_review::{

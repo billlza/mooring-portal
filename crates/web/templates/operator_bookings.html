@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.operator.tab_bookings }}{% endblock %}
+{% block main %}
+{% include "operator_head.html" %}
+<div class="container">
+  {% include "operator_outcome.html" %}
+  <section class="panel">
+    {% if bookings.is_empty() %}
+    <p class="muted">{{ chrome.t.operator.bookings_empty }}</p>
+    {% else %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{{ chrome.t.operator.col_booking }}</th>
+            <th scope="col">{{ chrome.t.operator.col_account }}</th>
+            <th scope="col">{{ chrome.t.operator.col_email }}</th>
+            <th scope="col">{{ chrome.t.operator.col_machine }}</th>
+            <th scope="col">{{ chrome.t.operator.col_terms }}</th>
+            <th scope="col">{{ chrome.t.operator.col_placed }}</th>
+          </tr>
+        </thead>
+        {% for row in bookings %}
+        <tbody>
+          <tr>
+            <td>{{ row.id }}</td>
+            <td class="mono">{{ row.account }}</td>
+            <td>{{ row.email }}</td>
+            <td>{{ row.booking.name }}</td>
+            <td>{{ row.booking.period }} · {{ row.booking.price }}{% if let Some(first) = row.booking.first %}<span class="block muted small">{{ first }}</span>{% endif %}</td>
+            <td class="when">{{ row.placed }}</td>
+          </tr>
+          <tr class="actions-row-of">
+            <td colspan="6">
+              <div class="row-actions">
+                <details class="confirm">
+                  <summary>{{ chrome.t.operator.close }}</summary>
+                  <form method="post" action="/operator/bookings/close">
+                    <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+                    <input type="hidden" name="id" value="{{ row.id }}">
+                    <p class="small">{{ chrome.t.operator.close_warning }}</p>
+                    <button class="button danger" type="submit">{{ chrome.t.operator.close_confirm }}</button>
+                  </form>
+                </details>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

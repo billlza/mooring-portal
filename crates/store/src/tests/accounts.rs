@@ -71,6 +71,7 @@ fn accounts_list_oldest_first_with_their_bindings() {
     store
         .bind(&second.code, &user("pilotusera"), at(NOW + 10))
         .unwrap();
+    store.grant_operator(&first.code, at(NOW + 11)).unwrap();
     assert_eq!(
         store.accounts().unwrap(),
         [
@@ -79,6 +80,7 @@ fn accounts_list_oldest_first_with_their_bindings() {
                 email: email("a@qq.com"),
                 created_at: at(NOW + 1),
                 binding: None,
+                operator: true,
             },
             AccountSummary {
                 code: second.code,
@@ -88,6 +90,7 @@ fn accounts_list_oldest_first_with_their_bindings() {
                     user: user("pilotusera"),
                     bound_at: at(NOW + 10),
                 }),
+                operator: false,
             },
         ]
     );

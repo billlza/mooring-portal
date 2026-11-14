@@ -15,6 +15,8 @@ pub(crate) struct Strings {
     pub(crate) cfm: CfmText,
     pub(crate) pay: PayText,
     pub(crate) rental: RentalText,
+    pub(crate) feedback: FeedbackText,
+    pub(crate) operator: OperatorText,
 }
 
 /// Text on every page.
@@ -377,4 +379,123 @@ pub(crate) struct RentalText {
     pub(crate) notice_withdrawn: &'static str,
     /// The machine booked is no longer on offer.
     pub(crate) notice_gone: &'static str,
+}
+
+/// The feedback box on every page and the conversation page.
+#[derive(Debug)]
+pub(crate) struct FeedbackText {
+    /// The page's title, and the box's button.
+    pub(crate) title: &'static str,
+    pub(crate) lead: &'static str,
+    /// What the button says while the operator's reply is unread.
+    pub(crate) unread: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) send: &'static str,
+    /// The box's link to the whole conversation.
+    pub(crate) see_all: &'static str,
+    pub(crate) empty: &'static str,
+    pub(crate) you: &'static str,
+    pub(crate) operator: &'static str,
+    /// "At most {} characters."
+    pub(crate) limit: &'static str,
+    pub(crate) sent: &'static str,
+    pub(crate) blank: &'static str,
+    /// "… at most {} characters."
+    pub(crate) too_long: &'static str,
+    pub(crate) control: &'static str,
+    /// "At most {} messages in 24 hours …"
+    pub(crate) too_many: &'static str,
+}
+
+/// The operator pages.
+#[derive(Debug)]
+pub(crate) struct OperatorText {
+    pub(crate) title: &'static str,
+    /// The navigation's link, shown to operators alone.
+    pub(crate) nav: &'static str,
+    pub(crate) tab_overview: &'static str,
+    pub(crate) tab_feedback: &'static str,
+    pub(crate) tab_accounts: &'static str,
+    pub(crate) tab_bookings: &'static str,
+    pub(crate) confirm_title: &'static str,
+    /// "… every {} minutes …"
+    pub(crate) confirm_lead: &'static str,
+    pub(crate) confirm_password: &'static str,
+    pub(crate) confirm_button: &'static str,
+    pub(crate) confirm_wrong: &'static str,
+    pub(crate) overview_lead: &'static str,
+    pub(crate) count_awaiting: &'static str,
+    pub(crate) count_accounts: &'static str,
+    pub(crate) count_unbound: &'static str,
+    pub(crate) count_bookings: &'static str,
+    pub(crate) col_account: &'static str,
+    pub(crate) col_email: &'static str,
+    pub(crate) col_created: &'static str,
+    pub(crate) col_user: &'static str,
+    pub(crate) col_last: &'static str,
+    pub(crate) col_state: &'static str,
+    pub(crate) feedback_empty: &'static str,
+    pub(crate) awaiting_reply: &'static str,
+    pub(crate) replied: &'static str,
+    pub(crate) open: &'static str,
+    pub(crate) reply_label: &'static str,
+    pub(crate) reply_send: &'static str,
+    /// A reply that is blank.
+    pub(crate) reply_blank: &'static str,
+    pub(crate) reply_sent: &'static str,
+    pub(crate) back: &'static str,
+    /// "Conversation with {}", the account's code.
+    pub(crate) conversation_title: &'static str,
+    pub(crate) col_messages: &'static str,
+    /// An account's link to its conversation.
+    pub(crate) conversation_link: &'static str,
+    /// Marks the accounts that may use these pages.
+    pub(crate) operator_mark: &'static str,
+    pub(crate) unbound: &'static str,
+    pub(crate) bind_user: &'static str,
+    pub(crate) bind: &'static str,
+    pub(crate) unbind: &'static str,
+    pub(crate) unbind_warning: &'static str,
+    pub(crate) unbind_confirm: &'static str,
+    pub(crate) ban: &'static str,
+    pub(crate) ban_warning: &'static str,
+    pub(crate) ban_confirm: &'static str,
+    /// "Bound account {} …"
+    pub(crate) bound_notice: &'static str,
+    /// "Unbound account {} from Mooring user {} …"
+    pub(crate) unbound_notice: &'static str,
+    /// "Banned account {} …"
+    pub(crate) banned_notice: &'static str,
+    /// "… was bound to Mooring user {}: revoke it in Mooring."
+    pub(crate) revoke_in_mooring: &'static str,
+    /// "Stripe may still charge subscription {} …", after unbinding.
+    pub(crate) unbind_stripe: &'static str,
+    /// "Stripe may still charge subscription {} …", after a ban.
+    pub(crate) ban_stripe: &'static str,
+    /// "Nothing changed: {}", the reason.
+    pub(crate) refused: &'static str,
+    pub(crate) bad_user: &'static str,
+    /// "No account has the code {}."
+    pub(crate) unknown_account: &'static str,
+    /// "Account {} is bound to Mooring user {} already …"
+    pub(crate) account_bound: &'static str,
+    /// "Mooring user {} is bound to account {} already …"
+    pub(crate) user_bound: &'static str,
+    /// "Account {} is not bound."
+    pub(crate) not_bound: &'static str,
+    pub(crate) ban_operator: &'static str,
+    pub(crate) erase_busy: &'static str,
+    pub(crate) erase_failed: &'static str,
+    pub(crate) bookings_empty: &'static str,
+    pub(crate) col_booking: &'static str,
+    pub(crate) col_machine: &'static str,
+    pub(crate) col_terms: &'static str,
+    pub(crate) col_placed: &'static str,
+    pub(crate) close: &'static str,
+    pub(crate) close_warning: &'static str,
+    pub(crate) close_confirm: &'static str,
+    /// "Closed booking {} …"
+    pub(crate) closed_notice: &'static str,
+    /// "No booking has the number {}."
+    pub(crate) no_booking: &'static str,
 }

@@ -12,7 +12,7 @@ use portal_core::snapshot::SnapshotError;
 use portal_core::time::TimeError;
 use portal_store::{
     AccountProfileError, ApproveError, BanError, BindError, DeleteError, DiscardError,
-    DismissError, ImportError, ProfileImportError, StoreError, UnbindError,
+    DismissError, ImportError, OperatorError, ProfileImportError, StoreError, UnbindError,
 };
 use portal_web::{OriginError, SecretCount, StartupError};
 
@@ -37,6 +37,9 @@ pub enum CommandError {
     /// A profile import for one account was refused.
     #[error(transparent)]
     AccountProfile(#[from] AccountProfileError),
+    /// An account's operator rights did not change.
+    #[error(transparent)]
+    Operator(#[from] OperatorError),
     /// A deletion was refused.
     #[error(transparent)]
     Delete(#[from] DeleteError),

@@ -30,11 +30,12 @@ pub(crate) fn accounts(store: &Store, out: &mut dyn Write) -> Result<(), Command
             .map_or("-", |binding| binding.user.as_str());
         writeln!(
             out,
-            "{:<14}  {:<20}  {:<12}  {}",
+            "{:<14}  {:<20}  {:<12}  {}{}",
             account.code.to_string(),
             account.created_at.to_string(),
             user,
-            account.email.as_str()
+            account.email.as_str(),
+            if account.operator { "  (operator)" } else { "" }
         )?;
     }
     writeln!(out, "{} account(s)", accounts.len())?;
@@ -83,6 +84,49 @@ pub(crate) fn unbind(
             )?;
         }
         Ok(())
+    })
+}
+
+/// Lets an account use the operator pages.
+pub(crate) fn grant_operator(
+    store: &mut Store,
+    clock: &dyn Clock,
+    account: &AccountCode,
+    out: &mut dyn Write,
+) -> Result<(), CommandError> {
+    if store.grant_operator(account, clock.now()?)? {
+        writeln!(
+            out,
+            "account {account} can now use the operator pages at /operator, after confirming \
+             its password there"
+        )?;
+    } else {
+        writeln!(
+            out,
+            "account {account} could already use the operator pages; nothing changed"
+        )?;
+    }
+    Ok(())
+}
+
+/// Stops an account from using the operator pages.
+pub(crate) fn revoke_operator(
+    store: &mut Store,
+    account: &AccountCode,
+    out: &mut dyn Write,
+) -> Result<(), CommandError> {
+    if !store.revoke_operator(account)? {
+        writeln!(
+            out,
+            "account {account} was not an operator; nothing changed"
+        )?;
+        return Ok(());
+    }
+    erase_then_report(store, out, |out| {
+        writeln!(
+            out,
+            "account {account} can no longer use the operator pages"
+        )
     })
 }
 
@@ -308,7 +352,7 @@ pub(crate) fn delete_account(
         writeln!(
             out,
             "deleted account {account} with its sessions, binding, subscription record, CFM \
-             profile, subscription link, orders and Mac bookings"
+             profile, subscription link, orders, Mac bookings and feedback"
         )
     })
 }
@@ -327,8 +371,8 @@ pub(crate) fn ban(
         writeln!(
             out,
             "banned account {account}: deleted it with its sessions, binding, subscription \
-             record, CFM profile, subscription link{}, orders and Mac bookings; its email \
-             address cannot register again",
+             record, CFM profile, subscription link{}, orders, Mac bookings and feedback; its \
+             email address cannot register again",
             if ban.link_ended {
                 " (the link has ended for good)"
             } else {

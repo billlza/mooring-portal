@@ -58,6 +58,8 @@ pub struct AccountSummary {
     pub created_at: UnixTime,
     /// The Mooring user it is bound to, if any.
     pub binding: Option<Binding>,
+    /// Whether it may use the operator pages.
+    pub operator: bool,
 }
 
 /// Why registration did not create an account.
@@ -169,7 +171,8 @@ impl Store {
     /// Every account, oldest first, with its binding.
     pub fn accounts(&self) -> Result<Vec<AccountSummary>, StoreError> {
         let mut statement = self.conn.prepare(
-            "SELECT a.code, a.email, a.created_at, b.mooring_user, b.bound_at
+            "SELECT a.code, a.email, a.created_at, b.mooring_user, b.bound_at,
+                 EXISTS (SELECT 1 FROM operators o WHERE o.account_id = a.id)
              FROM accounts a LEFT JOIN bindings b ON b.account_id = a.id
              ORDER BY a.created_at, a.id",
         )?;
@@ -180,25 +183,28 @@ impl Store {
                 row.get::<_, i64>(2)?,
                 row.get::<_, Option<String>>(3)?,
                 row.get::<_, Option<i64>>(4)?,
+                row.get::<_, bool>(5)?,
             ))
         })?;
         let mut accounts = Vec::new();
         for row in rows {
-            let (code, email, created_at, user, bound_at) = row?;
+            let (code, email, created_at, user, bound_at, operator) = row?;
             accounts.push(AccountSummary {
                 code: code_from_sql(&code)?,
                 email: email_from_sql(&email)?,
                 created_at: time_from_sql(created_at, "account creation time")?,
                 binding: binding_from_sql(user, bound_at)?,
+                operator,
             });
         }
         Ok(accounts)
     }
 
     /// Deletes the account with `code`, with its sessions, binding,
-    /// subscription record, CFM profile, subscription link, orders and Mac
-    /// bookings, and with what Stripe said of those orders' payments. Copies
-    /// of the rows stay in the database files until [`Store::erase_deleted`].
+    /// subscription record, CFM profile, subscription link, orders, Mac
+    /// bookings, conversation with the operator and operator rights, and
+    /// with what Stripe said of those orders' payments. Copies of the rows
+    /// stay in the database files until [`Store::erase_deleted`].
     ///
     /// Refused while money is in the air: while Stripe may still charge a
     /// subscription of the account, which no one could then stop from

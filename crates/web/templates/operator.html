@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.operator.title }}{% endblock %}
+{% block main %}
+{% include "operator_head.html" %}
+<div class="container">
+  <p class="lead">{{ chrome.t.operator.overview_lead }}</p>
+  <div class="facts-grid">
+    <a class="panel fact tile" href="/operator/feedback">
+      <p class="label">{{ chrome.t.operator.count_awaiting }}</p>
+      <p class="value{% if awaiting > 0 %} tone-warn{% endif %}">{{ awaiting }}</p>
+    </a>
+    <a class="panel fact tile" href="/operator/accounts">
+      <p class="label">{{ chrome.t.operator.count_accounts }}</p>
+      <p class="value">{{ accounts }}</p>
+      <p class="small muted">{{ chrome.t.operator.count_unbound }} {{ unbound }}</p>
+    </a>
+    <a class="panel fact tile" href="/operator/bookings">
+      <p class="label">{{ chrome.t.operator.count_bookings }}</p>
+      <p class="value{% if bookings > 0 %} tone-warn{% endif %}">{{ bookings }}</p>
+    </a>
+  </div>
+</div>
+{% endblock %}

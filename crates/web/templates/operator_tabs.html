@@ -1,0 +1,6 @@
+<nav class="tabs" aria-label="{{ chrome.t.operator.title }}">
+  <a href="/operator" aria-current="{{ section.current("overview") }}">{{ chrome.t.operator.tab_overview }}</a>
+  <a href="/operator/feedback" aria-current="{{ section.current("feedback") }}">{{ chrome.t.operator.tab_feedback }}{% if chrome.signals.awaiting_reply > 0 %} <span class="count">{{ chrome.signals.awaiting_reply }}</span>{% endif %}</a>
+  <a href="/operator/accounts" aria-current="{{ section.current("accounts") }}">{{ chrome.t.operator.tab_accounts }}</a>
+  <a href="/operator/bookings" aria-current="{{ section.current("bookings") }}">{{ chrome.t.operator.tab_bookings }}</a>
+</nav>

@@ -155,3 +155,75 @@ async fn logs_hold_no_link_token_and_no_profile() {
         assert!(!log.contains(secret), "{secret} leaked: {log}");
     }
 }
+
+#[tokio::test]
+async fn the_operator_pages_log_what_was_done_and_no_one_it_was_done_to() {
+    capture_logs();
+    let app = TestApp::new();
+    let (mut user, code) = app.signed_up("lilei@qq.com").await;
+    user.get(&app, "/mac").await;
+    user.post(
+        &app,
+        "/mac/bookings",
+        &[("machine", "m6-16-256"), ("period", "month")],
+    )
+    .await;
+    user.get(&app, "/feedback").await;
+    user.post(&app, "/feedback", &[("body", CHOSEN)]).await;
+    let (mut op, op_code) = app.signed_up("hanmeimei@qq.com").await;
+    super::operator::grant(&app, op_code).await;
+    super::operator::confirm(&mut op, &app, "wrong password here", "accounts").await;
+    super::operator::confirm(&mut op, &app, PASSWORD, "accounts").await;
+    let code = code.to_string();
+    let op_code = op_code.to_string();
+    let operator_session = op.cookies["__Host-session"].clone();
+    let reply = "reply-chosen-by-the-operator";
+    for (path, fields) in [
+        (format!("/operator/feedback/{code}"), vec![("body", reply)]),
+        (
+            "/operator/accounts/bind".to_owned(),
+            vec![("account", code.as_str()), ("user", "pilotuserw")],
+        ),
+        (
+            "/operator/accounts/unbind".to_owned(),
+            vec![("account", code.as_str())],
+        ),
+        ("/operator/bookings/close".to_owned(), vec![("id", "1")]),
+        (
+            "/operator/accounts/ban".to_owned(),
+            vec![("account", code.as_str())],
+        ),
+    ] {
+        let done = op.post(&app, &path, &fields).await;
+        assert!(
+            done.status.is_success() || done.status.is_redirection(),
+            "{path}"
+        );
+    }
+    let log = logged();
+    for expected in [
+        "the operator bound an account on the operator pages",
+        "the operator unbound an account on the operator pages",
+        "the operator closed a Mac booking on the operator pages",
+        "the operator banned an account on the operator pages",
+    ] {
+        assert!(log.contains(expected), "{expected} is logged: {log}");
+    }
+    for secret in [
+        PASSWORD,
+        "wrong password here",
+        "lilei@qq.com",
+        "lilei",
+        "hanmeimei",
+        code.as_str(),
+        op_code.as_str(),
+        operator_session.as_str(),
+        op.cookies["__Host-session"].as_str(),
+        "pilotuserw",
+        "m6-16-256",
+        reply,
+        CHOSEN,
+    ] {
+        assert!(!log.contains(secret), "{secret} leaked: {log}");
+    }
+}

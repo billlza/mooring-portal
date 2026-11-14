@@ -5,10 +5,15 @@
 //! and the signed-in account and subscription pages, from which a user
 //! downloads their CFM profile or makes the subscription link CFM fetches
 //! it from; and the Mac rental page, where a signed-in user books a machine
-//! for the operator to buy and let to them. Every state-changing request
-//! is a form protected against CSRF; every response carries security
-//! headers; no asset comes from another host. The one script is an
-//! ornament, the home page's live scene, and only that page may run it.
+//! for the operator to buy and let to them. A signed-in user writes to the
+//! operator from any page and reads the reply on the feedback page; the
+//! operator answers on the operator pages, where it also binds, unbinds
+//! and bans accounts and closes bookings. Only an account the host made an
+//! operator opens them, and only after confirming its password lately
+//! (`pages::operator`). Every state-changing request is a form protected
+//! against CSRF; every response carries security headers; no asset comes
+//! from another host. The one script is an ornament, the home page's live
+//! scene, and only that page may run it.
 //!
 //! Once the operator has given it a catalogue, the portal also takes
 //! orders: a bound account orders a plan and is sent to pay on Stripe's
@@ -42,7 +47,9 @@ pub use config::{
 };
 pub use state::{AppState, StartupError};
 
-use pages::{Page, account, auth, cfm, lang, orders, public, rental, subscription};
+use pages::{
+    Page, account, auth, cfm, feedback, lang, operator, orders, public, rental, subscription,
+};
 use security::{csrf, headers};
 
 /// The portal's routes. The addresses of ordering and paying exist only
@@ -70,6 +77,26 @@ pub fn router(state: AppState) -> Router {
         .route("/subscription/profile.json", get(cfm::download))
         .route("/subscription/link", post(cfm::create_link))
         .route("/subscription/link/revoke", post(cfm::revoke_link))
+        .route(
+            Page::Feedback.path(),
+            get(feedback::feedback).post(feedback::send),
+        )
+        .route(Page::Operator.path(), get(operator::overview))
+        .route(
+            "/operator/confirm",
+            get(operator::confirm_form).post(operator::confirm),
+        )
+        .route("/operator/feedback", get(operator::conversations))
+        .route(
+            "/operator/feedback/{code}",
+            get(operator::conversation).post(operator::reply),
+        )
+        .route("/operator/accounts", get(operator::accounts))
+        .route("/operator/accounts/bind", post(operator::bind))
+        .route("/operator/accounts/unbind", post(operator::unbind))
+        .route("/operator/accounts/ban", post(operator::ban))
+        .route("/operator/bookings", get(operator::bookings))
+        .route("/operator/bookings/close", post(operator::close_booking))
         .route("/lang", post(lang::switch));
     if selling {
         pages = pages

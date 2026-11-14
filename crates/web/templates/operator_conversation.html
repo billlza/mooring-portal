@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block main %}
+{% include "operator_head.html" %}
+<div class="container">
+  <p><a class="link" href="/operator/feedback">{{ chrome.t.operator.back }}</a></p>
+  {% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  <section class="panel">
+    <h2>{{ title }}</h2>
+    {% include "thread.html" %}
+  </section>
+  <section class="panel">
+    {% if let Some(error) = error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+    <form class="form" method="post" action="/operator/feedback/{{ account }}">
+      <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+      <label>{{ chrome.t.operator.reply_label }}
+        <textarea name="body" rows="5" maxlength="{{ chrome.max_message_chars() }}" required>{{ draft }}</textarea>
+        <span class="hint">{{ chrome.message_limit() }}</span>
+      </label>
+      <button class="button" type="submit">{{ chrome.t.operator.reply_send }}</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

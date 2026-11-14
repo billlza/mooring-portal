@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.operator.tab_feedback }}{% endblock %}
+{% block main %}
+{% include "operator_head.html" %}
+<div class="container">
+  <section class="panel">
+    {% if conversations.is_empty() %}
+    <p class="muted">{{ chrome.t.operator.feedback_empty }}</p>
+    {% else %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{{ chrome.t.operator.col_account }}</th>
+            <th scope="col">{{ chrome.t.operator.col_email }}</th>
+            <th scope="col">{{ chrome.t.operator.col_last }}</th>
+            <th scope="col">{{ chrome.t.operator.col_messages }}</th>
+            <th scope="col">{{ chrome.t.operator.col_state }}</th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for conversation in conversations %}
+          <tr>
+            <td class="mono">{{ conversation.account }}</td>
+            <td>{{ conversation.email }}</td>
+            <td class="when">{{ conversation.last }}</td>
+            <td>{{ conversation.messages }}</td>
+            <td>{% if conversation.awaiting_reply %}<span class="badge">{{ chrome.t.operator.awaiting_reply }}</span>{% else %}<span class="muted">{{ chrome.t.operator.replied }}</span>{% endif %}</td>
+            <td><a class="link" href="/operator/feedback/{{ conversation.account }}">{{ chrome.t.operator.open }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

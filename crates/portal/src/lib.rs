@@ -76,6 +76,12 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
         Command::Unbind { account } => {
             with_store(&mut |store| operator::unbind(store, &account, out))
         }
+        Command::GrantOperator { account } => {
+            with_store(&mut |store| operator::grant_operator(store, clock, &account, out))
+        }
+        Command::RevokeOperator { account } => {
+            with_store(&mut |store| operator::revoke_operator(store, &account, out))
+        }
         Command::Import { file } => {
             with_store(&mut |store| operator::import(store, clock, &file, out))
         }

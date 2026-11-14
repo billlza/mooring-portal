@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.operator.tab_accounts }}{% endblock %}
+{% block main %}
+{% include "operator_head.html" %}
+<div class="container">
+  {% include "operator_outcome.html" %}
+  <section class="panel">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{{ chrome.t.operator.col_account }}</th>
+            <th scope="col">{{ chrome.t.operator.col_email }}</th>
+            <th scope="col">{{ chrome.t.operator.col_created }}</th>
+            <th scope="col">{{ chrome.t.operator.col_user }}</th>
+          </tr>
+        </thead>
+        {% for account in accounts %}
+        <tbody>
+          <tr>
+            <td class="mono">{{ account.code }}{% if account.operator %} <span class="badge">{{ chrome.t.operator.operator_mark }}</span>{% endif %}</td>
+            <td>{{ account.email }}</td>
+            <td class="when">{{ account.created }}</td>
+            <td>{% match account.user %}{% when Some with (user) %}<span class="mono">{{ user }}</span>{% when None %}<span class="muted">{{ chrome.t.operator.unbound }}</span>{% endmatch %}</td>
+          </tr>
+          <tr class="actions-row-of">
+            <td colspan="4">
+              <div class="row-actions">
+                <a class="link" href="/operator/feedback/{{ account.code }}">{{ chrome.t.operator.conversation_link }}</a>
+                {% if account.user.is_none() %}
+                <form class="bind" method="post" action="/operator/accounts/bind">
+                  <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+                  <input type="hidden" name="account" value="{{ account.code }}">
+                  <input name="user" aria-label="{{ chrome.t.operator.bind_user }}" placeholder="{{ chrome.t.operator.bind_user }}" autocomplete="off" spellcheck="false" maxlength="64" required>
+                  <button class="button ghost" type="submit">{{ chrome.t.operator.bind }}</button>
+                </form>
+                {% else %}
+                <details class="confirm">
+                  <summary>{{ chrome.t.operator.unbind }}</summary>
+                  <form method="post" action="/operator/accounts/unbind">
+                    <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+                    <input type="hidden" name="account" value="{{ account.code }}">
+                    <p class="small">{{ chrome.t.operator.unbind_warning }}</p>
+                    <button class="button danger" type="submit">{{ chrome.t.operator.unbind_confirm }}</button>
+                  </form>
+                </details>
+                {% endif %}
+                {% if !account.operator %}
+                <details class="confirm">
+                  <summary>{{ chrome.t.operator.ban }}</summary>
+                  <form method="post" action="/operator/accounts/ban">
+                    <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+                    <input type="hidden" name="account" value="{{ account.code }}">
+                    <p class="small">{{ chrome.t.operator.ban_warning }}</p>
+                    <button class="button danger" type="submit">{{ chrome.t.operator.ban_confirm }}</button>
+                  </form>
+                </details>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        </tbody>
+        {% endfor %}
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

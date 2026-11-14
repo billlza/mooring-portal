@@ -49,6 +49,20 @@ pub(crate) enum Command {
         #[arg(long, value_name = "CODE", value_parser = account_code)]
         account: AccountCode,
     },
+    /// Let an account use the operator pages (`/operator`), where it
+    /// confirms its password before it sees or changes anything. Nothing
+    /// on the site can make an account an operator.
+    GrantOperator {
+        /// The account's code.
+        #[arg(long, value_name = "CODE", value_parser = account_code)]
+        account: AccountCode,
+    },
+    /// Stop an account from using the operator pages.
+    RevokeOperator {
+        /// The account's code.
+        #[arg(long, value_name = "CODE", value_parser = account_code)]
+        account: AccountCode,
+    },
     /// Import a portal snapshot exported by Mooring (contract version 1).
     Import {
         /// The snapshot file.
@@ -83,8 +97,8 @@ pub(crate) enum Command {
         file: PathBuf,
     },
     /// Delete an account with its sessions, binding, record, profile,
-    /// link, orders and Mac bookings. Refused while Stripe may still
-    /// charge a subscription of it, or an order of it is not settled.
+    /// link, orders, Mac bookings and feedback. Refused while Stripe may
+    /// still charge a subscription of it, or an order of it is not settled.
     DeleteAccount {
         /// The account's code.
         #[arg(long, value_name = "CODE", value_parser = account_code)]

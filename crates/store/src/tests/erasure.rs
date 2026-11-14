@@ -17,7 +17,8 @@ use super::*;
 use crate::{OpenMode, StoreError};
 
 /// Two bound accounts, each with everything the portal keeps of one: a
-/// session, a binding, a snapshot record, a CFM profile and a link.
+/// session, a binding, a snapshot record, a CFM profile, a link, and a
+/// conversation with the operator.
 fn two_accounts(store: &mut Store) -> (Account, Account) {
     let gone = register(store, "gone.away@qq.com", 1);
     let kept = register(store, "still.here@qq.com", 2);
@@ -26,6 +27,11 @@ fn two_accounts(store: &mut Store) -> (Account, Account) {
             .start_session(&session(account, byte, NOW, 3600))
             .unwrap();
         store.bind(&account.code, &user(id), at(NOW)).unwrap();
+        let [question, answer] = conversation(byte);
+        store
+            .send_feedback(&digest(byte), &message(&question), at(NOW))
+            .unwrap();
+        reply(store, &account.code, &message(&answer), at(NOW)).unwrap();
     }
     store
         .import(
@@ -44,16 +50,29 @@ fn two_accounts(store: &mut Store) -> (Account, Account) {
     (gone, kept)
 }
 
+/// What the account signed in with session `byte` wrote to the operator,
+/// and the answer.
+fn conversation(byte: u8) -> [String; 2] {
+    [format!("question {byte:02x}"), format!("answer {byte:02x}")]
+}
+
+fn message(text: &str) -> portal_core::feedback::MessageBody {
+    portal_core::feedback::MessageBody::parse(text).unwrap()
+}
+
 /// What would show that `account` was here: its address and code, its
-/// Mooring user (which its profile names too), and its session's and
-/// link's token digests.
-fn traces(account: &Account, user: &str, session: u8, link: u8) -> [Vec<u8>; 5] {
+/// Mooring user (which its profile names too), its session's and link's
+/// token digests, and its conversation.
+fn traces(account: &Account, user: &str, session: u8, link: u8) -> [Vec<u8>; 7] {
+    let [question, answer] = conversation(session);
     [
         account.email.as_str().as_bytes().to_vec(),
         account.code.to_string().into_bytes(),
         user.as_bytes().to_vec(),
         vec![session; 32],
         vec![link; 32],
+        question.into_bytes(),
+        answer.into_bytes(),
     ]
 }
 
