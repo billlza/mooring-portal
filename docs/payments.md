@@ -1,6 +1,6 @@
 # 支付：决定、做法与开通步骤
 
-门户已经能接单、接收 Stripe 的付款通知、把该开通的订单交给 Mooring 来取（分支 `feature/payments`，2026-11-11）。它还没有接过真实的 Stripe 账户；开通前要做的步骤在第 3、6 节。Mooring 一侧来取清单、开通或续期的程序已经合入 Mooring（2026-11-11）；按到期和配额自动暂停、恢复用户的每晚任务已经合入 Mooring（PR #46，2026-11-12），还没有部署。
+`moorlight.app` 已于 2026-11-14 用原数据库切换到 Daily Glow Digital Limited 的 Stripe 正式账户，首轮提供预付套餐和流量包。沙盒演练、正式切换和待验收项目见第 3 节。
 
 不给门户配套餐文件时，门户和以前一样：不卖任何东西，套餐页写"付款还没有开通"，下面这些地址都不存在。数据库里还有没了结的付款时，门户拒绝这样启动（第 2.9 节）。
 
@@ -174,6 +174,26 @@ Stripe 的测试模式和正式模式是两套互不相通的账。给 Mooring �
 
 **演练结束**：先运行 `mooringctl portal rehearsal off`，在控制台确认演练权益已撤销。停用测试 Payment Link，取消剩下的测试订阅并核对结束通知，然后停用测试 webhook、停门户服务。在门户主机上用原数据库执行 `mooring-portal --db <数据库> discard-test-payments`。保留原清单的序号和 Mooring 游标；实际启用收款时，用同一个数据库换上正式模式的链接、端点密钥及 `"livemode": true` 的套餐文件后再启动（第 2.9 节）。不要让测试端点继续往正式配置投递。
 
+**2026-11-13 演练记录**。线上版本为 `4ae3307`。测试卡走通了预付、流量包、首次订阅和自动续费。Stripe 的测试时钟验证了续费拒付、重试同一账单成功后只开通一次，以及重试耗尽后订阅结束。重复付款全额退回后，其订阅在 `active` 和 `ending` 时都留在 `orders`，直到 Stripe 通知结束。预付部分退款不改权益，退足后收回未用时长。流量包全额退款后，Mooring 的配额从 150 GB 回到 100 GB。客户自助期末取消通过沙盒客户会话验证，到期没有再扣款。邮件验证码登录尚未实测。
+
+这轮演练结束时，测试订阅均已结束，三条演练用的 Payment Link 和 webhook 已停用。用原库清理了七张测试订单，门户清单序号和 Mooring 游标均为 `10`。
+
+### 2026-11-14 正式切换
+
+Daily Glow Digital Limited 的正式 Stripe 账户仅启用银行卡。三条一次性 Payment Link 均在结账后跳转到 `https://moorlight.app/subscription`。
+
+| 套餐 | 价格 |
+|---|---:|
+| 预付 30 天，100 GB | £15 |
+| 50 GB 流量包 | £15 |
+| 100 GB 流量包 | £25 |
+
+正式配置使用 `/etc/mooring-portal/catalogue-live.json` 和 `/etc/mooring-portal/stripe-webhook-secret-live`，由 `mooring-portal.service.d/50-live-payments.conf` 指定。`systemd-analyze verify` 和服务重启均通过。SQLite 检查确认原数据库、拉取令牌和清单序号 `10` 保留，数据库已进入正式模式。
+
+三条正式结账页显示了约定的英镑价格和银行卡入口。Stripe 客户门户登录地址可访问，允许期末取消订阅，关闭了换套餐和改数量。Stripe 实际向正式 webhook 投递了一条 `product.updated`，得到 HTTP 200，随后移除了这条临时订阅，恢复第 5 步列出的九个事件。`mooringctl portal payments` 确认 Mooring 成功拉取正式清单，游标为 `10`。
+
+切换时原库有 0 个已绑定账号、0 笔正式订单。等真实买家绑定后，从泊光订阅页先下单购买预付套餐，再买所需的流量包。用 `orders`、`mooringctl portal payments` 和 Mooring 控制台核对预付到期时间、配额以及流量包是否加到同一计费周期。正式付款开通和客户门户邮件登录尚未验收。
+
 ## 4. 套餐文件
 
 ```json
@@ -233,7 +253,7 @@ Stripe 的测试模式和正式模式是两套互不相通的账。给 Mooring �
 ## 6. 还没做的，和要知道的
 
 - **Mooring 一侧要用带支付拉取功能的版本**，按 Mooring 的 `docs/runbooks/console.md` 里 “Rehearse first” 验收。契约在 `docs/contract/entitlements-v1.md`。门户被攻破时，攻击者能伪造"已付款"的记录来骗开通，所以契约建议 Mooring 开通前用一把只读的 Stripe 受限密钥核对付款确实存在、金额相符；这把密钥只放在运营者的 Mac 上。
-- **没有接过真实的 Stripe 账户。**事件的格式是照 Stripe 的文档（2026-11-11 核对，API 发布 `endive`）和仓库里的合成样例（`contract/fixtures/stripe-events/`）实现的，签名校验用另一种语言算出的结果核对过。第一次接真实账户，必须先在测试模式里把一次性付款、自动续费、续费、取消、退款各走一遍。事件的 API 版本不是 `endive` 时，门户拒绝并记一条错误日志，Stripe 会重发并在后台显示失败，不会悄悄丢掉。
+- **正式付款开通待首笔真实订单验收。**第 3 节记录了正式 Webhook 的非付款投递和 Mooring 拉取验证。正式端点使用 `endive`。版本不符时，门户拒绝并记一条错误日志，Stripe 后台会显示投递失败。
 - 门户不处理付款失败、争议的结果、订阅暂停。这些都不会让门户多开通什么；续费扣款失败时 Stripe 自己会重试或结束订阅，结束时门户会收到通知。
 - **丢了的通知。**门户没收下的通知，Stripe 在正式模式下自动重试三天（测试模式只在几小时内重试三次）。之后可以手动重发：在 Stripe 后台是事件产生后 15 天内，用 Stripe 的命令行工具是 30 天内（Stripe 文档，2026-11-11 核对）。过了这个期限还没收到的：订单会停在"正在核对"，用 `approve-order` 放行（等于不核对卡）；订阅结束的通知丢了，门户会一直以为 Stripe 还可能扣款，这个账号就删不掉，只能用 `ban` 删除后再 `unban`；不属于任何订单的付款带着的订阅也一样，那笔付款会一直留在待办里，门户也一直不能不带 `--payments` 启动，在 Stripe 后台确认订阅已经结束后用 `dismiss-payment --id <序号> --subscription-ended <订阅号>` 拿掉（第 2.6 节）。`orders` 列出的待办要定期看，别等到过期。
 - 停售之后（去掉 `--payments` 启动），以前的付款再发生退款或争议，门户收不到通知，清单里也就没有记录（第 2.9 节）。
