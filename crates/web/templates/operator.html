@@ -25,6 +25,8 @@
     <a class="panel fact tile" href="/download">
       <p class="label">{{ chrome.t.operator.release_label }}</p>
       {% match release %}
+      {% when ReleaseTile::Read with (view) %}
+      {% match view %}
       {% when ReleaseView::Offered with (offered) %}
       <p class="value{% if offered.stale.is_some() %} tone-warn{% endif %}">{{ offered.version }}</p>
       <p class="small muted">{{ offered.checked }} {{ chrome.t.common.beijing_time }}</p>
@@ -32,6 +34,10 @@
       {% when ReleaseView::NotYet with { .. } %}
       <p class="value tone-warn">{{ chrome.t.operator.release_none }}</p>
       <p class="small caution">{{ chrome.t.operator.release_stale }}</p>
+      {% endmatch %}
+      {% when ReleaseTile::Unreadable %}
+      <p class="value tone-warn">{{ chrome.t.operator.release_unreadable }}</p>
+      <p class="small caution">{{ chrome.t.operator.release_unreadable_hint }}</p>
       {% endmatch %}
     </a>
   </div>

@@ -432,10 +432,13 @@ pub(crate) struct OperatorText {
     pub(crate) count_accounts: &'static str,
     pub(crate) count_unbound: &'static str,
     pub(crate) count_bookings: &'static str,
-    /// The release on the download page; none yet; no check for a day.
+    /// The release on the download page; none yet; no check for a day;
+    /// a stored release that does not read, and what to do.
     pub(crate) release_label: &'static str,
     pub(crate) release_none: &'static str,
     pub(crate) release_stale: &'static str,
+    pub(crate) release_unreadable: &'static str,
+    pub(crate) release_unreadable_hint: &'static str,
     pub(crate) col_account: &'static str,
     pub(crate) col_email: &'static str,
     pub(crate) col_created: &'static str,

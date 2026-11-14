@@ -126,7 +126,7 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 
 `rustup toolchain install` 不带参数时，装的是仓库 `rust-toolchain.toml` 指定的版本。
 
-**换版本**：按上面的步骤构建新的提交，装到 `/usr/local/bin/mooring-portal`，再运行 `systemctl restart mooring-portal`。门户收到停止信号后，先处理完手上的请求再退出；新版本启动时，自动补上数据库缺少的迁移（`crates/store/src/schema.rs`）。旧版本不认识新的迁移，遇到更新的数据库会拒绝启动，所以要换回旧版本，得先撤销新的迁移。
+**换版本**：按上面的步骤构建新的提交，装到 `/usr/local/bin/mooring-portal`，再运行 `systemctl restart mooring-portal`。门户收到停止信号后，先处理完手上的请求再退出；新版本启动时，自动补上数据库缺少的迁移（`crates/store/src/schema.rs`）。旧版本不认识新的迁移，遇到更新的数据库会拒绝启动，所以要换回旧版本，得先撤销新的迁移。存下的 CFM 发布信息也有同样的问题：`7ea4956` 及更早的程序读不懂带 build 号的版本，换回这样的程序要按 `docs/releases.md` 第 2 节"重新构建的版本"里的四步来。
 
 2026-11-14 这样换上了提交 `5d96155`（加入 Mac 租赁，`docs/rentals.md`；运营者当天决定立即部署）：
 - 换之前，线上跑的是 `af2e7ce` 的代码（2026-11-13 02:35 UTC 构建），数据库是第 5 版。`af2e7ce` 之后、Mac 租赁之前的提交只改了测试和文档，所以这次上线的只有 Mac 租赁。

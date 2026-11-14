@@ -439,7 +439,18 @@ struct OverviewPage {
     /// The release on the download page, and whether the host has
     /// checked it within the day: nothing tells the operator otherwise
     /// when the host's imports keep failing.
-    release: ReleaseView,
+    release: ReleaseTile,
+}
+
+/// The overview's tile for the release on the download page.
+enum ReleaseTile {
+    /// As the download page shows it.
+    Read(ReleaseView),
+    /// The stored release does not read. The download page and the
+    /// imports fail on it (`docs/releases.md`, section 4); the overview
+    /// says so instead of failing too, so that the operator still sees
+    /// what else waits.
+    Unreadable,
 }
 
 /// `GET /operator`: what waits for the operator.
@@ -457,15 +468,25 @@ pub(crate) async fn overview(
                 .iter()
                 .filter(|account| account.binding.is_none())
                 .count();
-            Ok((
-                accounts.len(),
-                unbound,
-                store.bookings()?.len(),
-                store.offered_release()?,
-            ))
+            let release = match store.offered_release() {
+                Ok(offered) => Ok(offered),
+                // A stored release that does not read is said on its
+                // tile; any other failure of the database fails the page,
+                // as it fails every page.
+                Err(error @ StoreError::Corrupt { .. }) => Err(error),
+                Err(error) => return Err(error),
+            };
+            Ok((accounts.len(), unbound, store.bookings()?.len(), release))
         })
         .await?
         .map_err(AppError::internal)?;
+    let release = match release {
+        Ok(offered) => ReleaseTile::Read(ReleaseView::of(offered, now, ctx.t())),
+        Err(error) => {
+            tracing::error!(error = %chain(&error), "the release on offer does not read");
+            ReleaseTile::Unreadable
+        }
+    };
     render(&OverviewPage {
         section: Section::Overview,
         awaiting: ctx.signals.awaiting_reply,
@@ -473,7 +494,7 @@ pub(crate) async fn overview(
         accounts,
         unbound,
         bookings,
-        release: ReleaseView::of(release, now, ctx.t()),
+        release,
         chrome: chrome(&ctx),
     })
 }

@@ -127,8 +127,8 @@ fn a_rebuild_follows_the_version_it_rebuilds_and_reads_back_whole() {
             checked_at: at(NOW + 300)
         })
     );
-    // A later build of the same version is newer; the version itself, or
-    // an earlier build, is older.
+    // A later build of the same version is newer; the version itself, an
+    // earlier build, or a build of an earlier version, is older.
     let later = release("0.5.1-build.51007", NOW - 400, SHA_A);
     assert_eq!(
         store.offer_release(&later, at(NOW + 600)).unwrap(),
@@ -136,10 +136,18 @@ fn a_rebuild_follows_the_version_it_rebuilds_and_reads_back_whole() {
             from: version("0.5.1-build.51006")
         }
     );
+    // The next version comes after every rebuild of this one.
+    let next = release("0.5.2", NOW - 300, SHA_B);
+    assert_eq!(
+        store.offer_release(&next, at(NOW + 750)).unwrap(),
+        ReleaseChange::Newer {
+            from: version("0.5.1-build.51007")
+        }
+    );
     assert_eq!(
         store.offer_release(&rebuild, at(NOW + 900)).unwrap(),
         ReleaseChange::Older {
-            from: version("0.5.1-build.51007")
+            from: version("0.5.2")
         }
     );
     assert_eq!(

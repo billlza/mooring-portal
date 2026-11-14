@@ -327,7 +327,7 @@ async fn an_operator_no_more_finds_no_operator_pages() {
 }
 
 /// The overview's tile for the release on the download page.
-fn release_tile(body: &str) -> &str {
+pub(super) fn release_tile(body: &str) -> &str {
     let start = body
         .find("<a class=\"panel fact tile\" href=\"/download\">")
         .unwrap_or_else(|| panic!("no release tile: {body}"));
@@ -339,7 +339,8 @@ fn release_tile(body: &str) -> &str {
 async fn the_overview_says_when_the_download_page_was_last_checked() {
     const SHA: &str = "49d92ffcee6d6d794d4c4a7bc55faab3957601969b2a9a2cbc795a5d39847ba3";
     const HINT: &str = "<p class=\"small caution\">24 小时内没有核对成功。在主机上运行 \
-                        journalctl -u mooring-portal-release.service 查看原因。</p>";
+                        journalctl -u mooring-portal-release-fetch.service \
+                        -u mooring-portal-release.service 查看原因。</p>";
     let app = TestApp::new();
     let (mut op, _) = operator(&app).await;
     // Nothing imported yet: said, marked, and where to look.
@@ -376,4 +377,17 @@ async fn the_overview_says_when_the_download_page_was_last_checked() {
         "{tile}"
     );
     assert!(tile.contains(HINT), "{tile}");
+    // And in English.
+    op.post(&app, "/lang", &[("to", "en"), ("back", "operator")])
+        .await;
+    let body = op.get(&app, "/operator").await.body;
+    let tile = release_tile(&body);
+    for shown in [
+        "<p class=\"label\">CFM on the download page</p>",
+        "<p class=\"value tone-warn\">0.5.1 (build 51006)</p>",
+        "No successful check in the last 24 hours. Run journalctl -u \
+         mooring-portal-release-fetch.service -u mooring-portal-release.service on the host",
+    ] {
+        assert!(tile.contains(shown), "{shown}: {tile}");
+    }
 }

@@ -31,7 +31,7 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里引船进
 | `crates/portal` | 二进制 `mooring-portal`：`serve` 与运营者命令 |
 | `contract/fixtures/v1/` | 快照契约的合成样例与金样 |
 | `contract/fixtures/cfm-profiles-v2/` | 配置包契约的合成样例与金样（凭据都是假的，地址都在文档保留网段） |
-| `contract/fixtures/cfm-release/` | GitHub 对 CFM 0.5.1 这次发布的描述（删去了发布说明和上传者资料），以及每条校验规则各一份被拒绝的样例 |
+| `contract/fixtures/cfm-release/` | GitHub 对 CFM 0.5.1 和它的重新构建 0.5.1-build.51006 这两次发布的描述（删去了发布说明和上传者资料），以及每条校验规则各一份被拒绝的样例 |
 | `contract/fixtures/payments/` | 合成的套餐文件（链接和编号都是编的） |
 | `contract/fixtures/stripe-events/` | 合成的 Stripe 事件，照 Stripe 文档里的形状写成，付款人的资料都是编的；每种门户要处理的事件和几种它该放过的 |
 | `contract/fixtures/entitlements-v1/` | 给 Mooring 的清单的金样 |

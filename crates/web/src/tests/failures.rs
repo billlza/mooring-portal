@@ -203,3 +203,41 @@ async fn an_operators_action_whose_page_cannot_be_read_is_not_made() {
     );
     assert_eq!(super::operating::binding(&app, carol).await, Some(None));
 }
+
+#[tokio::test]
+async fn the_overview_says_of_a_release_it_cannot_read_and_shows_the_rest() {
+    // The download page and the imports fail on such a row. The operator's
+    // overview, where every confirmation lands, says so instead of failing
+    // as well, and still shows what waits for the operator.
+    let (app, file) = TestApp::on_disk();
+    app.offer_release(
+        "0.5.1",
+        "2026-11-04T18:00:00Z",
+        "c59907ad90eaad911e3660d3c27df982205c5b81cfde743f16dee5f7a985069f",
+    )
+    .await;
+    let (mut op, _) = super::operator::operator(&app).await;
+    let conn = rusqlite::Connection::open(file.path()).unwrap();
+    conn.execute("UPDATE cfm_release SET version = 'latest'", [])
+        .unwrap();
+    let reply = op.get(&app, "/operator").await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    let tile = super::operator::release_tile(&reply.body);
+    assert!(
+        tile.contains("<p class=\"value tone-warn\">读不出来</p>"),
+        "{tile}"
+    );
+    assert!(tile.contains("docs/releases.md"), "{tile}");
+    assert!(
+        !tile.contains("还没有") && !tile.contains("0.5.1"),
+        "{tile}"
+    );
+    assert!(reply.body.contains("等你回复的反馈") && reply.body.contains("等你处理的付款"));
+    // A release table that is gone is no stored release that misreads: the
+    // page fails, as every page does when the database does.
+    conn.execute_batch("DROP TABLE cfm_release").unwrap();
+    assert_eq!(
+        op.get(&app, "/operator").await.status,
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+}
