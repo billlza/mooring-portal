@@ -18,7 +18,7 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里引船进
 
 ## 当前状态
 
-2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。2026-11-10：重做全站样式，首页主图加上会动的场景；下载页改为跟随 CFM 的最新发布；同日按运营者给的设计图重排首页和配色，主图换成灯塔夜景，场景改为完全由着色器画出，不再加载任何图片（分支 `feature/ui-refresh`，接在前一个分支之后）。2026-11-11：接入付款（分支 `feature/payments`，接在 `feature/ui-refresh` 之后）：下单、接收 Stripe 的通知、给 Mooring 的清单、运营者核对用的命令；只用合成的事件在本机走通过。只在本地运行过，没有部署。2026-11-14：加入 Mac 租赁的选配置页面和预订（分支 `feature/mac-rental`），同日部署到 moorlight.app。同日起可以只给一个账号导入 CFM 配置（分支 `feature/one-account-profile`），并加入反馈和运营页面（分支 `feature/feedback-and-operator-pages`，接在 `feature/one-account-profile` 之后），两者同日部署到 moorlight.app。许可证尚未选定。
+2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。2026-11-10：重做全站样式，首页主图加上会动的场景；下载页改为跟随 CFM 的最新发布；同日按运营者给的设计图重排首页和配色，主图换成灯塔夜景，场景改为完全由着色器画出，不再加载任何图片（分支 `feature/ui-refresh`，接在前一个分支之后）。2026-11-11：接入付款（分支 `feature/payments`，接在 `feature/ui-refresh` 之后）：下单、接收 Stripe 的通知、给 Mooring 的清单、运营者核对用的命令；只用合成的事件在本机走通过。只在本地运行过，没有部署。2026-11-14：加入 Mac 租赁的选配置页面和预订（分支 `feature/mac-rental`），同日部署到 moorlight.app。同日起可以只给一个账号导入 CFM 配置（分支 `feature/one-account-profile`），并加入反馈和运营页面（分支 `feature/feedback-and-operator-pages`，接在 `feature/one-account-profile` 之后），两者同日部署到 moorlight.app。同日下载页改为也接受 CFM 的重新构建，运营页面的概况显示下载页上次核对的时间（分支 `fix/release-build-tags`，接在 `feature/feedback-and-operator-pages` 之后），也部署到 moorlight.app。许可证尚未选定。
 
 ## 仓库结构
 

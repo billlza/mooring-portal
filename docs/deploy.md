@@ -142,6 +142,13 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 旧的二进制留在主机的 `/root/mooring-portal-5d96155`。要换回它，先停掉门户，按下面两段先撤销第 8 版、再撤销第 7 版，然后用它运行一次 `erase-deleted`，再启动门户。
 - 主机上没有装 `sqlite3` 命令行。撤销时可以用系统自带的 `python3` 里的 `sqlite3` 模块执行这些语句，也可以先 `apt install sqlite3`。
 
+同一天又换上了提交 `d103dc0`（下载页跟上 CFM 的重新构建，运营页面的概况加上"下载页上的 CFM"一格；运营者当天决定部署）：
+- 换之前线上跑的是 `7ea4956`。从 2026-11-12 19:05 UTC 起，每次导入 CFM 的发布都失败：CFM 最新发布的标签是 `v0.5.1-build.51006`，`7ea4956` 不认（`docs/releases.md` 第 2 节"重新构建的版本"）。这次没有新的迁移，数据库仍是第 8 版。
+- 在主机上构建用了 3 分 52 秒，没有警告。重启时服务中断约 0.12 秒；之后 `quick_check` 是 `ok`。
+- 重启后立刻手动导入了一次（`systemctl start mooring-portal-release.service`）。下载页从 11-07 的 0.5.1 换成"0.5.1（build 51006）"，发布页面和磁盘映像的地址都在 `v0.5.1-build.51006` 这个标签下，GitHub 上这个下载地址能用。定时器的下一次导入用的是新程序，也成功了。
+- 第 6 节的前三条重新查过，结果和以前一样。公开页面都是 `200`；没登录时打开 `/operator`，转到登录页；没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。
+- 旧的二进制留在主机的 `/root/mooring-portal-7ea4956`。库里存的版本现在带 build 号，它读不懂，所以要换回它，按 `docs/releases.md` 第 2 节"重新构建的版本"里的四步来；数据库结构没变，不用撤销迁移。
+
 数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，2026-11-14 随 `7ea4956` 部署）：
 - 迁移时 `cfm_profiles` 要么是空的，要么每份配置都有绑定、`profile_bundle` 也有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
 - 要撤销第 7 版，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：第 6 版的程序照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
