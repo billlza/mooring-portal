@@ -308,6 +308,38 @@ fn what_is_in_the_journal_is_not_taken_back_by_word_of_its_card() {
 }
 
 #[test]
+fn an_order_waiting_for_its_unchecked_card_waits_on_word_that_the_card_is_banned() {
+    let mut store = shop();
+    ban_card(&mut store, 7);
+    let account = customer(&mut store, "a@qq.com", 1, "pilotusera");
+    let order = place(&mut store, 1, &month(), 1);
+    record_all(
+        &mut store,
+        &[
+            event(1, 60, completed(1, order, &month())),
+            event(2, 61, charged_otherwise("pi_1", CardUsed::Wallet)),
+        ],
+    );
+    let unchecked = Progress::Review(ReviewReason::CardUnchecked);
+    assert_eq!(progress(&store, &account, order), unchecked);
+    // Stripe charges a payment once. Were it to tell of a second charge,
+    // a card that passes leaves the payment unchecked, and a banned
+    // account's card makes it banned: the operator may pass the one and
+    // never the other.
+    record_all(&mut store, &[event(3, 600, charged("pi_1", 1))]);
+    assert_eq!(progress(&store, &account, order), unchecked);
+    record_all(&mut store, &[event(4, 601, charged("pi_1", 7))]);
+    let banned = Progress::Review(ReviewReason::CardBanned);
+    assert_eq!(progress(&store, &account, order), banned);
+    assert!(matches!(
+        store.approve_order(&order, at(NOW + 700)),
+        Err(ApproveError::CardBanned(id)) if id == order
+    ));
+    assert_eq!(progress(&store, &account, order), banned);
+    assert_eq!(entries(&store), []);
+}
+
+#[test]
 fn an_order_is_approved_only_if_it_waits_and_can_still_be_granted() {
     let mut store = shop();
     let account = customer(&mut store, "a@qq.com", 1, "pilotusera");

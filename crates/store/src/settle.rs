@@ -9,7 +9,9 @@
 //!    payment is known;
 //! 2. a paid order whose card is a banned account's, or could not be
 //!    checked, waits for the operator, unless it is in the journal
-//!    already or the operator has passed its card;
+//!    already or the operator has passed its card; one that waits because
+//!    its card could not be checked waits because the card is a banned
+//!    account's, should Stripe ever tell of that as well;
 //! 3. a paid order whose card has passed, by the check or by the
 //!    operator, is entered in the journal for Mooring to grant, if its
 //!    account is still bound to the Mooring user it names; if not, it
@@ -68,7 +70,11 @@ pub(crate) fn settle(tx: &Transaction<'_>, now: UnixTime) -> Result<(), StoreErr
         )?;
     }
     // 2. What is in the journal is Mooring's already: nothing said of its
-    // card afterwards takes it back to the operator.
+    // card afterwards takes it back to the operator. A payment's worse
+    // verdict stands (`stripe_events`), and an order that waits for the
+    // operator to pass its unchecked card waits on a banned one instead:
+    // the operator may pass a card that could not be checked, never one
+    // that is a banned account's.
     tx.execute(
         &format!(
             "UPDATE orders SET state = 'review', review_reason = v.reason
@@ -76,8 +82,11 @@ pub(crate) fn settle(tx: &Transaction<'_>, now: UnixTime) -> Result<(), StoreErr
                           CASE p.card WHEN 'banned' THEN 'card_banned' ELSE 'card_unchecked' END
                               AS reason
                    FROM orders o JOIN stripe_payments p ON p.payment_intent = o.payment_intent
-                   WHERE o.state = 'paid' AND o.card_passed = 0
-                     AND p.card IN ('banned', 'unchecked') AND NOT {GRANTED}) AS v
+                   WHERE NOT {GRANTED}
+                     AND ((o.state = 'paid' AND o.card_passed = 0
+                           AND p.card IN ('banned', 'unchecked'))
+                       OR (o.state = 'review' AND o.review_reason = 'card_unchecked'
+                           AND p.card = 'banned'))) AS v
              WHERE orders.id = v.id"
         ),
         [],
