@@ -325,3 +325,55 @@ async fn an_operator_no_more_finds_no_operator_pages() {
     assert_eq!(again.status, StatusCode::SEE_OTHER);
     assert_eq!(again.location(), "/operator/confirm?next=overview");
 }
+
+/// The overview's tile for the release on the download page.
+fn release_tile(body: &str) -> &str {
+    let start = body
+        .find("<a class=\"panel fact tile\" href=\"/download\">")
+        .unwrap_or_else(|| panic!("no release tile: {body}"));
+    let end = start + body[start..].find("</a>").unwrap();
+    &body[start..end]
+}
+
+#[tokio::test]
+async fn the_overview_says_when_the_download_page_was_last_checked() {
+    const SHA: &str = "49d92ffcee6d6d794d4c4a7bc55faab3957601969b2a9a2cbc795a5d39847ba3";
+    const HINT: &str = "<p class=\"small caution\">24 小时内没有核对成功。在主机上运行 \
+                        journalctl -u mooring-portal-release.service 查看原因。</p>";
+    let app = TestApp::new();
+    let (mut op, _) = operator(&app).await;
+    // Nothing imported yet: said, marked, and where to look.
+    let body = op.get(&app, "/operator").await.body;
+    let tile = release_tile(&body);
+    assert!(
+        tile.contains("<p class=\"label\">下载页上的 CFM</p>"),
+        "{tile}"
+    );
+    assert!(
+        tile.contains("<p class=\"value tone-warn\">还没有</p>"),
+        "{tile}"
+    );
+    assert!(tile.contains(HINT), "{tile}");
+    // Checked just now: the version and the time, unmarked.
+    app.offer_release("0.5.1-build.51006", "2026-11-12T19:03:23Z", SHA)
+        .await;
+    let body = op.get(&app, "/operator").await.body;
+    let tile = release_tile(&body);
+    assert!(
+        tile.contains("<p class=\"value\">0.5.1（build 51006）</p>"),
+        "{tile}"
+    );
+    assert!(tile.contains("发布信息核对于 "), "{tile}");
+    assert!(!tile.contains("caution"), "{tile}");
+    // A day and a second without a check: marked, and where to look.
+    app.clock.advance(24 * 3600 + 1).unwrap();
+    let confirmed = confirm(&mut op, &app, PASSWORD, "overview").await;
+    assert_eq!(confirmed.status, StatusCode::SEE_OTHER);
+    let body = op.get(&app, "/operator").await.body;
+    let tile = release_tile(&body);
+    assert!(
+        tile.contains("<p class=\"value tone-warn\">0.5.1（build 51006）</p>"),
+        "{tile}"
+    );
+    assert!(tile.contains(HINT), "{tile}");
+}

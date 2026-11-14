@@ -140,6 +140,7 @@ systemctl enable --now mooring-portal-release.timer
 
 - `systemctl --failed` 会列出失败的服务；`journalctl -u mooring-portal-release-fetch.service -u mooring-portal-release.service` 能看到原因。一次运行超过 120 秒会被终止并记为失败。
 - 最近 24 小时内一次都没成功，下载页自己会提示，这时用户也看得到。
+- 运营页面的概况有一格"下载页上的 CFM"，写着页面上的版本和上次核对的时间。还没导入过，或者 24 小时内没有核对成功，这一格标成警示色，并提示去主机上查日志（2026-11-14 起；在那之前导入失败了两天才被发现，见第 2 节"重新构建的版本"）。
 - 想在失败时收到通知，在两个服务的 `[Unit]` 里各加一行 `OnFailure=`，指向主机上已有的报警单元。
 - 页面退回了旧版本、同一版本的文件被换过，这两种情况导入照常成功，只在日志里留一行以 `warning:` 开头的话：`journalctl -u mooring-portal-release.service -g '^warning'`。
 

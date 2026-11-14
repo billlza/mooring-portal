@@ -44,6 +44,7 @@ use crate::security::csrf::{VerifiedForm, rotated_cookie};
 use crate::security::limits::Throttle;
 use crate::security::session::{self, presented_token};
 use crate::state::AppState;
+use crate::view::ReleaseView;
 
 pub(crate) use accounts::{accounts, ban, bind, unbind};
 pub(crate) use bookings::{bookings, close_booking};
@@ -435,6 +436,10 @@ struct OverviewPage {
     accounts: usize,
     unbound: usize,
     bookings: usize,
+    /// The release on the download page, and whether the host has
+    /// checked it within the day: nothing tells the operator otherwise
+    /// when the host's imports keep failing.
+    release: ReleaseView,
 }
 
 /// `GET /operator`: what waits for the operator.
@@ -443,7 +448,8 @@ pub(crate) async fn overview(
     State(state): State<AppState>,
     ctx: PageContext,
 ) -> Result<Response, AppError> {
-    let (accounts, unbound, bookings) = state
+    let now = state.now()?;
+    let (accounts, unbound, bookings, release) = state
         .database()
         .run(|store: &mut Store| -> Result<_, StoreError> {
             let accounts = store.accounts()?;
@@ -451,7 +457,12 @@ pub(crate) async fn overview(
                 .iter()
                 .filter(|account| account.binding.is_none())
                 .count();
-            Ok((accounts.len(), unbound, store.bookings()?.len()))
+            Ok((
+                accounts.len(),
+                unbound,
+                store.bookings()?.len(),
+                store.offered_release()?,
+            ))
         })
         .await?
         .map_err(AppError::internal)?;
@@ -462,6 +473,7 @@ pub(crate) async fn overview(
         accounts,
         unbound,
         bookings,
+        release: ReleaseView::of(release, now, ctx.t()),
         chrome: chrome(&ctx),
     })
 }
