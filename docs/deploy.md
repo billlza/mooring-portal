@@ -134,14 +134,22 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 第 6 节的前三条重新查过，结果和以前一样；`/mac` 和其他公开页面都是 `200`。
 - 旧的二进制留在主机的 `/root/mooring-portal-af2e7ce`。要换回它，先停掉门户，用门户的账号删掉 `mac_bookings` 表，并把 `user_version` 改回 5，否则它拒绝启动。
 
-数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，尚未部署）：
-- 部署前先确认线上的 `cfm_profiles` 是空的；不空的话，每份配置都要有绑定，`profile_bundle` 也要有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
-- 要换回第 6 版的程序，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：旧版本照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
+同一天又换上了提交 `7ea4956`（单账号导入 `import-profile`、反馈和运营页面；运营者当天决定部署）：
+- 换之前线上跑的是 `5d96155`，数据库是第 6 版。`cfm_profiles` 是空的，第 7 版的迁移没有要搬的配置。
+- 在主机上构建用了 4 分 9 秒，没有警告。重启时服务中断约 0.15 秒。新版本把数据库一次迁到第 8 版（两版各自的内容见下面两段）；迁移后 `quick_check` 是 `ok`，`foreign_key_check` 没有输出。
+- 随后在主机上用 `grant-operator` 把运营者自己的账号设为运营者。
+- 第 6 节的前三条重新查过，结果和以前一样。公开页面都是 `200`；没登录时打开 `/feedback` 和 `/operator`，都转到登录页；没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。
+- 旧的二进制留在主机的 `/root/mooring-portal-5d96155`。要换回它，先停掉门户，按下面两段先撤销第 8 版、再撤销第 7 版，然后用它运行一次 `erase-deleted`，再启动门户。
+- 主机上没有装 `sqlite3` 命令行。撤销时可以用系统自带的 `python3` 里的 `sqlite3` 模块执行这些语句，也可以先 `apt install sqlite3`。
 
-数据库第 8 版（运营者名单、会话确认密码的时间、反馈；分支 `feature/feedback-and-operator-pages`，接在第 7 版之后，尚未部署）：
+数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，2026-11-14 随 `7ea4956` 部署）：
+- 迁移时 `cfm_profiles` 要么是空的，要么每份配置都有绑定、`profile_bundle` 也有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
+- 要撤销第 7 版，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：第 6 版的程序照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
+
+数据库第 8 版（运营者名单、会话确认密码的时间、反馈；分支 `feature/feedback-and-operator-pages`，接在第 7 版之后，2026-11-14 随 `7ea4956` 部署）：
 - 迁移只新建两张表、给 `sessions` 加一列，不改已有的行，线上的数据不会让它失败。
 - 部署后在主机上用 `grant-operator --account <编号>` 把运营者自己的账号设为运营者，网页上才有"运营"。
-- 要换回第 7 版的程序，先停掉门户，用门户的账号在数据库上执行 `DROP TABLE feedback; DROP TABLE operators; ALTER TABLE sessions DROP COLUMN confirmed_at; PRAGMA user_version = 7;`。反馈和运营者名单随之删除，会话保留。执行后的结构和第 7 版完全相同（`crates/store/src/tests/operators.rs` 里有测试）。`sqlite3` 删表时不抹掉表占过的页面，反馈的原文会留在数据库文件里：换回第 7 版的程序后、启动门户之前，运行一次它的 `erase-deleted`，把这些内容从文件里抹掉。
+- 要撤销第 8 版，先停掉门户，用门户的账号在数据库上执行 `DROP TABLE feedback; DROP TABLE operators; ALTER TABLE sessions DROP COLUMN confirmed_at; PRAGMA user_version = 7;`。反馈和运营者名单随之删除，会话保留。执行后的结构和第 7 版完全相同（`crates/store/src/tests/operators.rs` 里有测试）。删表之后，反馈的原文还可能留在数据库文件的空闲页或预写日志里（没开 `secure_delete` 时留在空闲页；主机上的 SQLite 默认开着，但改动先写进预写日志，旧的内容要等日志并回数据库才被盖掉）：换回旧的程序后、启动门户之前，用它运行一次 `erase-deleted`，它重整数据库文件、清空预写日志，把这些内容从文件里抹掉。
 
 ## 3. DNS
 
