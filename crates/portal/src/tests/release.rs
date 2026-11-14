@@ -120,6 +120,44 @@ fn a_newer_an_older_and_a_republished_release_are_each_said() {
 }
 
 #[test]
+fn a_rebuild_takes_the_place_of_the_version_it_rebuilds() {
+    // GitHub's descriptions of CFM 0.5.1 and of its rebuild 51006, which
+    // GitHub has marked the latest since 2026-11-12.
+    let fixture = Fixture::new();
+    let plain = release_fixture("valid/v0.5.1.json");
+    let rebuild = release_fixture("valid/v0.5.1-build.51006.json");
+    let first = fixture.run(&["import-release", plain.to_str().unwrap()]);
+    assert_eq!(first.code, ExitCode::SUCCESS, "{}", first.err);
+    let rebuilt = fixture.run(&["import-release", rebuild.to_str().unwrap()]);
+    assert_eq!(rebuilt.code, ExitCode::SUCCESS, "{}", rebuilt.err);
+    assert_eq!(
+        rebuilt.out,
+        "CFM 0.5.1-build.51006 (published 2026-11-12T19:03:23Z) replaces 0.5.1 on the \
+         download page\n"
+    );
+    assert_eq!(rebuilt.err, "");
+    assert_eq!(
+        fixture.offered(),
+        Some(("0.5.1-build.51006".to_owned(), NOW))
+    );
+    let offered = fixture.store().offered_release().unwrap().unwrap().release;
+    assert_eq!(
+        offered.dmg_url(),
+        format!("{REPOSITORY}/releases/download/v0.5.1-build.51006/Clash.for.Mac_0.5.1_arm64.dmg")
+    );
+    // Should GitHub mark 0.5.1 itself the latest again, the page goes
+    // back to it, and says so.
+    let back = fixture.run(&["import-release", plain.to_str().unwrap()]);
+    assert_eq!(back.code, ExitCode::SUCCESS, "{}", back.err);
+    assert_eq!(
+        back.out,
+        "warning: the release described is CFM 0.5.1 (published 2026-11-07T15:27:01Z), older \
+         than the 0.5.1-build.51006 on the download page; the page now offers 0.5.1\n"
+    );
+    assert_eq!(fixture.offered(), Some(("0.5.1".to_owned(), NOW)));
+}
+
+#[test]
 fn the_deployment_notes_fetch_from_the_repository_the_portal_reads() {
     // The repository is named in the code, which builds the page's
     // addresses from it, and again in the unit that fetches the

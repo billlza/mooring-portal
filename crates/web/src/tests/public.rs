@@ -405,6 +405,35 @@ async fn the_download_page_offers_the_release_the_host_last_imported() {
 }
 
 #[tokio::test]
+async fn a_rebuild_is_offered_under_its_own_tag_and_named_with_its_build() {
+    const SHA: &str = "49d92ffcee6d6d794d4c4a7bc55faab3957601969b2a9a2cbc795a5d39847ba3";
+    let app = TestApp::new();
+    app.offer_release("0.5.1-build.51006", "2026-11-12T19:03:23Z", SHA)
+        .await;
+    let mut browser = Browser::new([203, 0, 113, 1]);
+    let body = browser.get(&app, "/download").await.body;
+    for shown in [
+        "<dd>CFM 0.5.1（build 51006）</dd>",
+        // Published at three in the morning of the 13th, Beijing time.
+        "<dd>2026-11-13</dd>",
+        "<code class=\"hash\">Clash.for.Mac_0.5.1_arm64.dmg</code>",
+        "href=\"https://github.com/billlza/cfw-rs/releases/download/v0.5.1-build.51006/\
+         Clash.for.Mac_0.5.1_arm64.dmg\"",
+        "href=\"https://github.com/billlza/cfw-rs/releases/tag/v0.5.1-build.51006\"",
+    ] {
+        assert!(body.contains(shown), "{shown}");
+    }
+    browser
+        .post(&app, "/lang", &[("to", "en"), ("back", "download")])
+        .await;
+    let english = browser.get(&app, "/download").await.body;
+    assert!(
+        english.contains("<dd>CFM 0.5.1 (build 51006)</dd>"),
+        "{english}"
+    );
+}
+
+#[tokio::test]
 async fn no_page_calls_the_service_free_and_the_plans_say_how_it_is_paid() {
     let app = TestApp::new();
     let mut browser = Browser::new([203, 0, 113, 1]);

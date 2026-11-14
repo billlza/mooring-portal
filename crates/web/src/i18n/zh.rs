@@ -53,6 +53,7 @@ pub(super) const STRINGS: Strings = Strings {
         mac_title: "macOS",
         mac_requirements: "Apple 芯片（M1 或更新）的 Mac，macOS 15 或更新。不支持 Intel 芯片的 Mac。",
         version: "版本",
+        rebuild: "{}（build {}）",
         published: "发布日期",
         button: "下载 .dmg",
         release_page: "发布页面",

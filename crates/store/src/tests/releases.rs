@@ -103,6 +103,56 @@ fn each_import_replaces_the_release_and_says_what_changed() {
 }
 
 #[test]
+fn a_rebuild_follows_the_version_it_rebuilds_and_reads_back_whole() {
+    let mut store = store();
+    store
+        .offer_release(&release("0.5.1", NOW - 1000, SHA_A), at(NOW))
+        .unwrap();
+    let rebuild = release("0.5.1-build.51006", NOW - 500, SHA_B);
+    assert_eq!(
+        store.offer_release(&rebuild, at(NOW + 300)).unwrap(),
+        ReleaseChange::Newer {
+            from: version("0.5.1")
+        }
+    );
+    let stored: String = store
+        .conn
+        .query_row("SELECT version FROM cfm_release", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(stored, "0.5.1-build.51006");
+    assert_eq!(
+        store.offered_release().unwrap(),
+        Some(OfferedRelease {
+            release: rebuild.clone(),
+            checked_at: at(NOW + 300)
+        })
+    );
+    // A later build of the same version is newer; the version itself, or
+    // an earlier build, is older.
+    let later = release("0.5.1-build.51007", NOW - 400, SHA_A);
+    assert_eq!(
+        store.offer_release(&later, at(NOW + 600)).unwrap(),
+        ReleaseChange::Newer {
+            from: version("0.5.1-build.51006")
+        }
+    );
+    assert_eq!(
+        store.offer_release(&rebuild, at(NOW + 900)).unwrap(),
+        ReleaseChange::Older {
+            from: version("0.5.1-build.51007")
+        }
+    );
+    assert_eq!(
+        store
+            .offer_release(&release("0.5.1", NOW - 1000, SHA_A), at(NOW + 1200))
+            .unwrap(),
+        ReleaseChange::Older {
+            from: version("0.5.1-build.51006")
+        }
+    );
+}
+
+#[test]
 fn an_import_waits_for_another_writer_and_sees_what_it_wrote() {
     // Two imports may run at once: a timer's, and one the operator starts.
     // The second must take its turn before it reads what is on offer; if
@@ -153,6 +203,7 @@ fn a_row_that_no_longer_reads_is_corrupt_not_absent() {
     for (change, what) in [
         ("version = '0.5'", "release version"),
         ("version = 'v0.5.1'", "release version"),
+        ("version = '0.5.1-build.051006'", "release version"),
         ("published_at = -1", "release publication time"),
         ("checked_at = -1", "release check time"),
         (

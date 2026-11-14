@@ -51,8 +51,11 @@ pub enum ReleaseError {
     /// A pre-release: published, but not for everyone.
     #[error("the release is a pre-release")]
     Prerelease,
-    /// The tag is not `v` and three numbers.
-    #[error("the release's tag is not v<major>.<minor>.<patch>")]
+    /// The tag is not `v` and three numbers, alone or with the build
+    /// number of a rebuild.
+    #[error(
+        "the release's tag is not v<major>.<minor>.<patch>, alone or followed by -build.<number>"
+    )]
     Tag,
     /// No time of publication, or one not written as GitHub writes it.
     #[error("the release has no time of publication in UTC, to the second")]
@@ -80,19 +83,33 @@ pub enum ReleaseError {
     Download,
 }
 
-/// A release's version: three numbers.
+/// A release's version: three numbers, and a build number when CFM
+/// releases a rebuild of them (tagged `v0.5.1-build.51006`). A rebuild
+/// comes after the release it rebuilds, and a higher build number after a
+/// lower one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Version {
     major: u32,
     minor: u32,
     patch: u32,
+    /// Compared last, and `None` before any number: the release that was
+    /// rebuilt comes before its rebuilds.
+    build: Option<u32>,
 }
 
+/// What comes between a rebuild's three numbers and its build number.
+const BUILD: &str = "-build.";
+
 impl Version {
-    /// Parses `major.minor.patch`: three decimal numbers without signs,
-    /// spaces or leading zeros, each below 2^32.
+    /// Parses `major.minor.patch`, or `major.minor.patch-build.number` for
+    /// a rebuild: decimal numbers without signs, spaces or leading zeros,
+    /// each below 2^32.
     pub fn parse(text: &str) -> Result<Self, ReleaseError> {
-        let mut parts = text.split('.').map(number);
+        let (numbers, build) = match text.split_once(BUILD) {
+            Some((numbers, build)) => (numbers, Some(number(build).ok_or(ReleaseError::Tag)?)),
+            None => (text, None),
+        };
+        let mut parts = numbers.split('.').map(number);
         let (Some(major), Some(minor), Some(patch), None) =
             (parts.next(), parts.next(), parts.next(), parts.next())
         else {
@@ -102,7 +119,23 @@ impl Version {
             major: major.ok_or(ReleaseError::Tag)?,
             minor: minor.ok_or(ReleaseError::Tag)?,
             patch: patch.ok_or(ReleaseError::Tag)?,
+            build,
         })
+    }
+
+    /// The build number, if the release is a rebuild.
+    #[must_use]
+    pub const fn build(self) -> Option<u32> {
+        self.build
+    }
+
+    /// The version a rebuild rebuilds: its three numbers alone.
+    #[must_use]
+    pub const fn without_build(self) -> Self {
+        Self {
+            build: None,
+            ..self
+        }
     }
 }
 
@@ -115,8 +148,13 @@ fn number(text: &str) -> Option<u32> {
 }
 
 impl fmt::Display for Version {
+    /// As the tag writes it, after its `v`.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
+        if let Some(build) = self.build {
+            write!(f, "{BUILD}{build}")?;
+        }
+        Ok(())
     }
 }
 
@@ -279,9 +317,11 @@ impl CfmRelease {
     }
 }
 
-/// The name CFM's releases give the disk image for Apple silicon.
+/// The name CFM's releases give the disk image for Apple silicon. A
+/// rebuild's disk image keeps the name of the version it rebuilds; only
+/// its tag, and so its address, tells it apart.
 fn dmg_name(version: Version) -> String {
-    format!("Clash.for.Mac_{version}_arm64.dmg")
+    format!("Clash.for.Mac_{}_arm64.dmg", version.without_build())
 }
 
 #[cfg(test)]
@@ -333,9 +373,80 @@ mod tests {
     }
 
     #[test]
+    fn a_rebuild_adds_its_build_number_to_the_version() {
+        for (text, numbers, build) in [
+            ("0.5.1-build.51006", (0, 5, 1), 51_006),
+            ("0.5.1-build.0", (0, 5, 1), 0),
+            ("1.2.3-build.4294967295", (1, 2, 3), u32::MAX),
+        ] {
+            let read = version(text);
+            assert_eq!((read.major, read.minor, read.patch), numbers);
+            assert_eq!(read.build(), Some(build));
+            assert_eq!(read.to_string(), text);
+            let rebuilt = read.without_build();
+            assert_eq!(rebuilt.build(), None);
+            assert_eq!(rebuilt.to_string(), text.split_once('-').unwrap().0);
+        }
+        assert_eq!(version("0.5.1").build(), None);
+        assert_eq!(version("0.5.1").without_build(), version("0.5.1"));
+        for bad in [
+            "0.5.1-build",
+            "0.5.1-build.",
+            "0.5.1-build.051006",
+            "0.5.1-build.x",
+            "0.5.1-build.1.2",
+            "0.5.1-build.1-build.2",
+            "0.5.1-Build.1",
+            "0.5.1-build1",
+            "0.5.1.build.1",
+            "0.5.1--build.1",
+            "0.5.1-build.-1",
+            "0.5.1-build.+1",
+            "0.5.1-build. 1",
+            "0.5.1-build.1 ",
+            "0.5.1-build.4294967296",
+            "0.5.1-build.１",
+            "0.5-build.1",
+            "-build.1",
+            "0.5.1+build.1",
+            "0.5.1-rc.1-build.1",
+        ] {
+            assert_eq!(Version::parse(bad), Err(ReleaseError::Tag), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn a_rebuild_is_downloaded_from_its_own_tag_under_its_versions_name() {
+        let published = UnixTime::from_secs(1_794_513_803).unwrap();
+        let release = CfmRelease::from_parts(version("0.5.1-build.51006"), published, SHA).unwrap();
+        assert_eq!(release.version(), version("0.5.1-build.51006"));
+        assert_eq!(release.dmg_name(), "Clash.for.Mac_0.5.1_arm64.dmg");
+        assert_eq!(
+            release.dmg_url(),
+            format!(
+                "{REPOSITORY}/releases/download/v0.5.1-build.51006/Clash.for.Mac_0.5.1_arm64.dmg"
+            )
+        );
+        assert_eq!(
+            release.page_url(),
+            format!("{REPOSITORY}/releases/tag/v0.5.1-build.51006")
+        );
+    }
+
+    #[test]
     fn versions_order_by_number_not_by_text() {
         let ordered = [
-            "0.5.1", "0.5.9", "0.5.10", "0.6.0", "0.10.0", "1.0.0", "2.0.0",
+            "0.5.1",
+            "0.5.1-build.0",
+            "0.5.1-build.9",
+            "0.5.1-build.10",
+            "0.5.1-build.51006",
+            "0.5.9",
+            "0.5.10",
+            "0.6.0",
+            "0.10.0",
+            "1.0.0",
+            "2.0.0",
         ];
         for pair in ordered.windows(2) {
             assert!(version(pair[0]) < version(pair[1]), "{pair:?}");

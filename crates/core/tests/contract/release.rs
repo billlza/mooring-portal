@@ -1,5 +1,6 @@
 //! What the portal reads from GitHub's description of a CFM release: the
-//! description GitHub gave of CFM 0.5.1, and one refusal per rule.
+//! descriptions GitHub gave of CFM 0.5.1 and of its rebuild 51006, and one
+//! refusal per rule.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -24,7 +25,7 @@ fn release_fixture(path: &str) -> Vec<u8> {
 }
 
 /// Each refused description, by file name, and why it is refused.
-const REFUSED: [(&str, ReleaseError); 41] = [
+const REFUSED: [(&str, ReleaseError); 44] = [
     ("draft", ReleaseError::Draft),
     ("prerelease", ReleaseError::Prerelease),
     ("not-published", ReleaseError::PublishedAt),
@@ -38,12 +39,14 @@ const REFUSED: [(&str, ReleaseError); 41] = [
     ("tag-too-large", ReleaseError::Tag),
     ("page-of-another-repository", ReleaseError::Page),
     ("page-of-another-tag", ReleaseError::Page),
+    ("page-of-another-build", ReleaseError::Page),
     ("no-tag", ReleaseError::Malformed(Malformation::Shape)),
     ("tag-twice", ReleaseError::Malformed(Malformation::Shape)),
     ("no-assets", ReleaseError::Malformed(Malformation::Shape)),
     ("no-dmg", ReleaseError::NoDiskImage),
     ("two-dmgs", ReleaseError::DiskImages),
     ("dmg-of-another-version", ReleaseError::NoDiskImage),
+    ("dmg-named-for-the-build", ReleaseError::NoDiskImage),
     ("dmg-not-uploaded", ReleaseError::NotUploaded),
     ("dmg-empty", ReleaseError::Empty),
     ("dmg-no-digest", ReleaseError::Digest),
@@ -62,6 +65,7 @@ const REFUSED: [(&str, ReleaseError); 41] = [
     ("dmg-from-another-host", ReleaseError::Download),
     ("dmg-from-another-repository", ReleaseError::Download),
     ("dmg-from-another-tag", ReleaseError::Download),
+    ("dmg-from-another-build", ReleaseError::Download),
     ("dmg-over-http", ReleaseError::Download),
     (
         "draft-as-text",
@@ -106,6 +110,30 @@ fn the_latest_release_is_read_as_github_describes_it() {
 }
 
 #[test]
+fn a_rebuild_is_read_with_its_build_number_and_downloaded_from_its_own_tag() {
+    // CFM rebuilt 0.5.1 as build 51006: the tag carries the build number,
+    // and the disk image keeps the version's own name.
+    let release =
+        CfmRelease::from_github(&release_fixture("valid/v0.5.1-build.51006.json")).unwrap();
+    assert_eq!(release.version().to_string(), "0.5.1-build.51006");
+    assert_eq!(release.published_at().to_string(), "2026-11-12T19:03:23Z");
+    assert_eq!(
+        release.dmg_sha256(),
+        "49d92ffcee6d6d794d4c4a7bc55faab3957601969b2a9a2cbc795a5d39847ba3"
+    );
+    assert_eq!(release.dmg_name(), "Clash.for.Mac_0.5.1_arm64.dmg");
+    assert_eq!(
+        release.dmg_url(),
+        "https://github.com/billlza/cfw-rs/releases/download/v0.5.1-build.51006/\
+         Clash.for.Mac_0.5.1_arm64.dmg"
+    );
+    assert_eq!(
+        release.page_url(),
+        "https://github.com/billlza/cfw-rs/releases/tag/v0.5.1-build.51006"
+    );
+}
+
+#[test]
 fn every_rule_refuses_its_description() {
     for (name, why) in REFUSED {
         let description = release_fixture(&format!("invalid/{name}.json"));
@@ -133,6 +161,7 @@ fn no_refusal_repeats_the_description() {
             "someone-else",
             "example.com",
             "rc.1",
+            "51006",
             "starter",
             "sha512",
             "0.5.0",

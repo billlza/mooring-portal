@@ -59,6 +59,7 @@ pub(super) const STRINGS: Strings = Strings {
         mac_title: "macOS",
         mac_requirements: "A Mac with Apple silicon (M1 or later) on macOS 15 or later. Intel Macs are not supported.",
         version: "Version",
+        rebuild: "{} (build {})",
         published: "Published",
         button: "Download .dmg",
         release_page: "Release page",

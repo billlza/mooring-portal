@@ -81,6 +81,9 @@ pub(crate) struct Download {
     pub(crate) mac_title: &'static str,
     pub(crate) mac_requirements: &'static str,
     pub(crate) version: &'static str,
+    /// A rebuild's version: takes the version it rebuilds, then the build
+    /// number.
+    pub(crate) rebuild: &'static str,
     pub(crate) published: &'static str,
     pub(crate) button: &'static str,
     pub(crate) release_page: &'static str,

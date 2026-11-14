@@ -8,7 +8,7 @@
 //! so says nothing of its age. With no release imported yet the page says
 //! that, and never falls back to one written into the program.
 
-use portal_core::release::REPOSITORY;
+use portal_core::release::{REPOSITORY, Version};
 use portal_core::time::UnixTime;
 use portal_store::OfferedRelease;
 
@@ -63,7 +63,7 @@ impl ReleaseView {
             };
         };
         Self::Offered(Box::new(Offered {
-            version: release.version().to_string(),
+            version: shown_version(release.version(), t),
             published: beijing_date(release.published_at()),
             page_url: release.page_url(),
             dmg_name: release.dmg_name(),
@@ -77,9 +77,18 @@ impl ReleaseView {
     }
 }
 
+/// A version as the page writes it: a rebuild's build number in words
+/// after the version it rebuilds, as CFM names such a release.
+fn shown_version(version: Version, t: &Strings) -> String {
+    match version.build() {
+        Some(build) => fill(&fill(t.download.rebuild, version.without_build()), build),
+        None => version.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use portal_core::release::{CfmRelease, Version};
+    use portal_core::release::CfmRelease;
 
     use super::*;
     use crate::i18n::Lang;
@@ -136,6 +145,40 @@ mod tests {
                 stale: None,
             }
         );
+    }
+
+    #[test]
+    fn a_rebuild_is_shown_with_its_build_number_and_its_own_addresses() {
+        let rebuild = OfferedRelease {
+            release: CfmRelease::from_parts(
+                Version::parse("0.5.1-build.51006").unwrap(),
+                UnixTime::parse_utc("2026-11-12T19:03:23Z").unwrap(),
+                SHA,
+            )
+            .unwrap(),
+            checked_at: at(NOW),
+        };
+        for (lang, version) in [
+            (Lang::Zh, "0.5.1（build 51006）"),
+            (Lang::En, "0.5.1 (build 51006)"),
+        ] {
+            let ReleaseView::Offered(shown) =
+                ReleaseView::of(Some(rebuild.clone()), at(NOW), lang.strings())
+            else {
+                panic!("a release was offered");
+            };
+            assert_eq!(shown.version, version);
+            assert_eq!(
+                shown.page_url,
+                "https://github.com/billlza/cfw-rs/releases/tag/v0.5.1-build.51006"
+            );
+            assert_eq!(shown.dmg_name, "Clash.for.Mac_0.5.1_arm64.dmg");
+            assert_eq!(
+                shown.dmg_url,
+                "https://github.com/billlza/cfw-rs/releases/download/v0.5.1-build.51006/\
+                 Clash.for.Mac_0.5.1_arm64.dmg"
+            );
+        }
     }
 
     #[test]
