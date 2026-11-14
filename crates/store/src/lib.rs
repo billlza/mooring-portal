@@ -6,11 +6,12 @@
 //! has said of each payment and the journal Mooring pulls (of one mode,
 //! Stripe's test mode or real money, never both), the ban list
 //! (digests of banned accounts' email addresses and of their cards'
-//! fingerprints), and the CFM release the download page offers. The
-//! server and the operator's commands open the same file: SQLite's write
-//! lock serialises them (WAL journal, five-second busy timeout), and every
-//! operation that reads before it writes runs in an immediate transaction,
-//! so its checks still hold when it writes.
+//! fingerprints), the CFM release the download page offers, and the Mac
+//! rental bookings that wait for the operator. The server and the
+//! operator's commands open the same file: SQLite's write lock serialises
+//! them (WAL journal, five-second busy timeout), and every operation that
+//! reads before it writes runs in an immediate transaction, so its checks
+//! still hold when it writes.
 //!
 //! Every connection zeroes most of what it deletes (secure deletion);
 //! [`Store::erase_deleted`] removes every copy that is left, in the
@@ -35,6 +36,7 @@ mod payment_mode;
 mod payment_review;
 mod profiles;
 mod releases;
+mod rentals;
 mod rows;
 mod schema;
 mod sessions;
@@ -63,6 +65,7 @@ pub use profiles::{
     ProfileImportError, ProfileImportReport, StoredProfile, Withheld, WithheldLink,
 };
 pub use releases::{OfferedRelease, ReleaseChange};
+pub use rentals::{Booking, BookingError, OperatorBooking};
 pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
 pub use stripe_events::{Recorded, StrayReason};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};

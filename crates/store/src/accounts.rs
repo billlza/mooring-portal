@@ -196,9 +196,9 @@ impl Store {
     }
 
     /// Deletes the account with `code`, with its sessions, binding,
-    /// subscription record, CFM profile, subscription link and orders, and
-    /// with what Stripe said of those orders' payments. Copies of the rows
-    /// stay in the database files until [`Store::erase_deleted`].
+    /// subscription record, CFM profile, subscription link, orders and Mac
+    /// bookings, and with what Stripe said of those orders' payments. Copies
+    /// of the rows stay in the database files until [`Store::erase_deleted`].
     ///
     /// Refused while money is in the air: while Stripe may still charge a
     /// subscription of the account, which no one could then stop from

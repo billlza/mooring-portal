@@ -14,6 +14,7 @@ mod misc;
 mod paying;
 mod public;
 mod renewals;
+mod rental;
 mod selling;
 mod serving;
 mod shop;

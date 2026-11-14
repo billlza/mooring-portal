@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ chrome.t.rental.title }}{% endblock %}
+{% block main %}
+<div class="container page-head">
+  <h1>{{ chrome.t.rental.title }}</h1>
+  <p class="lead">{{ chrome.t.rental.lead }}</p>
+</div>
+<div class="container">
+  {% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  {% if let Some(bookings) = bookings %}{% if !bookings.is_empty() %}
+  <section class="panel bookings">
+    <h2>{{ chrome.t.rental.bookings_title }}</h2>
+    <ul class="rows" role="list">
+      {% for booking in bookings %}
+      <li>
+        <div>{{ booking.name }} · {{ booking.period }}<span class="block muted small">{{ booking.placed }} {{ chrome.t.common.beijing_time }}</span></div>
+        <span class="figure">{{ booking.price }}{% if let Some(first) = booking.first %}<span class="block muted small">{{ first }}</span>{% endif %}</span>
+        <form class="inline" method="post" action="/mac/bookings/withdraw">
+          <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+          <input type="hidden" name="machine" value="{{ booking.machine }}">
+          <button class="button ghost" type="submit">{{ chrome.t.rental.withdraw }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="small muted">{{ chrome.t.rental.one_each }}</p>
+  </section>
+  {% endif %}{% endif %}
+  <form class="rental" method="post" action="/mac/bookings">
+    <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
+    <fieldset class="panel rental-step">
+      <legend><span class="rental-number" aria-hidden="true">1</span>{{ chrome.t.rental.machine_step }}</legend>
+      <div class="machines">
+        {% for machine in machines %}
+        <label class="machine">
+          <input type="radio" name="machine" value="{{ machine.id }}"{% if loop.first %} checked{% endif %} required>
+          <span class="machine-chip">{{ machine.chip }}</span>
+          {% for spec in machine.specs %}<span class="machine-spec">{{ spec }}</span>{% endfor %}
+          <span class="machine-prices">
+            {% for price in machine.prices %}
+            <span class="machine-price" data-period="{{ price.period }}"><strong>{{ price.amount }}</strong>{{ price.per }}{% if let Some(first) = price.first %}<span class="machine-first">{{ first }}</span>{% endif %}</span>
+            {% endfor %}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <fieldset class="panel rental-step">
+      <legend><span class="rental-number" aria-hidden="true">2</span>{{ chrome.t.rental.period_step }}</legend>
+      <div class="periods">
+        {% for period in periods %}
+        <label class="period">
+          <input type="radio" name="period" value="{{ period.id }}"{% if period.chosen %} checked{% endif %} required>
+          <span>{{ period.label }}</span>{% if let Some(saving) = period.saving %}<span class="period-saving">{{ saving }}</span>{% endif %}
+        </label>
+        {% endfor %}
+      </div>
+      <p class="hint">{{ chrome.t.rental.period_hint }}</p>
+    </fieldset>
+    <section class="panel rental-step">
+      <h2><span class="rental-number" aria-hidden="true">3</span>{{ chrome.t.rental.book_step }}</h2>
+      <ul class="rental-terms" role="list">
+        {% for line in chrome.t.rental.terms %}<li>{{ line }}</li>{% endfor %}
+      </ul>
+      {% if !chrome.signed_in %}<p class="hint">{{ chrome.t.rental.sign_in_first }}</p>{% endif %}
+      <button class="button" type="submit">{{ chrome.t.rental.book }}</button>
+    </section>
+  </form>
+</div>
+{% endblock %}

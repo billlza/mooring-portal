@@ -7,7 +7,7 @@ use axum::http::header::{CONTENT_TYPE, ORIGIN};
 use super::support::{Browser, ORIGIN_URL, TestApp};
 
 /// Every POST route, with a form that would otherwise be accepted.
-const FORMS: [(&str, &str); 6] = [
+const FORMS: [(&str, &str); 8] = [
     ("/login", "email=a%40qq.com&password=x"),
     (
         "/register",
@@ -20,6 +20,8 @@ const FORMS: [(&str, &str); 6] = [
     ),
     ("/lang", "to=en&back=home"),
     ("/lang", "to=zh&back=help"),
+    ("/mac/bookings", "machine=m6-16-256&period=month"),
+    ("/mac/bookings/withdraw", "machine=m6-16-256"),
 ];
 
 async fn post(

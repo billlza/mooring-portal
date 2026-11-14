@@ -10,6 +10,7 @@ mod paying;
 mod payments;
 mod profiles;
 mod release;
+mod rentals;
 mod usage;
 
 use std::path::{Path, PathBuf};

@@ -287,8 +287,8 @@ fn a_ban_keeps_the_cards_it_is_given_and_names_the_subscriptions_to_cancel() {
     assert_eq!(
         banned.out,
         "banned account 0000-0000-0002: deleted it with its sessions, binding, subscription \
-         record, CFM profile, subscription link and orders; its email address cannot register \
-         again\n\
+         record, CFM profile, subscription link, orders and Mac bookings; its email address \
+         cannot register again\n\
          kept 2 card fingerprint(s) with the ban: payments made with them will not be granted\n\
          Stripe may still charge subscription sub_5: cancel it at Stripe, and delete the card \
          saved with it\n\

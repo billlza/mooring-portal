@@ -269,7 +269,7 @@ pub(crate) fn delete_account(
         writeln!(
             out,
             "deleted account {account} with its sessions, binding, subscription record, CFM \
-             profile, subscription link and orders"
+             profile, subscription link, orders and Mac bookings"
         )
     })
 }
@@ -288,8 +288,8 @@ pub(crate) fn ban(
         writeln!(
             out,
             "banned account {account}: deleted it with its sessions, binding, subscription \
-             record, CFM profile, subscription link{} and orders; its email address cannot \
-             register again",
+             record, CFM profile, subscription link{}, orders and Mac bookings; its email \
+             address cannot register again",
             if ban.link_ended {
                 " (the link has ended for good)"
             } else {

@@ -38,6 +38,7 @@ const STYLESHEET: &str = concat!(
     include_str!("../assets/css/home.css"),
     include_str!("../assets/css/pages.css"),
     include_str!("../assets/css/account.css"),
+    include_str!("../assets/css/rental.css"),
     include_str!("../assets/css/responsive.css"),
 );
 const MARK: &str = include_str!("../assets/mark.svg");

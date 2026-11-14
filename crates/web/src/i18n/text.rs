@@ -14,6 +14,7 @@ pub(crate) struct Strings {
     pub(crate) subscription: SubscriptionText,
     pub(crate) cfm: CfmText,
     pub(crate) pay: PayText,
+    pub(crate) rental: RentalText,
 }
 
 /// Text on every page.
@@ -37,6 +38,8 @@ pub(crate) struct Nav {
     pub(crate) home: &'static str,
     pub(crate) download: &'static str,
     pub(crate) plans: &'static str,
+    /// The Mac rental page.
+    pub(crate) mac: &'static str,
     pub(crate) help: &'static str,
 }
 
@@ -321,4 +324,57 @@ pub(crate) struct PayText {
     pub(crate) note_disputed: &'static str,
     pub(crate) notice_unbound: &'static str,
     pub(crate) notice_plan_gone: &'static str,
+}
+
+/// The Mac rental page: the machines on offer, how to pay for them, and
+/// the signed-in account's bookings.
+#[derive(Debug)]
+pub(crate) struct RentalText {
+    pub(crate) title: &'static str,
+    pub(crate) lead: &'static str,
+    /// The page's three steps: a machine, a period, the booking.
+    pub(crate) machine_step: &'static str,
+    pub(crate) period_step: &'static str,
+    pub(crate) book_step: &'static str,
+    /// A machine's chip; each takes a count of cores.
+    pub(crate) cpu: &'static str,
+    pub(crate) gpu: &'static str,
+    /// Its memory and storage; each takes gigabytes.
+    pub(crate) memory: &'static str,
+    pub(crate) storage: &'static str,
+    /// Its Ethernet port; takes the speed, such as `2.5Gb`.
+    pub(crate) ethernet: &'static str,
+    /// The periods a rental is billed by.
+    pub(crate) day: &'static str,
+    pub(crate) week: &'static str,
+    pub(crate) month: &'static str,
+    pub(crate) quarter: &'static str,
+    pub(crate) year: &'static str,
+    /// What a price is for, after it: one of each period.
+    pub(crate) per_day: &'static str,
+    pub(crate) per_week: &'static str,
+    pub(crate) per_month: &'static str,
+    pub(crate) per_quarter: &'static str,
+    pub(crate) per_year: &'static str,
+    /// What paying ahead saves; takes the percentage.
+    pub(crate) saving: &'static str,
+    /// What the first month of a monthly rental saves; takes the
+    /// percentage.
+    pub(crate) first_month_saving: &'static str,
+    /// The first month's price; takes it.
+    pub(crate) first_month: &'static str,
+    pub(crate) period_hint: &'static str,
+    /// What happens once a machine is booked, and on what terms.
+    pub(crate) terms: [&'static str; 3],
+    pub(crate) sign_in_first: &'static str,
+    pub(crate) book: &'static str,
+    pub(crate) bookings_title: &'static str,
+    /// When a booking was made; takes the time.
+    pub(crate) placed: &'static str,
+    pub(crate) withdraw: &'static str,
+    pub(crate) one_each: &'static str,
+    pub(crate) notice_booked: &'static str,
+    pub(crate) notice_withdrawn: &'static str,
+    /// The machine booked is no longer on offer.
+    pub(crate) notice_gone: &'static str,
 }

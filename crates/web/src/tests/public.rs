@@ -9,7 +9,15 @@ use crate::assets::{VIEW, module};
 use crate::brand::brand;
 use crate::i18n::Lang;
 
-const PAGES: [&str; 6] = ["/", "/download", "/plans", "/help", "/login", "/register"];
+const PAGES: [&str; 7] = [
+    "/",
+    "/download",
+    "/plans",
+    "/mac",
+    "/help",
+    "/login",
+    "/register",
+];
 
 /// Attributes such as `onclick=`, which no policy here lets run. Only
 /// tags are read: the pages escape `<` in text.
@@ -147,6 +155,7 @@ async fn only_the_home_page_may_run_this_sites_scripts() {
     for path in [
         "/download",
         "/plans",
+        "/mac",
         "/help",
         "/login",
         "/register",
@@ -276,7 +285,14 @@ async fn the_home_page_carries_the_live_scene_and_still_shows_the_drawn_image() 
     assert_eq!(stage.matches("canvas.dataset.").count(), 1);
     assert!(stage.contains("canvas.dataset.view;"));
     // No other page has the scene, or any script.
-    for path in ["/download", "/plans", "/help", "/login", "/register"] {
+    for path in [
+        "/download",
+        "/plans",
+        "/mac",
+        "/help",
+        "/login",
+        "/register",
+    ] {
         let body = browser.get(&app, path).await.body;
         assert!(
             !body.contains("<canvas") && !body.contains("<script"),

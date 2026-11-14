@@ -59,6 +59,10 @@ pub enum CommandError {
     /// `revoke-pull-token` found no token.
     #[error("there is no pull token; nothing changed")]
     NoPullToken,
+    /// `close-booking` named a booking that is not there: mistyped, or
+    /// withdrawn or changed by its owner since it was listed.
+    #[error("there is no booking #{0}; nothing changed (`bookings` lists them)")]
+    NoBooking(u64),
     /// The operating system gave no random bytes for a token.
     #[error(transparent)]
     Random(#[from] RandomError),

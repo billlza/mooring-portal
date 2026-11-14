@@ -172,6 +172,24 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          id INTEGER PRIMARY KEY CHECK (id = 1),
          livemode INTEGER NOT NULL CHECK (livemode IN (0, 1))
      ) STRICT;",
+    // 6: Mac rental bookings (docs/rentals.md): what an account asked the
+    // operator for, on the terms the offer had then. One booking per
+    // account and machine; it goes with its account. Numbers are never
+    // reused, so the operator cannot close a booking made after they
+    // listed another under its number.
+    "CREATE TABLE mac_bookings (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         account_id INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+         machine TEXT NOT NULL,
+         chip TEXT NOT NULL,
+         memory_gb INTEGER NOT NULL,
+         storage_gb INTEGER NOT NULL,
+         period TEXT NOT NULL CHECK (period IN ('day', 'week', 'month', 'quarter', 'year')),
+         price INTEGER NOT NULL,
+         first_price INTEGER NOT NULL,
+         placed_at INTEGER NOT NULL,
+         UNIQUE (account_id, machine)
+     ) STRICT;",
 ];
 
 /// Applies the migrations the database lacks.

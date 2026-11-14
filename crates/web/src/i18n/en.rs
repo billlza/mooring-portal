@@ -1,8 +1,8 @@
 //! English.
 
 use super::text::{
-    AccountText, Auth, CfmText, Common, Download, Help, Home, Item, Nav, PayText, Plans, Strings,
-    SubscriptionText,
+    AccountText, Auth, CfmText, Common, Download, Help, Home, Item, Nav, PayText, Plans,
+    RentalText, Strings, SubscriptionText,
 };
 
 pub(super) const STRINGS: Strings = Strings {
@@ -21,6 +21,7 @@ pub(super) const STRINGS: Strings = Strings {
         home: "Home",
         download: "Download",
         plans: "Plans",
+        mac: "Mac mini",
         help: "Help",
     },
     home: Home {
@@ -343,5 +344,53 @@ pub(super) const STRINGS: Strings = Strings {
         note_disputed: "The cardholder has disputed this payment with their bank.",
         notice_unbound: "Your account is not bound yet, so it cannot order.",
         notice_plan_gone: "That plan is no longer on sale.",
+    },
+    rental: RentalText {
+        title: "Rent a Mac mini",
+        lead: "A whole Mac mini that only you use, over the network. Choose a configuration and \
+               how to pay, then book: it can start the next day at the earliest.",
+        machine_step: "Choose a configuration",
+        period_step: "Choose how to pay",
+        book_step: "Book",
+        cpu: "{}-core CPU",
+        gpu: "{}-core GPU",
+        memory: "{}GB unified memory",
+        storage: "{}GB SSD",
+        ethernet: "{} Ethernet",
+        day: "Daily",
+        week: "Weekly",
+        month: "Monthly",
+        quarter: "Quarterly",
+        year: "Yearly",
+        per_day: "/day",
+        per_week: "/week",
+        per_month: "/month",
+        per_quarter: "/quarter",
+        per_year: "/year",
+        saving: "save {}%",
+        first_month_saving: "{}% off month one",
+        first_month: "first month {}",
+        period_hint: "Quarterly and yearly are paid ahead, with the saving included; a monthly \
+                      rental's first month costs less. Prices are in pounds sterling.",
+        terms: [
+            "Once you book, the operator orders this Mac from Apple's online store; it can start \
+             the next day at the earliest.",
+            "Under Apple's licence for macOS, the whole machine is let to you alone, for 24 hours \
+             at the least.",
+            "Booking costs nothing and charges nothing. The operator will write to the email \
+             address you registered with, to agree how you pay and when it starts.",
+        ],
+        sign_in_first: "Sign in to book; if you have no account, register one first.",
+        book: "Book",
+        bookings_title: "My bookings",
+        placed: "Booked {}",
+        withdraw: "Withdraw",
+        one_each: "You can book one of each configuration. Booking the same one again changes \
+                   it to the way of paying you chose.",
+        notice_booked: "Your booking is in. The operator will order the Mac from Apple and write \
+                        to your registered email address; it can start the next day at the \
+                        earliest.",
+        notice_withdrawn: "Your booking is withdrawn.",
+        notice_gone: "That configuration is no longer offered; please choose again.",
     },
 };

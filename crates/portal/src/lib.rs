@@ -1,12 +1,14 @@
 //! The `mooring-portal` command: `serve` runs the portal, and the operator
 //! commands manage accounts, bindings, snapshot and CFM profile imports,
-//! the CFM release on offer, and what payments need of the operator, in
-//! the same database file, while the server runs or not.
+//! the CFM release on offer, what payments need of the operator, and the
+//! Mac rental bookings, in the same database file, while the server runs
+//! or not.
 
 mod cli;
 mod error;
 mod operator;
 mod payments;
+mod rentals;
 mod serve;
 
 use std::ffi::OsString;
@@ -105,6 +107,10 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
         }),
         Command::DiscardTestPayments => {
             with_store(&mut |store| payments::discard_test_payments(store, out))
+        }
+        Command::Bookings => with_store(&mut |store| rentals::bookings(store, out)),
+        Command::CloseBooking { id } => {
+            with_store(&mut |store| rentals::close_booking(store, id, out))
         }
         Command::PullToken => with_store(&mut |store| payments::pull_token(store, clock, out)),
         Command::RevokePullToken => {

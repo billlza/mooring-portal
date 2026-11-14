@@ -1,6 +1,13 @@
 /* Narrow screens, and motion: what moves, and what does not for people who
    ask for less of it. */
 
+/* The Mac rental page's machines, two by two. */
+@media (max-width: 1000px) {
+  .machines {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 880px) {
   .nav {
     display: none;
@@ -261,6 +268,10 @@
 
   .tabs a {
     padding: 7px 18px;
+  }
+
+  .machines {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

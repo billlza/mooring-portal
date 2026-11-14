@@ -72,8 +72,8 @@ pub(crate) enum Command {
         file: PathBuf,
     },
     /// Delete an account with its sessions, binding, record, profile,
-    /// link and orders. Refused while Stripe may still charge a
-    /// subscription of it, or an order of it is not settled.
+    /// link, orders and Mac bookings. Refused while Stripe may still
+    /// charge a subscription of it, or an order of it is not settled.
     DeleteAccount {
         /// The account's code.
         #[arg(long, value_name = "CODE", value_parser = account_code)]
@@ -148,6 +148,17 @@ pub(crate) enum Command {
     /// database that has only been served with a catalogue of Stripe's
     /// test mode. Refused for a database of real payments.
     DiscardTestPayments,
+    /// List the Mac rental bookings, oldest first, with the account that
+    /// made each and the address to write to its owner at.
+    Bookings,
+    /// Close a Mac rental booking once it is dealt with (its machine is
+    /// ordered, or its owner has said no): delete it, and erase it from
+    /// the database files.
+    CloseBooking {
+        /// The booking's number, as `bookings` lists it.
+        #[arg(long, value_name = "NUMBER")]
+        id: u64,
+    },
     /// Make the token Mooring pulls the entitlements with, in place of
     /// any made before. It is printed once and never stored.
     PullToken,

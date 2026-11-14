@@ -12,5 +12,6 @@ pub mod payment;
 pub mod profile;
 pub mod rate_limit;
 pub mod release;
+pub mod rental;
 pub mod snapshot;
 pub mod time;

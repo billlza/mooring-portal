@@ -63,9 +63,9 @@ impl From<rusqlite::Error> for BanError {
 
 impl Store {
     /// Bans the account with `code`: deletes it with its sessions,
-    /// binding, subscription record, CFM profile, subscription link and
-    /// orders, keeps its email address from registering again, and keeps
-    /// `cards` from paying for anyone. Copies of the rows stay in the
+    /// binding, subscription record, CFM profile, subscription link, orders
+    /// and Mac bookings, keeps its email address from registering again, and
+    /// keeps `cards` from paying for anyone. Copies of the rows stay in the
     /// database files until [`Store::erase_deleted`].
     pub fn ban(
         &mut self,

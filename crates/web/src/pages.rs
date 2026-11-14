@@ -6,6 +6,7 @@ pub(crate) mod cfm;
 pub(crate) mod lang;
 pub(crate) mod orders;
 pub(crate) mod public;
+pub(crate) mod rental;
 pub(crate) mod subscription;
 
 use askama::Template;
@@ -32,6 +33,7 @@ pub(crate) enum Page {
     Home,
     Download,
     Plans,
+    Mac,
     Help,
     Login,
     Register,
@@ -47,6 +49,7 @@ impl Page {
             Self::Home => "/",
             Self::Download => "/download",
             Self::Plans => "/plans",
+            Self::Mac => "/mac",
             Self::Help => "/help",
             Self::Login => "/login",
             Self::Register => "/register",
@@ -62,6 +65,7 @@ impl Page {
             Self::Home => "home",
             Self::Download => "download",
             Self::Plans => "plans",
+            Self::Mac => "mac",
             Self::Help => "help",
             Self::Login => "login",
             Self::Register => "register",
@@ -225,6 +229,7 @@ mod tests {
             (Page::Home, "/", "home"),
             (Page::Download, "/download", "download"),
             (Page::Plans, "/plans", "plans"),
+            (Page::Mac, "/mac", "mac"),
             (Page::Help, "/help", "help"),
             (Page::Login, "/login", "login"),
             (Page::Register, "/register", "register"),

@@ -193,19 +193,24 @@ async fn every_page_has_the_same_bar_and_footer() {
         ("/", "/"),
         ("/plans", "/plans"),
         ("/download", "/download"),
+        ("/mac", "/mac"),
         ("/help", "/help"),
         ("/account", ""),
         ("/subscription", ""),
     ] {
         let body = browser.get(&app, path).await.body;
         // The links, in the bar and again in the menu a narrow screen
-        // folds them into: home, plans, download, help.
+        // folds them into: home, plans, download, renting a Mac, help.
         for nav in [
             part(&body, "<nav class=\"nav\"", "</nav>"),
             part(&body, "<details class=\"menu\">", "</details>"),
         ] {
-            assert_eq!(links(nav), ["/", "/plans", "/download", "/help"], "{path}");
-            for name in ["首页", "套餐", "下载", "帮助"] {
+            assert_eq!(
+                links(nav),
+                ["/", "/plans", "/download", "/mac", "/help"],
+                "{path}"
+            );
+            for name in ["首页", "套餐", "下载", "租 Mac", "帮助"] {
                 assert!(nav.contains(&format!(">{name}</a>")), "{path} {name}");
             }
             // The page's own link says so, and only that one.

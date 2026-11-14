@@ -20,10 +20,12 @@ use crate::i18n::{Strings, fill};
 
 mod cfm;
 mod release;
+mod rental;
 mod shop;
 
 pub(crate) use cfm::CfmPanel;
 pub(crate) use release::ReleaseView;
+pub(crate) use rental::{BookingView, MachineView, PeriodView};
 pub(crate) use shop::{OrderView, PayAction, PlanView, ShopView};
 
 /// A snapshot older than this is flagged as possibly out of date.

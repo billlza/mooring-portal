@@ -233,7 +233,7 @@ pub(crate) fn ban_cards(
 }
 
 /// An amount with its currency's code: `8.00 gbp`.
-fn amount(hundredths: u64, currency: Currency) -> String {
+pub(crate) fn amount(hundredths: u64, currency: Currency) -> String {
     format!(
         "{}.{:02} {}",
         hundredths / 100,

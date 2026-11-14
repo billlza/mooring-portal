@@ -108,6 +108,15 @@ mod tests {
                 t.subscription.resets,
                 t.download.checked,
                 t.pay.note_refunded_part,
+                t.rental.cpu,
+                t.rental.gpu,
+                t.rental.memory,
+                t.rental.storage,
+                t.rental.ethernet,
+                t.rental.saving,
+                t.rental.first_month_saving,
+                t.rental.first_month,
+                t.rental.placed,
             ] {
                 assert_eq!(phrase.matches("{}").count(), 1, "{lang:?}: {phrase}");
             }

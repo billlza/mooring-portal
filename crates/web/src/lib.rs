@@ -4,10 +4,11 @@
 //! (home, download, how it works, help), registration, login and logout,
 //! and the signed-in account and subscription pages, from which a user
 //! downloads their CFM profile or makes the subscription link CFM fetches
-//! it from. Every state-changing request is a form protected against CSRF;
-//! every response carries security headers; no asset comes from another
-//! host. The one script is an ornament, the home page's live scene, and
-//! only that page may run it.
+//! it from; and the Mac rental page, where a signed-in user books a machine
+//! for the operator to buy and let to them. Every state-changing request
+//! is a form protected against CSRF; every response carries security
+//! headers; no asset comes from another host. The one script is an
+//! ornament, the home page's live scene, and only that page may run it.
 //!
 //! Once the operator has given it a catalogue, the portal also takes
 //! orders: a bound account orders a plan and is sent to pay on Stripe's
@@ -41,7 +42,7 @@ pub use config::{
 };
 pub use state::{AppState, StartupError};
 
-use pages::{Page, account, auth, cfm, lang, orders, public, subscription};
+use pages::{Page, account, auth, cfm, lang, orders, public, rental, subscription};
 use security::{csrf, headers};
 
 /// The portal's routes. The addresses of ordering and paying exist only
@@ -54,6 +55,9 @@ pub fn router(state: AppState) -> Router {
         .route("/download", get(public::download))
         .route("/plans", get(public::plans))
         .route("/help", get(public::help))
+        .route(Page::Mac.path(), get(rental::mac))
+        .route("/mac/bookings", post(rental::book))
+        .route("/mac/bookings/withdraw", post(rental::withdraw))
         .route("/login", get(auth::login_page).post(auth::login))
         .route("/register", get(auth::register_page).post(auth::register))
         .route("/logout", post(auth::logout))

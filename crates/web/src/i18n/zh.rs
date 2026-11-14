@@ -1,8 +1,8 @@
 //! Simplified Chinese, the default language.
 
 use super::text::{
-    AccountText, Auth, CfmText, Common, Download, Help, Home, Item, Nav, PayText, Plans, Strings,
-    SubscriptionText,
+    AccountText, Auth, CfmText, Common, Download, Help, Home, Item, Nav, PayText, Plans,
+    RentalText, Strings, SubscriptionText,
 };
 
 pub(super) const STRINGS: Strings = Strings {
@@ -21,6 +21,7 @@ pub(super) const STRINGS: Strings = Strings {
         home: "首页",
         download: "下载",
         plans: "套餐",
+        mac: "租 Mac",
         help: "帮助",
     },
     home: Home {
@@ -335,5 +336,45 @@ pub(super) const STRINGS: Strings = Strings {
         note_disputed: "持卡人向银行对这笔付款提出了争议。",
         notice_unbound: "你的账号还没有绑定，暂时不能下单。",
         notice_plan_gone: "这个套餐已经不再出售。",
+    },
+    rental: RentalText {
+        title: "租一台 Mac mini",
+        lead: "整台 Mac mini 只给你一个人用，通过网络远程使用。选好配置和计费方式后预订，最快第二天开通。",
+        machine_step: "选择配置",
+        period_step: "选择计费方式",
+        book_step: "预订",
+        cpu: "{} 核 CPU",
+        gpu: "{} 核 GPU",
+        memory: "{}GB 统一内存",
+        storage: "{}GB 固态硬盘",
+        ethernet: "{} 以太网",
+        day: "按天",
+        week: "按周",
+        month: "按月",
+        quarter: "按季",
+        year: "按年",
+        per_day: "/天",
+        per_week: "/周",
+        per_month: "/月",
+        per_quarter: "/季",
+        per_year: "/年",
+        saving: "省 {}%",
+        first_month_saving: "首月省 {}%",
+        first_month: "首月 {}",
+        period_hint: "按季、按年都是预付，价格已经算上优惠；按月付的第一个月便宜一些。价格以英镑计。",
+        terms: [
+            "收到预订后，运营者在 Apple 官网为你下单购买这台 Mac，最快第二天开通。",
+            "按 Apple 的 macOS 许可，整台机器只租给你一人，最短租 24 小时。",
+            "预订不收费，也不会扣款。运营者会通过你注册时用的邮箱联系你，确认付款方式和开通时间。",
+        ],
+        sign_in_first: "预订前要先登录；还没有账号的，先注册一个。",
+        book: "预订",
+        bookings_title: "我的预订",
+        placed: "预订于 {}",
+        withdraw: "撤回",
+        one_each: "每种配置各可预订一台。同一配置再预订一次，会改成新选的计费方式。",
+        notice_booked: "已收到你的预订。运营者会在 Apple 官网为你下单，并通过你的注册邮箱联系你；最快第二天开通。",
+        notice_withdrawn: "预订已撤回。",
+        notice_gone: "这个配置已经不再提供，请重新选择。",
     },
 };

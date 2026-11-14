@@ -19,6 +19,7 @@ mod payments;
 mod profiles;
 mod releases;
 mod renewals;
+mod rentals;
 mod review;
 mod sessions;
 mod sharing;
