@@ -149,6 +149,13 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 第 6 节的前三条重新查过，结果和以前一样。公开页面都是 `200`；没登录时打开 `/operator`，转到登录页；没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。
 - 旧的二进制留在主机的 `/root/mooring-portal-7ea4956`。库里存的版本现在带 build 号，它读不懂，所以要换回它，按 `docs/releases.md` 第 2 节"重新构建的版本"里的四步来；数据库结构没变，不用撤销迁移。
 
+2026-11-15 换上了提交 `91b72cb`（右下角的反馈框改成实时聊天，加上第 8 节的新消息提醒；运营者当天决定部署）：
+- 换之前线上跑的是 `d103dc0`。这次没有新的迁移，数据库仍是第 8 版。
+- 在主机上构建用了 3 分 58 秒，没有警告。从发出重启到门户第一次答复用了 1.18 秒：curl 第一次没连上，隔 1 秒重试，所以服务中断不超过这么久。之后 `quick_check` 是 `ok`。
+- 两处启动命令（第 4 节的单元，和 `50-live-payments.conf`）末尾都加上了 `--new-message-signal /var/lib/mooring-portal/new-message`；第 8 节的脚本、两个单元和这个文件也装好了。path 单元还没有启用，等运营者建好机器人、放好令牌（第 8 节第 1、2 步）再启用，并发一条试的提醒。在那之前，用户的留言照常存下、照常显示，只是没有提醒。
+- 第 6 节的前三条重新查过，结果和以前一样。公开页面都是 `200`。没登录时打开 `/operator` 和 `/feedback`，都转到登录页；不带页面令牌请求 `/feedback/unread` 和 `/feedback/messages`，得到 `403`。没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。聊天脚本以 `text/javascript` 提供。登录后的页面没有在线上看过（没有任何账号的密码），只在本机的演示里看过。
+- 旧的二进制留在主机的 `/root/mooring-portal-d103dc0`，两份启动配置改动前的样子留在 `/root/mooring-portal.service.before-91b72cb` 和 `/root/50-live-payments.conf.before-91b72cb`。`d103dc0` 不认识 `--new-message-signal`，带着它会拒绝启动。所以要换回它：先 `systemctl disable --now mooring-portal-notify.path`（如果已经启用），把这两份配置放回原处（或者从两处启动命令里删掉这个参数），`systemctl daemon-reload`，再换回二进制、重启。数据库结构没变，不用撤销迁移。
+
 数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，2026-11-14 随 `7ea4956` 部署）：
 - 迁移时 `cfm_profiles` 要么是空的，要么每份配置都有绑定、`profile_bundle` 也有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
 - 要撤销第 7 版，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：第 6 版的程序照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
@@ -369,7 +376,7 @@ systemctl restart caddy
 
 ## 8. 新消息提醒（Telegram）
 
-运营者 2026-11-15 要求把右下角的反馈框做成实时聊天，并选了用 Telegram 机器人提醒运营者有新消息。门户自己不连任何外部服务：用户每发一条消息，门户把当时的时间写进一个文件（`--new-message-signal`）；主机上的 systemd 盯着这个文件，它一变，就运行一个小脚本，由脚本给运营者的 Telegram 发一句固定的话。这一节写好时（2026-11-15）还没有在主机上装过。
+运营者 2026-11-15 要求把右下角的反馈框做成实时聊天，并选了用 Telegram 机器人提醒运营者有新消息。门户自己不连任何外部服务：用户每发一条消息，门户把当时的时间写进一个文件（`--new-message-signal`）；主机上的 systemd 盯着这个文件，它一变，就运行一个小脚本，由脚本给运营者的 Telegram 发一句固定的话。2026-11-15 随 `91b72cb` 在主机上装好了第 3、4 步，以及第 5 步里建文件、改两处启动命令和重启门户这几步（第 2 节）。第 1、2 步等运营者来做；做完之后再启用 path 单元、发一条试的提醒。
 
 - **Telegram 知道什么**：只有"此刻有人在泊光留言"。提醒里没有账号、邮箱，也没有留言的内容；运营者到运营页面看对话、回复。文件里也只有时间。提醒里那个运营页面的地址不生成预览（`link_preview_options`），Telegram 的服务器不会为它来访问门户。
 - **令牌放在哪**：机器人的令牌只在主机上，`/etc/mooring-portal/telegram`，root 所有、0600，由 systemd 交给脚本（`LoadCredential=`）。脚本只经标准输入把它交给 curl，它不出现在任何进程的命令行里，别的账号用 `ps` 看不到。拿到令牌的人能以这个机器人的名义给运营者发消息，能读到别人发给这个机器人的消息；读不到门户的任何东西。泄露了，在 @BotFather 里对这个机器人用 `/revoke` 换一个，再改这个文件。
