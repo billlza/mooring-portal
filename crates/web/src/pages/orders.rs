@@ -30,6 +30,8 @@ use crate::view::{OrderView, PayAction};
 /// Where an order's page is: `/subscription/orders/<id>`.
 const ORDER_PREFIX: &str = "/subscription/orders/";
 
+crate::pages::page_templates!(OrderPage);
+
 #[derive(Template)]
 #[template(path = "order.html")]
 struct OrderPage {

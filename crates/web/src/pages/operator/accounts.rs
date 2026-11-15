@@ -26,6 +26,8 @@ use crate::i18n::{Strings, fill};
 use crate::pages::{Chrome, PageContext, render_status};
 use crate::state::AppState;
 
+crate::pages::page_templates!(AccountsPage);
+
 #[derive(Template)]
 #[template(path = "operator_accounts.html")]
 struct AccountsPage {

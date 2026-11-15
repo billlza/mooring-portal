@@ -23,6 +23,7 @@ fn serve_args(payments: Option<PathBuf>, secrets: Option<PathBuf>) -> ServeArgs 
         max_accounts: 7,
         payments,
         stripe_webhook_secret: secrets,
+        new_message_signal: None,
     }
 }
 

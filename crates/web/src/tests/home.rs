@@ -140,6 +140,10 @@ async fn the_home_page_reads_the_same_in_english() {
 async fn every_page_opens_on_the_home_pages_picture_drawn_and_still() {
     let app = TestApp::new();
     let hero = app.state.assets().paths().hero.clone();
+    let chat = format!(
+        "<script type=\"module\" src=\"{}\"></script>",
+        app.state.assets().paths().chat
+    );
     // The picture the home page paints its scene over, as an ornament that
     // no reader is told of: the same file, still, with the stars that come
     // and go over it.
@@ -173,9 +177,12 @@ async fn every_page_opens_on_the_home_pages_picture_drawn_and_still() {
             body.find(&backdrop) < body.find("<header class=\"topbar\">"),
             "{path}"
         );
-        // Still: these pages run no script, so nothing is painted over it.
+        // Still: these pages run no scene, so nothing is painted over it.
+        // A signed-in user's may run the chat, and nothing else.
+        assert!(!body.contains("<canvas"), "{path}");
+        let scripts = body.matches("<script").count();
         assert!(
-            !body.contains("<canvas") && !body.contains("<script"),
+            scripts == 0 || (signed_in && scripts == 1 && body.contains(&chat)),
             "{path}"
         );
     }

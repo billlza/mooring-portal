@@ -31,6 +31,8 @@ use crate::view::{OrderView, WaitingView, approve_refusal, shown_from_key, why_i
 /// How many of the newest orders the page lists.
 const LATEST_ORDERS: u32 = 20;
 
+crate::pages::page_templates!(PaymentsPage);
+
 #[derive(Template)]
 #[template(path = "operator_payments.html")]
 struct PaymentsPage {

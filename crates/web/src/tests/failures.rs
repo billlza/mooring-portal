@@ -3,7 +3,9 @@
 
 use axum::http::StatusCode;
 use axum::http::header::CONTENT_SECURITY_POLICY;
+use portal_store::FeedbackId;
 
+use super::operator::operator;
 use super::support::{Browser, ORIGIN_URL, PASSWORD, STRICT_POLICY, TestApp};
 
 /// Breaks the database of `file` behind the portal's back.
@@ -154,7 +156,7 @@ async fn getting_the_cfm_profile_reports_a_broken_database() {
 #[tokio::test]
 async fn an_operators_action_whose_page_cannot_be_read_is_not_made() {
     let (app, file) = TestApp::on_disk();
-    let (mut op, _) = super::operator::operator(&app).await;
+    let (mut op, _) = operator(&app).await;
     let (_, alice) = app.signed_up("alice@qq.com").await;
     app.bind(alice, "pilotusera").await;
     let (_, carol) = app.signed_up("carol@qq.com").await;
@@ -216,7 +218,7 @@ async fn the_overview_says_of_a_release_it_cannot_read_and_shows_the_rest() {
         "c59907ad90eaad911e3660d3c27df982205c5b81cfde743f16dee5f7a985069f",
     )
     .await;
-    let (mut op, _) = super::operator::operator(&app).await;
+    let (mut op, _) = operator(&app).await;
     let conn = rusqlite::Connection::open(file.path()).unwrap();
     conn.execute("UPDATE cfm_release SET version = 'latest'", [])
         .unwrap();
@@ -240,4 +242,38 @@ async fn the_overview_says_of_a_release_it_cannot_read_and_shows_the_rest() {
         op.get(&app, "/operator").await.status,
         StatusCode::INTERNAL_SERVER_ERROR
     );
+}
+
+#[tokio::test]
+async fn the_chat_reports_a_message_it_cannot_store() {
+    let (app, file) = TestApp::on_disk();
+    let (mut user, code) = app.signed_up("alice@qq.com").await;
+    let (mut op, _) = operator(&app).await;
+    user.get(&app, "/feedback").await;
+    let conn = rusqlite::Connection::open(file.path()).unwrap();
+    conn.execute_batch(
+        "CREATE TRIGGER no_message BEFORE INSERT ON feedback BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+    )
+    .unwrap();
+    // What the script sends, the user's message and the operator's reply:
+    // an error the script reports as not sent, never "sent".
+    let sent = user
+        .post(&app, "/feedback/messages", &[("body", "在吗")])
+        .await;
+    assert_eq!(sent.status, StatusCode::INTERNAL_SERVER_ERROR);
+    let replied = op
+        .post(
+            &app,
+            &format!("/operator/feedback/{code}/messages"),
+            &[("body", "在")],
+        )
+        .await;
+    assert_eq!(replied.status, StatusCode::INTERNAL_SERVER_ERROR);
+    conn.execute_batch("DROP TRIGGER no_message;").unwrap();
+    let stored = app
+        .store(move |store| store.conversation_with(&code, FeedbackId::START))
+        .await
+        .unwrap()
+        .map_or(0, |messages| messages.len());
+    assert_eq!(stored, 0);
 }

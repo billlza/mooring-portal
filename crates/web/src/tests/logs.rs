@@ -110,7 +110,7 @@ async fn logs_hold_no_secret_and_nothing_a_request_chose() {
     for expected in [
         "registered an account",
         "refused a malformed request",
-        "refused a state-changing request",
+        "refused a request not from a current page of this site",
     ] {
         assert!(log.contains(expected), "{expected} is logged: {log}");
     }

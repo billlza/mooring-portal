@@ -28,6 +28,8 @@ use crate::security::limits::Throttle;
 use crate::security::session::{self, presented_token};
 use crate::state::AppState;
 
+crate::pages::page_templates!(LoginPage, RegisterPage);
+
 #[derive(Template)]
 #[template(path = "login.html")]
 struct LoginPage {

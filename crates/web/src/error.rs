@@ -19,7 +19,8 @@ pub(crate) enum AppError {
     /// No such page.
     #[error("not found")]
     NotFound,
-    /// A state-changing request failed the CSRF or origin checks.
+    /// A request failed the checks that it comes from a current page of
+    /// this site: a form's CSRF and origin checks, or a read's page token.
     #[error("forbidden: {0}")]
     Forbidden(&'static str),
     /// The request is malformed. The reason is fixed text, never anything
@@ -80,7 +81,10 @@ impl AppError {
                 "This page does not exist.",
             ),
             Self::Forbidden(reason) => {
-                tracing::warn!(reason, "refused a state-changing request");
+                tracing::warn!(
+                    reason,
+                    "refused a request not from a current page of this site"
+                );
                 (
                     StatusCode::FORBIDDEN,
                     "表单已过期，或者请求不是从本站发出的。请返回上一页，刷新后重试。",

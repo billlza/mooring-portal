@@ -13,8 +13,10 @@
 //! operator opens them, and only after confirming its password lately
 //! (`pages::operator`). Every state-changing request is a form protected
 //! against CSRF; every response carries security headers; no asset comes
-//! from another host. The one script is an ornament, the home page's live
-//! scene, and only that page may run it.
+//! from another host. There are two scripts, and every page works without
+//! them: an ornament, the home page's live scene, which only that page may
+//! run; and the chat, which keeps a conversation with the operator current
+//! where a page shows one and holds no credential (`pages::chat`).
 //!
 //! Once the operator has given it a catalogue, the portal also takes
 //! orders: a bound account orders a plan and is sent to pay on Stripe's
@@ -44,7 +46,8 @@ use axum::routing::{get, post};
 use tokio::net::TcpListener;
 
 pub use config::{
-    ClientIpSource, OriginError, Payments, PublicOrigin, SESSION_TTL_SECS, SecretCount, WebConfig,
+    ClientIpSource, NewMessageSignal, OriginError, Payments, PublicOrigin, SESSION_TTL_SECS,
+    SecretCount, SignalPathError, WebConfig,
 };
 pub use state::{AppState, StartupError};
 
@@ -82,6 +85,11 @@ pub fn router(state: AppState) -> Router {
             Page::Feedback.path(),
             get(feedback::feedback).post(feedback::send),
         )
+        .route(
+            "/feedback/messages",
+            get(feedback::messages).post(feedback::send_message),
+        )
+        .route("/feedback/unread", get(feedback::unread))
         .route(Page::Operator.path(), get(operator::overview))
         .route(
             "/operator/confirm",
@@ -91,6 +99,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/operator/feedback/{code}",
             get(operator::conversation).post(operator::reply),
+        )
+        .route(
+            "/operator/feedback/{code}/messages",
+            get(operator::conversation_messages).post(operator::reply_message),
         )
         .route("/operator/accounts", get(operator::accounts))
         .route("/operator/accounts/bind", post(operator::bind))
@@ -123,14 +135,16 @@ pub fn router(state: AppState) -> Router {
     } else {
         Router::new()
     };
+    let chat = state.chat_policy().clone();
     pages
         .merge(files)
         .merge(links)
         .merge(machines)
         .fallback(public::not_found)
-        // Only the home page may run this site's scripts.
-        .layer(middleware::from_fn(|request, next| {
-            headers::add(Page::Home.path(), request, next)
+        // Only the home page may run this site's scripts, and the pages
+        // that mark themselves as running the chat.
+        .layer(middleware::from_fn(move |request, next| {
+            headers::add(Page::Home.path(), chat.clone(), request, next)
         }))
         .with_state(state)
 }

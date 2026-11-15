@@ -410,6 +410,9 @@ pub(super) const STRINGS: Strings = Strings {
         too_long: "The message is too long: at most {} characters.",
         control: "The message holds characters that cannot be shown; remove them and send it again.",
         too_many: "At most {} messages in 24 hours; please send it later.",
+        expired: "This page has expired; reload it to carry on.",
+        offline: "Cannot reach the site right now; trying again shortly.",
+        unsent: "Not sent: the site cannot be reached. Your message is still in the box; send it again shortly.",
     },
     operator: OperatorText {
         title: "Operator",

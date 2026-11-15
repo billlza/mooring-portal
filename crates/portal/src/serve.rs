@@ -7,7 +7,7 @@ use std::sync::Arc;
 use portal_core::auth::HashCost;
 use portal_core::time::SystemClock;
 use portal_store::{OpenMode, Store};
-use portal_web::{AppState, ClientIpSource, PublicOrigin, WebConfig};
+use portal_web::{AppState, ClientIpSource, NewMessageSignal, PublicOrigin, WebConfig};
 use tokio::net::TcpListener;
 use tokio::signal::unix::{SignalKind, signal};
 
@@ -32,6 +32,11 @@ pub(crate) fn config(args: &ServeArgs) -> Result<WebConfig, CommandError> {
         },
         max_accounts: args.max_accounts,
         payments,
+        new_message_signal: args
+            .new_message_signal
+            .clone()
+            .map(NewMessageSignal::at)
+            .transpose()?,
     })
 }
 
@@ -39,6 +44,16 @@ pub(crate) fn config(args: &ServeArgs) -> Result<WebConfig, CommandError> {
 /// flight.
 pub(crate) fn serve(db: &Path, args: &ServeArgs) -> Result<(), CommandError> {
     let config = config(args)?;
+    // A signal file that cannot be where it was put is found now, not when
+    // the first user writes to the operator. Whether it can be written
+    // shows only then: writing it now would tell the operator of a message
+    // that was never sent.
+    if let Some(signal) = &config.new_message_signal {
+        signal.check().map_err(|source| CommandError::Signal {
+            path: signal.path().to_owned(),
+            source,
+        })?;
+    }
     tracing_subscriber::fmt()
         .with_writer(io::stderr)
         .with_target(false)

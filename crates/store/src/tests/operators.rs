@@ -6,7 +6,7 @@ use rusqlite::Connection;
 
 use super::*;
 use crate::schema::MIGRATIONS;
-use crate::{OPERATOR_CONFIRM_SECS, OpenMode, OperatorError, OperatorSession};
+use crate::{FeedbackId, OPERATOR_CONFIRM_SECS, OpenMode, OperatorError, OperatorSession};
 
 /// Whether an operator's account with `code` is listed as one.
 fn listed_operator(store: &Store, code: AccountCode) -> bool {
@@ -264,7 +264,7 @@ fn a_version_7_database_gains_operators_and_feedback_and_keeps_its_sessions() {
     );
     assert!(
         store
-            .conversation_with(&account.code)
+            .conversation_with(&account.code, FeedbackId::START)
             .unwrap()
             .unwrap()
             .is_empty()

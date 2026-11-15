@@ -115,7 +115,13 @@ async fn a_message_reaches_the_operator_and_the_reply_comes_back() {
     assert!(read.body.contains("请在订阅页重新生成链接"));
     // Read now: no page tells of it any more.
     assert!(!read.body.contains("有新回复"));
-    assert!(!user.get(&app, "/account").await.body.contains("有新回复"));
+    assert!(
+        !user
+            .get(&app, "/account")
+            .await
+            .body
+            .contains("<span class=\"dock-unread\">")
+    );
 }
 
 #[tokio::test]

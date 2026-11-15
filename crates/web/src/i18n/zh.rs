@@ -394,6 +394,9 @@ pub(super) const STRINGS: Strings = Strings {
         too_long: "消息太长了，最多 {} 字。",
         control: "消息里有无法显示的字符，请删掉后再发。",
         too_many: "24 小时内最多发 {} 条消息，请稍后再发。",
+        expired: "页面已过期，请刷新后再继续。",
+        offline: "暂时连不上网站，稍后会自动重试。",
+        unsent: "没有发出去：暂时连不上网站。文字还在框里，稍后再按一次发送。",
     },
     operator: OperatorText {
         title: "运营",

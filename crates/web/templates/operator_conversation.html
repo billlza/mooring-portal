@@ -5,6 +5,7 @@
 <div class="container">
   <p><a class="link" href="/operator/feedback">{{ chrome.t.operator.back }}</a></p>
   {% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  <div class="chat" data-chat="page" data-messages="/operator/feedback/{{ account }}/messages" data-after="{{ self.after() }}" data-expired="{{ chrome.t.feedback.expired }}" data-offline="{{ chrome.t.feedback.offline }}" data-unsent="{{ chrome.t.feedback.unsent }}">
   <section class="panel">
     <h2>{{ title }}</h2>
     {% include "thread.html" %}
@@ -19,6 +20,8 @@
       </label>
       <button class="button" type="submit">{{ chrome.t.operator.reply_send }}</button>
     </form>
+    <p class="small chat-status" data-chat-status aria-live="polite" hidden></p>
   </section>
+  </div>
 </div>
 {% endblock %}

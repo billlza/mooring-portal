@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use axum::http::header::InvalidHeaderValue;
 use portal_core::auth::{HashCost, HashError, PasswordHasher};
 use portal_core::time::{Clock, UnixTime};
 use portal_store::{ModeError, Store, StoreError};
@@ -11,6 +12,7 @@ use crate::config::{Payments, WebConfig};
 use crate::db::Database;
 use crate::error::AppError;
 use crate::security::hashing::Hashing;
+use crate::security::headers::ChatPolicy;
 use crate::security::limits::Limits;
 
 /// The portal's shared state.
@@ -25,6 +27,7 @@ struct Inner {
     clock: Arc<dyn Clock>,
     config: WebConfig,
     assets: Assets,
+    chat_policy: ChatPolicy,
 }
 
 /// Why the web layer could not start.
@@ -50,6 +53,10 @@ pub enum StartupError {
     /// The database failed.
     #[error(transparent)]
     Store(#[from] StoreError),
+    /// The origin could not be written into the chat pages' content
+    /// security policy.
+    #[error("cannot write the chat pages' content security policy for the origin: {0}")]
+    ChatPolicy(#[from] InvalidHeaderValue),
 }
 
 impl AppState {
@@ -73,6 +80,7 @@ impl AppState {
             }
             None => {}
         }
+        let chat_policy = ChatPolicy::at(&config.origin)?;
         Ok(Self(Arc::new(Inner {
             database: Database::new(store),
             hashing: Hashing::new(PasswordHasher::new(cost)?),
@@ -80,6 +88,7 @@ impl AppState {
             clock,
             config,
             assets: Assets::build(),
+            chat_policy,
         })))
     }
 
@@ -107,6 +116,34 @@ impl AppState {
 
     pub(crate) fn assets(&self) -> &Assets {
         &self.0.assets
+    }
+
+    /// The policy of the pages that run the chat script.
+    pub(crate) fn chat_policy(&self) -> &ChatPolicy {
+        &self.0.chat_policy
+    }
+
+    /// Tells the host, if the operator asked for it, that a user's message
+    /// was stored at `now` ([`crate::NewMessageSignal`]). A failure is
+    /// logged as an error and goes no further: the message is stored by
+    /// then, and the operator reads it on the operator pages whether or
+    /// not the host passes the word on, so the user is told it was sent.
+    /// Failing the request instead would tell them otherwise, and they
+    /// would send it again.
+    pub(crate) async fn signal_new_message(&self, now: UnixTime) {
+        let Some(signal) = self.0.config.new_message_signal.clone() else {
+            return;
+        };
+        let path = signal.path().display().to_string();
+        match tokio::task::spawn_blocking(move || signal.raise(now)).await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                tracing::error!(%path, %error, "telling the host of a new message failed");
+            }
+            Err(error) => {
+                tracing::error!(%path, %error, "telling the host of a new message failed");
+            }
+        }
     }
 
     /// What the portal sells, if it sells anything.

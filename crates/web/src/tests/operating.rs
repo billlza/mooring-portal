@@ -6,13 +6,14 @@ use axum::body::Body;
 use axum::http::StatusCode;
 use axum::http::header::{CONTENT_TYPE, ORIGIN};
 use portal_core::account::AccountCode;
+use portal_store::FeedbackId;
 
 use super::operator::operator;
 use super::support::{ORIGIN_URL, TestApp, cfm_document};
 
 /// The bodies the conversation of `code` holds, oldest first.
 async fn conversation(app: &TestApp, code: AccountCode) -> Vec<(bool, String)> {
-    app.store(move |store| store.conversation_with(&code))
+    app.store(move |store| store.conversation_with(&code, FeedbackId::START))
         .await
         .unwrap()
         .unwrap()

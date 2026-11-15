@@ -10,6 +10,8 @@
 <link rel="stylesheet" href="{{ chrome.css }}">
 <link rel="icon" href="{{ chrome.mark }}" type="image/svg+xml">
 {% block head %}{% endblock %}
+{% if chrome.live_chat() %}<script type="module" src="{{ chrome.chat }}"></script>
+{% endif -%}
 </head>
 <body class="{% block body_class %}inner{% endblock %}">
 <a class="skip" href="#main">{{ chrome.t.common.skip }}</a>
@@ -68,7 +70,9 @@
     <span>{{ chrome.t.feedback.title }}</span>
     {% if chrome.signals.unread_reply %}<span class="dock-unread">{{ chrome.t.feedback.unread }}</span>{% endif %}
   </summary>
-  <div class="dock-panel">
+  <div class="dock-panel" data-chat="box" data-messages="/feedback/messages" data-unread="/feedback/unread" data-unread-text="{{ chrome.t.feedback.unread }}" data-expired="{{ chrome.t.feedback.expired }}" data-offline="{{ chrome.t.feedback.offline }}" data-unsent="{{ chrome.t.feedback.unsent }}">
+    <p class="muted small" data-chat-empty hidden>{{ chrome.t.feedback.empty }}</p>
+    <ol class="thread dock-thread" data-chat-thread hidden></ol>
     <form class="form" method="post" action="/feedback">
       <input type="hidden" name="csrf" value="{{ chrome.csrf }}">
       <label>{{ chrome.t.feedback.label }}
@@ -76,6 +80,7 @@
       </label>
       <button class="button wide" type="submit">{{ chrome.t.feedback.send }}</button>
     </form>
+    <p class="small chat-status" data-chat-status aria-live="polite" hidden></p>
     <p class="small"><a class="link" href="/feedback">{{ chrome.t.feedback.see_all }}</a></p>
   </div>
 </details>

@@ -1,7 +1,6 @@
-{% if messages.is_empty() %}
-<p class="muted">{{ chrome.t.feedback.empty }}</p>
-{% else %}
-<ol class="thread">
+{# A conversation, which the chat script keeps current where the page runs it. #}
+<p class="muted" data-chat-empty{% if !messages.is_empty() %} hidden{% endif %}>{{ chrome.t.feedback.empty }}</p>
+<ol class="thread" data-chat-thread{% if messages.is_empty() %} hidden{% endif %}>
   {% for message in messages %}
   <li class="message{% if message.mine %} mine{% endif %}{% if message.from_operator %} from-operator{% endif %}">
     <p class="message-meta"><span class="message-who">{{ message.who }}</span> <span class="muted small">{{ message.sent }}</span></p>
@@ -9,4 +8,3 @@
   </li>
   {% endfor %}
 </ol>
-{% endif %}

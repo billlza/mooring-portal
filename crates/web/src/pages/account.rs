@@ -19,6 +19,8 @@ use crate::security::limits::Throttle;
 use crate::security::session;
 use crate::state::AppState;
 
+crate::pages::page_templates!(AccountPage, PasswordPage);
+
 #[derive(Template)]
 #[template(path = "account.html")]
 struct AccountPage {

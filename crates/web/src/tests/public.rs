@@ -97,16 +97,25 @@ async fn pages_load_nothing_from_other_hosts_and_only_the_home_page_runs_a_scrip
             }
         }
     }
-    // Nor do the pages behind the login, or an error page.
+    // Nor do the pages that hold a credential, or an error page; a
+    // signed-in user's other pages run the chat, a module of this site's
+    // own, and nothing inline.
+    let chat = app.state.assets().paths().chat.clone();
     let (mut browser, _) = app.signed_up("alice@qq.com").await;
-    for path in [
-        "/account",
-        "/account/password",
-        "/subscription",
-        "/no-such-page",
+    for (path, chatting) in [
+        ("/account", true),
+        ("/feedback", true),
+        ("/account/password", false),
+        ("/subscription", false),
+        ("/no-such-page", false),
     ] {
         let body = browser.get(&app, path).await.body;
-        assert!(!body.contains("<script"), "{path}");
+        if chatting {
+            assert_eq!(body.matches("<script").count(), 1, "{path}");
+            assert!(body.contains(&format!("<script type=\"module\" src=\"{chat}\"></script>")));
+        } else {
+            assert!(!body.contains("<script"), "{path}");
+        }
         assert_eq!(handlers(&body), Vec::<String>::new(), "{path}");
     }
 }
@@ -125,10 +134,12 @@ fn handlers_are_found_wherever_they_are_written() {
 }
 
 #[tokio::test]
-async fn only_the_home_page_may_run_this_sites_scripts() {
+async fn only_the_home_page_may_run_a_visitors_scripts() {
     let app = TestApp::new();
     let paths = app.state.assets().paths().clone();
-    let (mut browser, _) = app.signed_up("alice@qq.com").await;
+    // A visitor who is not signed in; a signed-in user's pages may run the
+    // chat as well (`chat`).
+    let mut browser = Browser::new([203, 0, 113, 1]);
     for path in ["/", "/?from=elsewhere"] {
         let reply = browser.get(&app, path).await;
         assert_eq!(reply.status, StatusCode::OK, "{path}");
@@ -172,6 +183,7 @@ async fn only_the_home_page_may_run_this_sites_scripts() {
         "//",
         &paths.script,
         &paths.hero,
+        &paths.chat,
     ] {
         let reply = browser.get(&app, path).await;
         assert_eq!(

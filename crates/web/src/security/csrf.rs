@@ -12,11 +12,18 @@
 //!
 //! The cookie cannot be planted from another site or a subdomain (see
 //! [`super::cookies`]), so a forged form cannot know the token.
+//!
+//! The chat script's questions are not forms: [`FromCurrentPage`] accepts
+//! one only when it carries, in [`PAGE_TOKEN`], the token of the page that
+//! asks, and that is still the cookie's. Signing in, signing out and
+//! confirming the operator's password each give the browser a new token,
+//! so a page left open across any of them asks nothing more.
 
 use axum::body::Body;
-use axum::extract::{FromRequest, Request};
+use axum::extract::{FromRequest, FromRequestParts, Request};
 use axum::http::header::{CONTENT_TYPE, ORIGIN, SET_COOKIE};
-use axum::http::{HeaderMap, Response};
+use axum::http::request::Parts;
+use axum::http::{HeaderMap, HeaderName, Response};
 use axum::middleware::Next;
 use portal_core::auth::SecretToken;
 use serde::Deserialize;
@@ -124,6 +131,47 @@ impl<T: DeserializeOwned> FromRequest<AppState> for VerifiedForm<T> {
     }
 }
 
+/// The header in which the chat script sends the CSRF token of its page.
+pub(crate) const PAGE_TOKEN: HeaderName = HeaderName::from_static("x-csrf-token");
+
+/// A question from a script of a page this browser was shown under the
+/// token it holds now: the request carries the page's token in
+/// [`PAGE_TOKEN`], and it is the cookie's.
+///
+/// What the page shows belongs to whoever was signed in when it was
+/// rendered. Once another account signs in, or the same one signs out, the
+/// browser's token is new, and the page is refused rather than handed the
+/// conversation of the account signed in now, or allowed to mark its
+/// replies read. A link followed to the address, or a request from another
+/// site, carries no token.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FromCurrentPage;
+
+impl<S: Send + Sync> FromRequestParts<S> for FromCurrentPage {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, AppError> {
+        let expected = parts
+            .extensions
+            .get::<CsrfToken>()
+            .ok_or_else(|| AppError::internal_message("the CSRF middleware did not run"))?;
+        let presented = parts
+            .headers
+            .get(PAGE_TOKEN)
+            .ok_or(AppError::Forbidden("the request carries no page token"))?
+            .to_str()
+            .ok()
+            .and_then(|value| SecretToken::parse(value).ok())
+            .ok_or(AppError::Forbidden("the request's page token is malformed"))?;
+        if expected.issued || !presented.matches(&expected.token) {
+            return Err(AppError::Forbidden(
+                "the page's token is not the browser's any more",
+            ));
+        }
+        Ok(Self)
+    }
+}
+
 /// Refuses requests that browsers mark as coming from elsewhere.
 fn check_origin(headers: &HeaderMap, origin: &PublicOrigin) -> Result<(), AppError> {
     if let Some(site) = headers.get("sec-fetch-site")
@@ -188,6 +236,17 @@ mod tests {
                 "{site:?} {sent:?}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn a_question_the_csrf_middleware_did_not_see_is_an_error_never_let_through() {
+        let token = SecretToken::generate().unwrap().encode();
+        let (mut parts, ()) = axum::http::Request::new(()).into_parts();
+        parts
+            .headers
+            .insert(PAGE_TOKEN, HeaderValue::from_str(&token).unwrap());
+        let refused = FromCurrentPage::from_request_parts(&mut parts, &()).await;
+        assert!(matches!(refused, Err(AppError::Internal(_))));
     }
 
     #[test]

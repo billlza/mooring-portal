@@ -409,6 +409,15 @@ pub(crate) struct FeedbackText {
     pub(crate) control: &'static str,
     /// "At most {} messages in 24 hours …"
     pub(crate) too_many: &'static str,
+    /// What the chat script says when the site turns it away: the session
+    /// has ended, someone signed in or out since the page was shown, or the
+    /// page is gone.
+    pub(crate) expired: &'static str,
+    /// What it says while the site cannot be reached; it asks again.
+    pub(crate) offline: &'static str,
+    /// What it says of a message it could not send, which stays in the
+    /// form to be sent again.
+    pub(crate) unsent: &'static str,
 }
 
 /// The operator pages.

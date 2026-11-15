@@ -12,7 +12,7 @@ use super::paying::{
 };
 use super::*;
 use crate::{
-    ApproveError, Approved, AsOperator, BindError, NotAllowed, OPERATOR_CONFIRM_SECS,
+    ApproveError, Approved, AsOperator, BindError, FeedbackId, NotAllowed, OPERATOR_CONFIRM_SECS,
     OperatorActions, Progress, ReplyError, StoreError, Unbound,
 };
 
@@ -212,7 +212,11 @@ fn each_write_is_the_hosts_own() {
     assert!(!bound(&store, renewing.code));
     assert_eq!(store.accounts().unwrap().len(), 2);
     assert_eq!(
-        store.conversation_with(&renewing.code).unwrap().unwrap()[0].body,
+        store
+            .conversation_with(&renewing.code, FeedbackId::START)
+            .unwrap()
+            .unwrap()[0]
+            .body,
         body
     );
     assert!(store.bookings().unwrap().is_empty());

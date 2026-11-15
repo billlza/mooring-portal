@@ -14,7 +14,7 @@ use portal_store::{
     AccountProfileError, ApproveError, BanError, BindError, DeleteError, DiscardError,
     DismissError, ImportError, OperatorError, ProfileImportError, StoreError, UnbindError,
 };
-use portal_web::{OriginError, SecretCount, StartupError};
+use portal_web::{OriginError, SecretCount, SignalPathError, StartupError};
 
 /// Why a command failed.
 #[derive(Debug, thiserror::Error)]
@@ -180,6 +180,19 @@ pub enum CommandError {
     /// The origin given to `serve` is unusable.
     #[error(transparent)]
     Origin(#[from] OriginError),
+    /// The path given to `serve` for the new-message signal names no file.
+    #[error(transparent)]
+    SignalPath(#[from] SignalPathError),
+    /// The new-message signal file cannot be where it was put: its
+    /// directory is missing, or it is a directory itself.
+    #[error("cannot use {path} as the new-message signal file: {source}")]
+    Signal {
+        /// The file.
+        path: PathBuf,
+        /// Why not.
+        #[source]
+        source: io::Error,
+    },
     /// The clock is unusable.
     #[error(transparent)]
     Time(#[from] TimeError),

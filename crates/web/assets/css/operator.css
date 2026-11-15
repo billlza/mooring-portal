@@ -53,11 +53,20 @@
   font-weight: 700;
 }
 
+/* The panel stays between the site's header and the box's button: the
+   144px are the button with its badge (52px), the gap below the panel
+   (10px) and the header with room below it (82px). On a short screen the
+   conversation gives up its height first; only a screen too short for the
+   form scrolls the panel itself. */
 .dock-panel {
   position: absolute;
   right: 0;
   bottom: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
   width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 144px - max(16px, env(safe-area-inset-bottom)));
+  overflow-y: auto;
   padding: 18px;
   border: 1px solid var(--panel-line);
   border-radius: var(--radius);
@@ -65,9 +74,60 @@
   box-shadow: 0 26px 60px -24px rgba(0, 0, 0, 0.9);
 }
 
+@supports (height: 1svh) {
+  .dock-panel {
+    max-height: calc(100svh - 144px - max(16px, env(safe-area-inset-bottom)));
+  }
+}
+
+.dock-panel > * {
+  flex-shrink: 0;
+}
+
+/* In the column the margins add up rather than collapse. */
+.dock-panel .form {
+  margin-top: 0;
+}
+
 .dock-panel .small {
   margin: 12px 0 0;
   text-align: center;
+}
+
+/* The conversation in the box, filled in by the chat script: the latest
+   messages, scrolled within the box, and the one part of it that shrinks. */
+.dock-panel > .dock-thread {
+  flex-shrink: 1;
+}
+
+.dock-thread {
+  max-height: min(46vh, 380px);
+  margin: 0 0 14px;
+  padding-right: 4px;
+  overflow-y: auto;
+  gap: 10px;
+}
+
+.dock-thread .message {
+  max-width: 92%;
+  padding: 9px 12px;
+  font-size: 0.92rem;
+}
+
+.dock-panel [data-chat-empty] {
+  margin: 0 0 12px;
+}
+
+/* What the chat script says: why a message was not sent, or that the site
+   cannot be reached. */
+.chat-status {
+  color: var(--warm);
+}
+
+.thread[hidden],
+.chat-status[hidden],
+[data-chat-empty][hidden] {
+  display: none;
 }
 
 /* The box must not hide the end of the page. */

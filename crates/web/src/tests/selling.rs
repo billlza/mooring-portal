@@ -25,6 +25,7 @@ fn start(file: &DatabaseFile, payments: Option<Payments>) -> Result<AppState, St
             client_ip: ClientIpSource::Peer,
             max_accounts: 100,
             payments,
+            new_message_signal: None,
         },
         HashCost::MINIMUM_FOR_TESTS,
         Arc::new(ManualClock::new(UnixTime::from_secs(NOW).unwrap())),

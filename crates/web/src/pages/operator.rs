@@ -48,7 +48,9 @@ use crate::view::ReleaseView;
 
 pub(crate) use accounts::{accounts, ban, bind, unbind};
 pub(crate) use bookings::{bookings, close_booking};
-pub(crate) use conversations::{conversation, conversations, reply};
+pub(crate) use conversations::{
+    conversation, conversation_messages, conversations, reply, reply_message,
+};
 pub(crate) use payments::{approve, payments};
 
 /// A section of the operator pages, as their tabs and the confirmation
@@ -284,6 +286,8 @@ impl Outcome {
         self
     }
 }
+
+crate::pages::page_templates!(ConfirmPage, OverviewPage);
 
 #[derive(Template)]
 #[template(path = "operator_confirm.html")]

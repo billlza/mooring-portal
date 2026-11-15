@@ -9,7 +9,7 @@
 
 use axum::http::StatusCode;
 use portal_core::account::AccountCode;
-use portal_store::OPERATOR_CONFIRM_SECS;
+use portal_store::{FeedbackId, OPERATOR_CONFIRM_SECS};
 
 use super::operator::operator;
 use super::support::{Browser, PASSWORD, TestApp};
@@ -78,7 +78,7 @@ async fn state_of(
             .into_iter()
             .find(|account| account.code == target);
         let messages = store
-            .conversation_with(&target)
+            .conversation_with(&target, FeedbackId::START)
             .unwrap()
             .map_or(0, |messages| messages.len());
         (

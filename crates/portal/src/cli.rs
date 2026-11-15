@@ -223,6 +223,12 @@ pub(crate) struct ServeArgs {
     /// rolled. Only its owner may be able to read it.
     #[arg(long, value_name = "FILE", requires = "payments")]
     pub(crate) stripe_webhook_secret: Option<PathBuf>,
+    /// A file to write the time to whenever a user writes to the operator,
+    /// for a service on the host that watches it to tell the operator
+    /// (`docs/deploy.md`, section 8). It holds the time alone. Its
+    /// directory must exist.
+    #[arg(long, value_name = "FILE")]
+    pub(crate) new_message_signal: Option<PathBuf>,
 }
 
 fn account_code(text: &str) -> Result<AccountCode, AccountCodeError> {

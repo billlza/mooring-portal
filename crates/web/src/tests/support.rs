@@ -19,7 +19,7 @@ use portal_store::{OpenMode, Store};
 use tokio::sync::oneshot;
 use tower::ServiceExt as _;
 
-use crate::config::{ClientIpSource, Payments, PublicOrigin, WebConfig};
+use crate::config::{ClientIpSource, NewMessageSignal, Payments, PublicOrigin, WebConfig};
 use crate::state::AppState;
 
 /// The origin the test portal is configured with.
@@ -86,6 +86,7 @@ impl TestApp {
             client_ip,
             max_accounts,
             None,
+            None,
         )
     }
 
@@ -96,6 +97,7 @@ impl TestApp {
             client_ip,
             100,
             Some(payments),
+            None,
         )
     }
 
@@ -113,6 +115,7 @@ impl TestApp {
             ClientIpSource::Peer,
             100,
             payments,
+            None,
         );
         (app, DatabaseFile { _dir: dir, path })
     }
@@ -125,6 +128,19 @@ impl TestApp {
             ClientIpSource::Peer,
             100,
             payments,
+            None,
+        )
+    }
+
+    /// A portal that writes the time to `signal` whenever a user writes
+    /// to the operator.
+    pub(crate) fn signalling(signal: &std::path::Path) -> Self {
+        Self::over(
+            Store::open_in_memory().unwrap(),
+            ClientIpSource::Peer,
+            100,
+            None,
+            Some(NewMessageSignal::at(signal.to_owned()).unwrap()),
         )
     }
 
@@ -133,6 +149,7 @@ impl TestApp {
         client_ip: ClientIpSource,
         max_accounts: u32,
         payments: Option<Payments>,
+        new_message_signal: Option<NewMessageSignal>,
     ) -> Self {
         let clock = Arc::new(ManualClock::new(UnixTime::from_secs(NOW).unwrap()));
         let config = WebConfig {
@@ -140,6 +157,7 @@ impl TestApp {
             client_ip,
             max_accounts,
             payments,
+            new_message_signal,
         };
         let state =
             AppState::new(store, config, HashCost::MINIMUM_FOR_TESTS, clock.clone()).unwrap();
@@ -312,6 +330,23 @@ impl Browser {
     pub(crate) async fn get(&mut self, app: &TestApp, path: &str) -> Reply {
         let reply = app
             .send(self.request("GET", path).body(Body::empty()).unwrap())
+            .await;
+        self.remember(&reply);
+        reply
+    }
+
+    /// Asks `path` as the chat script of a page this browser was shown
+    /// asks: with the token of the browser's cookie, which the page's form
+    /// carries, in the page-token header.
+    pub(crate) async fn ask(&mut self, app: &TestApp, path: &str) -> Reply {
+        let token = self.cookies.get("__Host-csrf").cloned().unwrap_or_default();
+        let reply = app
+            .send(
+                self.request("GET", path)
+                    .header("x-csrf-token", token)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await;
         self.remember(&reply);
         reply

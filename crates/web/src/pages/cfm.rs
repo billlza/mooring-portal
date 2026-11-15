@@ -40,6 +40,8 @@ pub(crate) const LINK_PREFIX: &str = "/sub/";
 /// The name a downloaded or fetched profile is saved under.
 const PROFILE_FILE: &str = "attachment; filename=\"moorlight-cfm.json\"";
 
+crate::pages::page_templates!(LinkPage);
+
 #[derive(Template)]
 #[template(path = "link.html")]
 struct LinkPage {

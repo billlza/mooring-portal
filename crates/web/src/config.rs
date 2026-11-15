@@ -1,10 +1,14 @@
 //! The server's configuration as the web layer needs it.
 
 use std::fmt;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use portal_core::payment::stripe::SigningSecret;
 use portal_core::payment::{Catalogue, OrderTerms};
+use portal_core::time::UnixTime;
 
 /// The longest a login session lasts.
 pub const SESSION_TTL_SECS: u64 = 30 * 86_400;
@@ -22,6 +26,86 @@ pub struct WebConfig {
     /// What the portal sells and how it knows Stripe's word; without it
     /// the portal sells nothing, and none of the payment addresses exist.
     pub payments: Option<Payments>,
+    /// The file that tells the host a user has written to the operator;
+    /// without it the host is told nothing, and the operator learns of a
+    /// message on the operator pages.
+    pub new_message_signal: Option<NewMessageSignal>,
+}
+
+/// The file the portal writes each time a user writes to the operator, for
+/// a service on the host that watches it to tell the operator
+/// (`docs/deploy.md`, section 8). It holds the time of the latest message
+/// and nothing else: no account, no text. The portal connects nowhere to
+/// tell anyone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewMessageSignal {
+    file: PathBuf,
+    /// The directory the file is in.
+    directory: PathBuf,
+}
+
+/// A path that cannot name the signal file.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "{} is not an absolute path to a file: give the signal file as /directory/name",
+    .0.display()
+)]
+pub struct SignalPathError(PathBuf);
+
+impl NewMessageSignal {
+    /// The signal file at `path`, which must be absolute and end in a
+    /// file's name.
+    pub fn at(path: PathBuf) -> Result<Self, SignalPathError> {
+        let directory = path
+            .parent()
+            .filter(|_| {
+                path.is_absolute()
+                    && path.file_name().is_some()
+                    && !path.as_os_str().as_encoded_bytes().ends_with(b"/")
+            })
+            .map(Path::to_path_buf);
+        match directory {
+            Some(directory) => Ok(Self {
+                file: path,
+                directory,
+            }),
+            None => Err(SignalPathError(path)),
+        }
+    }
+
+    /// The file's path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.file
+    }
+
+    /// Whether the file can be where it was put: its directory exists, and
+    /// it is no directory itself. Whether it can be written is not told:
+    /// that takes writing it, which would tell the host of a message that
+    /// was never sent. The server checks this before it starts.
+    pub fn check(&self) -> io::Result<()> {
+        if !fs::metadata(&self.directory)?.is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotADirectory,
+                format!("{} is not a directory", self.directory.display()),
+            ));
+        }
+        match fs::metadata(&self.file) {
+            Ok(file) if file.is_dir() => Err(io::Error::new(
+                io::ErrorKind::IsADirectory,
+                "it is a directory",
+            )),
+            Ok(_) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Writes `now` to the file, in place of what it held: the time of the
+    /// message just stored, in seconds since the epoch.
+    pub(crate) fn raise(&self, now: UnixTime) -> io::Result<()> {
+        fs::write(&self.file, format!("{}\n", now.as_secs()))
+    }
 }
 
 /// What the portal needs to take orders: the operator's catalogue, and
@@ -284,5 +368,64 @@ mod tests {
             ))
         );
         assert_eq!(SESSION_TTL_SECS, 2_592_000);
+    }
+
+    #[test]
+    fn the_signal_is_a_file_named_by_an_absolute_path() {
+        let signal =
+            NewMessageSignal::at(PathBuf::from("/var/lib/mooring-portal/new-message")).unwrap();
+        assert_eq!(
+            signal.path(),
+            Path::new("/var/lib/mooring-portal/new-message")
+        );
+        for refused in [
+            "new-message",
+            "./new-message",
+            "/",
+            "/var/lib/mooring-portal/",
+            "",
+        ] {
+            let error = NewMessageSignal::at(PathBuf::from(refused)).unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                format!(
+                    "{refused} is not an absolute path to a file: give the signal file as \
+                     /directory/name"
+                ),
+                "{refused}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_signal_is_checked_without_being_written_and_then_holds_the_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("new-message");
+        let signal = NewMessageSignal::at(file.clone()).unwrap();
+        // A file not there yet is made by the first message.
+        signal.check().unwrap();
+        assert!(!file.exists());
+        let now = UnixTime::from_secs(1_793_880_000).unwrap();
+        signal.raise(now).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "1793880000\n");
+        signal.check().unwrap();
+        // The time of the latest message replaces the last.
+        signal.raise(now.checked_add_secs(5).unwrap()).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "1793880005\n");
+        // No directory, a file where the directory should be, and a
+        // directory where the file should be.
+        let nowhere = NewMessageSignal::at(dir.path().join("gone").join("new-message")).unwrap();
+        assert_eq!(nowhere.check().unwrap_err().kind(), io::ErrorKind::NotFound);
+        assert!(nowhere.raise(now).is_err());
+        let under_a_file = NewMessageSignal::at(file.join("new-message")).unwrap();
+        assert_eq!(
+            under_a_file.check().unwrap_err().kind(),
+            io::ErrorKind::NotADirectory
+        );
+        let a_directory = NewMessageSignal::at(dir.path().to_owned()).unwrap();
+        assert_eq!(
+            a_directory.check().unwrap_err().kind(),
+            io::ErrorKind::IsADirectory
+        );
     }
 }

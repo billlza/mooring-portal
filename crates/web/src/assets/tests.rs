@@ -148,8 +148,9 @@ fn the_scripts_share_a_directory_named_by_all_of_them() {
 
 #[test]
 fn every_module_in_the_source_directory_is_served_and_no_test_is() {
-    // The modules are the files of `assets/js`; their tests, and what the
-    // tests stand the modules on, are in its one subdirectory.
+    // The modules are the files of `assets/js`, the scene's and the chat
+    // script; their tests, and what the tests stand the modules on, are in
+    // its one subdirectory.
     let directory = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/js");
     let mut files = BTreeSet::new();
     let mut directories = Vec::new();
@@ -162,8 +163,17 @@ fn every_module_in_the_source_directory_is_served_and_no_test_is() {
             files.insert(name);
         }
     }
-    let served: BTreeSet<String> = MODULES.iter().map(|(name, _)| (*name).to_owned()).collect();
+    let served: BTreeSet<String> = MODULES
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(["chat.mjs"])
+        .map(str::to_owned)
+        .collect();
     assert_eq!(served, files);
+    assert_eq!(
+        CHAT,
+        std::fs::read_to_string(format!("{directory}/chat.mjs")).unwrap()
+    );
     assert_eq!(directories, ["test"]);
     assert!(served.iter().all(|name| !name.contains("test")));
     assert_eq!(module(ENTRY), MODULES[0].1);
@@ -217,6 +227,35 @@ fn the_scripts_reach_for_nothing_beyond_the_page_they_draw_on() {
         assert!(!offences(hidden).is_empty(), "{hidden}");
     }
     assert!(offences("import { a } from \"./a.mjs\";\nconst x = a;\n").is_empty());
+}
+
+#[test]
+fn the_chat_script_is_served_on_its_own_under_its_contents_name() {
+    let assets = Assets::build();
+    let path = &assets.paths().chat;
+    assert_eq!(
+        *path,
+        format!("/assets/chat.{:016x}.mjs", fnv1a(CHAT.as_bytes()))
+    );
+    let asset = &assets.files[path.strip_prefix("/assets/").unwrap()];
+    assert_eq!(asset.body, CHAT.as_bytes());
+    assert_eq!(asset.content_type, SCRIPT);
+    assert_eq!(asset.cache, IMMUTABLE);
+    // It is no part of the scene's directory, which it does not move.
+    assert!(!path.contains(&script_directory(&MODULES)));
+}
+
+#[test]
+fn the_chat_script_reaches_for_this_site_alone() {
+    // It asks this site for messages, and that is all it may do of what
+    // the scene may not: no other connection, no markup from text, nothing
+    // kept in the browser, no other window or address, nothing brought in.
+    assert_eq!(offences(CHAT), ["fetch("]);
+    assert!(imports(CHAT).is_empty());
+    assert!(CHAT.lines().count() <= 600);
+    // What it asks for is an address of this site's, which the page names.
+    assert!(CHAT.contains("win.fetch(path,"));
+    assert_eq!(CHAT.matches("fetch(").count(), 1);
 }
 
 #[test]

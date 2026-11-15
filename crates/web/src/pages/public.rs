@@ -11,6 +11,8 @@ use crate::i18n::Item;
 use crate::state::AppState;
 use crate::view::{PlanView, ReleaseView};
 
+crate::pages::page_templates!(HomePage, DownloadPage, PlansPage, HelpPage);
+
 #[derive(Template)]
 #[template(path = "home.html")]
 struct HomePage {

@@ -1,8 +1,24 @@
 //! The pages, and what every page shares.
 
+/// Makes each of the page templates named a [`PageTemplate`], which holds
+/// what it shows around its content in its `chrome` field.
+macro_rules! page_templates {
+    ($($page:ident),+ $(,)?) => {
+        $(
+            impl $crate::pages::PageTemplate for $page {
+                fn chrome(&self) -> &$crate::pages::Chrome {
+                    &self.chrome
+                }
+            }
+        )+
+    };
+}
+pub(crate) use page_templates;
+
 pub(crate) mod account;
 pub(crate) mod auth;
 pub(crate) mod cfm;
+pub(crate) mod chat;
 pub(crate) mod feedback;
 pub(crate) mod lang;
 pub(crate) mod operator;
@@ -13,8 +29,8 @@ pub(crate) mod subscription;
 
 use askama::Template;
 use axum::extract::{FromRequestParts, Query};
-use axum::http::StatusCode;
 use axum::http::request::Parts;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use portal_core::feedback::MAX_MESSAGE_CHARS;
 use portal_store::{Account, Signals};
@@ -26,6 +42,7 @@ use crate::error::AppError;
 use crate::i18n::{Lang, Strings, fill};
 use crate::security::cookies;
 use crate::security::csrf::CsrfToken;
+use crate::security::headers::RunsChat;
 use crate::security::session::Viewer;
 use crate::state::AppState;
 
@@ -100,8 +117,13 @@ pub(crate) struct Chrome {
     pub(crate) mark: String,
     /// The drawn picture of the home page, which every other page opens on.
     pub(crate) hero: String,
+    /// The chat script's address.
+    pub(crate) chat: String,
     /// Whether the header offers the language switch.
     pub(crate) language_switch: bool,
+    /// Whether the page's content is a conversation with the operator,
+    /// which the chat script keeps current.
+    live_thread: bool,
 }
 
 impl Chrome {
@@ -110,6 +132,28 @@ impl Chrome {
     pub(crate) const fn without_language_switch(mut self) -> Self {
         self.language_switch = false;
         self
+    }
+
+    /// For a page whose content is a conversation with the operator, which
+    /// the chat script keeps current: the feedback page and the operator's
+    /// page of one conversation.
+    pub(crate) const fn with_live_thread(mut self) -> Self {
+        self.live_thread = true;
+        self
+    }
+
+    /// Whether the page runs the chat script (`assets/js/chat.mjs`), which
+    /// keeps a conversation with the operator current while the page shows
+    /// it, and sends a message without leaving the page: a page whose
+    /// content is a conversation, and the feedback box on every page but
+    /// those that hold a credential. The subscription pages, with the CFM
+    /// profile and the subscription links, and the password page run no
+    /// script, as before the chat (`docs/security.md`, section 6); their
+    /// box sends its message as a plain form, as every box does without
+    /// the script.
+    pub(crate) fn live_chat(&self) -> bool {
+        self.live_thread
+            || (self.feedback_box() && !matches!(self.page, Page::Subscription | Page::Password))
     }
 
     /// `aria-current` for the navigation link to `key`.
@@ -162,13 +206,14 @@ pub(crate) struct PageContext {
     css: String,
     mark: String,
     hero: String,
+    chat: String,
 }
 
 impl FromRequestParts<AppState> for PageContext {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, AppError> {
-        let lang = Lang::from_cookie(cookies::read(&parts.headers, cookies::LANG));
+        let lang = request_lang(&parts.headers);
         let csrf = parts
             .extensions
             .get::<CsrfToken>()
@@ -187,6 +232,7 @@ impl FromRequestParts<AppState> for PageContext {
             css: paths.css.clone(),
             mark: paths.mark.clone(),
             hero: paths.hero.clone(),
+            chat: paths.chat.clone(),
         })
     }
 }
@@ -210,9 +256,16 @@ impl PageContext {
             css: self.css.clone(),
             mark: self.mark.clone(),
             hero: self.hero.clone(),
+            chat: self.chat.clone(),
             language_switch: true,
+            live_thread: false,
         }
     }
+}
+
+/// The language the request's cookie asks for.
+pub(crate) fn request_lang(headers: &HeaderMap) -> Lang {
+    Lang::from_cookie(cookies::read(headers, cookies::LANG))
 }
 
 /// A page's query string. One that does not parse is refused with this
@@ -231,18 +284,32 @@ impl<T: DeserializeOwned, S: Send + Sync> FromRequestParts<S> for PageQuery<T> {
     }
 }
 
+/// A page's template: what [`render`] serves. Every page shows the same
+/// surroundings around its content ([`page_templates`]).
+pub(crate) trait PageTemplate: Template {
+    /// What the page shows around its content.
+    fn chrome(&self) -> &Chrome;
+}
+
 /// `template` as an HTML page.
-pub(crate) fn render(template: &impl Template) -> Result<Response, AppError> {
-    Ok(Html(template.render()?).into_response())
+pub(crate) fn render(template: &impl PageTemplate) -> Result<Response, AppError> {
+    render_status(StatusCode::OK, template)
 }
 
 /// `template` as an HTML page with `status`, for forms sent back with
-/// errors.
+/// errors. A page that runs the chat script says so to the security
+/// headers, which allow it that script and its requests and nothing more
+/// (`security::headers`): the page and its policy are decided by the same
+/// [`Chrome::live_chat`].
 pub(crate) fn render_status(
     status: StatusCode,
-    template: &impl Template,
+    template: &impl PageTemplate,
 ) -> Result<Response, AppError> {
-    Ok((status, Html(template.render()?)).into_response())
+    let mut response = (status, Html(template.render()?)).into_response();
+    if template.chrome().live_chat() {
+        response.extensions_mut().insert(RunsChat);
+    }
+    Ok(response)
 }
 
 /// After a form, the browser fetches `path` (303 See Other).

@@ -17,6 +17,8 @@ use crate::pages::{Chrome, PageContext, render_status};
 use crate::state::AppState;
 use crate::view::BookingView;
 
+crate::pages::page_templates!(BookingsPage);
+
 #[derive(Template)]
 #[template(path = "operator_bookings.html")]
 struct BookingsPage {

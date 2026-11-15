@@ -5,11 +5,13 @@
 //! from CDNs, which are slow or blocked in mainland China. The hero image
 //! is drawn by [`hero`] at startup.
 //!
-//! The one script is the home page's live scene, a handful of ES modules
-//! that import each other by relative address. They are therefore served
-//! from one directory, named by the content of all of them. The scene is an
+//! The home page's live scene is a handful of ES modules that import each
+//! other by relative address. They are therefore served from one
+//! directory, named by the content of all of them. The scene is an
 //! ornament: every page works without it (`security::headers` lets only the
-//! home page run it).
+//! home page run it). The chat script, which keeps a conversation with the
+//! operator current, is one module that imports nothing, named by its own
+//! content; every page works without it too.
 
 mod hero;
 
@@ -46,8 +48,11 @@ const MARK: &str = include_str!("../assets/mark.svg");
 
 /// The module the home page loads; it imports the others.
 const ENTRY: &str = "hero.mjs";
-/// The live scene's modules, by file name: every file in `assets/js`.
-/// Their tests are in `assets/js/test` and are not served.
+/// The chat script, `assets/js/chat.mjs`.
+const CHAT: &str = include_str!("../assets/js/chat.mjs");
+/// The live scene's modules, by file name: every file in `assets/js` but
+/// the chat script. Their tests, and the chat script's, are in
+/// `assets/js/test` and are not served.
 const MODULES: [(&str, &str); 8] = [
     (ENTRY, include_str!("../assets/js/hero.mjs")),
     ("measure.mjs", include_str!("../assets/js/measure.mjs")),
@@ -85,6 +90,8 @@ pub(crate) struct AssetPaths {
     pub(crate) script: String,
     /// The modules the entry imports, which a page may fetch ahead of it.
     pub(crate) imported: Vec<String>,
+    /// The chat script.
+    pub(crate) chat: String,
 }
 
 #[derive(Clone)]
@@ -133,6 +140,7 @@ impl Assets {
         );
         let mark = add("mark", "svg", Bytes::from_static(MARK.as_bytes()), SVG);
         let hero = add("hero", "svg", Bytes::from(hero::draw()), SVG);
+        let chat = add("chat", "mjs", Bytes::from_static(CHAT.as_bytes()), SCRIPT);
         let directory = script_directory(&MODULES);
         for (name, source) in MODULES {
             files.insert(
@@ -164,6 +172,7 @@ impl Assets {
                     .filter(|(name, _)| *name != ENTRY)
                     .map(|(name, _)| format!("/assets/{directory}/{name}"))
                     .collect(),
+                chat,
             },
         }
     }

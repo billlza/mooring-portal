@@ -60,7 +60,7 @@ pub use bindings::{BindError, Binding, BoundAccount, UnbindError};
 pub use entitlements::{PullError, PullState, Pulled};
 pub use error::{StoreError, UnknownAccount};
 pub use feedback::{
-    Conversation, FeedbackMessage, MAX_KEPT, MAX_SENT_PER_DAY, ReplyError, SendError,
+    Conversation, FeedbackId, FeedbackMessage, MAX_KEPT, MAX_SENT_PER_DAY, ReplyError, SendError,
 };
 pub use links::{CfmDelivery, LinkError, LinkedProfile, RevokeError};
 pub use operators::{

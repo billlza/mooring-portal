@@ -12,6 +12,9 @@ axum = { workspace = true }
 portal-core = { workspace = true }
 portal-store = { workspace = true }
 serde = { workspace = true }
+# The chat script's answers (`pages::chat`); already in the graph through
+# portal-core.
+serde_json = { workspace = true }
 serde_urlencoded = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

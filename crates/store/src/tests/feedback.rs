@@ -5,16 +5,18 @@ use portal_core::feedback::MessageBody;
 
 use super::*;
 use crate::{
-    Conversation, FeedbackMessage, MAX_KEPT, MAX_SENT_PER_DAY, ReplyError, SendError, Signals,
-    StoreError,
+    Conversation, FeedbackId, FeedbackMessage, MAX_KEPT, MAX_SENT_PER_DAY, ReplyError, SendError,
+    Signals, StoreError,
 };
 
 fn body(text: &str) -> MessageBody {
     MessageBody::parse(text).unwrap()
 }
 
-fn message(from_operator: bool, text: &str, sent: u64) -> FeedbackMessage {
+/// Message number `id`.
+fn message(id: u64, from_operator: bool, text: &str, sent: u64) -> FeedbackMessage {
     FeedbackMessage {
+        id: FeedbackId::new(id),
         from_operator,
         body: body(text),
         sent_at: at(sent),
@@ -49,40 +51,126 @@ fn a_conversation_goes_both_ways_oldest_first() {
         .send_feedback(&digest(1), &body("好了，谢谢"), at(NOW + 3))
         .unwrap();
     let expected = [
-        message(false, "链接打不开", NOW + 1),
-        message(true, "请重新生成链接", NOW + 2),
-        message(false, "好了，谢谢", NOW + 3),
+        message(1, false, "链接打不开", NOW + 1),
+        message(2, true, "请重新生成链接", NOW + 2),
+        message(3, false, "好了，谢谢", NOW + 3),
     ];
     assert_eq!(
         store
-            .feedback_for_session(&digest(1), at(NOW + 4))
+            .feedback_for_session(&digest(1), FeedbackId::START, at(NOW + 4))
             .unwrap()
             .unwrap(),
         expected
     );
     assert_eq!(
-        store.conversation_with(&account.code).unwrap().unwrap(),
+        store
+            .conversation_with(&account.code, FeedbackId::START)
+            .unwrap()
+            .unwrap(),
         expected
     );
     // Another account's conversation is its own, and empty.
     assert!(
         store
-            .feedback_for_session(&digest(2), at(NOW + 4))
+            .feedback_for_session(&digest(2), FeedbackId::START, at(NOW + 4))
             .unwrap()
             .unwrap()
             .is_empty()
     );
     assert!(
         store
-            .conversation_with(&other.code)
+            .conversation_with(&other.code, FeedbackId::START)
             .unwrap()
             .unwrap()
             .is_empty()
     );
     assert_eq!(
-        store.conversation_with(&AccountCode::from_bits(9)).unwrap(),
+        store
+            .conversation_with(&AccountCode::from_bits(9), FeedbackId::START)
+            .unwrap(),
         None
     );
+}
+
+#[test]
+fn a_reader_asks_only_for_the_messages_after_the_last_it_shows() {
+    let mut store = store();
+    let account = signed_in(&mut store, "a@qq.com", 1, 1);
+    let other = signed_in(&mut store, "b@qq.com", 2, 2);
+    store
+        .send_feedback(&digest(1), &body("链接打不开"), at(NOW + 1))
+        .unwrap();
+    reply(&mut store, &account.code, &body("请重新生成"), at(NOW + 2)).unwrap();
+    store
+        .send_feedback(&digest(2), &body("我也有问题"), at(NOW + 3))
+        .unwrap();
+    store
+        .send_feedback(&digest(1), &body("好了"), at(NOW + 4))
+        .unwrap();
+    let owner = |store: &mut Store, after| {
+        store
+            .feedback_for_session(&digest(1), FeedbackId::new(after), at(NOW + 5))
+            .unwrap()
+            .unwrap()
+    };
+    // Numbers grow across conversations; each reader sees only its own.
+    assert_eq!(
+        owner(&mut store, 1),
+        [
+            message(2, true, "请重新生成", NOW + 2),
+            message(4, false, "好了", NOW + 4),
+        ]
+    );
+    assert_eq!(owner(&mut store, 2), [message(4, false, "好了", NOW + 4)]);
+    // Past the last message, and past any number a row can have, nothing.
+    for after in [
+        4,
+        5,
+        i64::MAX.cast_unsigned(),
+        i64::MAX.cast_unsigned() + 1,
+        u64::MAX,
+    ] {
+        assert!(owner(&mut store, after).is_empty(), "{after}");
+    }
+    let operator = |store: &Store, code, after| {
+        store
+            .conversation_with(code, FeedbackId::new(after))
+            .unwrap()
+            .unwrap()
+    };
+    assert_eq!(
+        operator(&store, &account.code, 3),
+        [message(4, false, "好了", NOW + 4)]
+    );
+    assert_eq!(
+        operator(&store, &other.code, 0),
+        [message(3, false, "我也有问题", NOW + 3)]
+    );
+    assert!(operator(&store, &other.code, 3).is_empty());
+    assert_eq!(FeedbackId::START, FeedbackId::new(0));
+    assert_eq!(FeedbackId::new(7).get(), 7);
+}
+
+#[test]
+fn reading_after_a_reply_counts_it_as_seen_for_it_was_shown_before() {
+    let mut store = store();
+    let account = signed_in(&mut store, "a@qq.com", 1, 1);
+    reply(&mut store, &account.code, &body("在吗"), at(NOW + 1)).unwrap();
+    assert!(store.signals(account.id).unwrap().unread_reply);
+    // The operator's reading marks nothing, whatever it asks for.
+    store
+        .conversation_with(&account.code, FeedbackId::START)
+        .unwrap();
+    assert!(store.signals(account.id).unwrap().unread_reply);
+    // A page that already shows the reply asks for what came after it.
+    assert!(
+        store
+            .feedback_for_session(&digest(1), FeedbackId::new(1), at(NOW + 2))
+            .unwrap()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(!store.signals(account.id).unwrap().unread_reply);
 }
 
 #[test]
@@ -106,14 +194,19 @@ fn only_a_live_session_sends_and_only_to_an_account_the_operator_replies() {
     ));
     assert!(
         store
-            .feedback_for_session(&digest(1), at(NOW))
+            .feedback_for_session(&digest(1), FeedbackId::START, at(NOW))
             .unwrap()
             .unwrap()
             .is_empty()
     );
     // An unknown or ended session reads no conversation at all.
     for (session, now) in [(digest(9), NOW), (digest(1), NOW + 2 * 86_400)] {
-        assert_eq!(store.feedback_for_session(&session, at(now)).unwrap(), None);
+        assert_eq!(
+            store
+                .feedback_for_session(&session, FeedbackId::START, at(now))
+                .unwrap(),
+            None
+        );
     }
 }
 
@@ -157,7 +250,7 @@ fn a_user_sends_a_bounded_number_a_day_and_replies_do_not_count() {
     ));
     assert_eq!(
         store
-            .feedback_for_session(&digest(2), at(a_day_on))
+            .feedback_for_session(&digest(2), FeedbackId::START, at(a_day_on))
             .unwrap()
             .unwrap()
             .len(),
@@ -183,15 +276,28 @@ fn a_conversation_keeps_its_latest_messages() {
         )
         .unwrap();
     }
-    let kept = store.conversation_with(&account.code).unwrap().unwrap();
+    let kept = store
+        .conversation_with(&account.code, FeedbackId::START)
+        .unwrap()
+        .unwrap();
     assert_eq!(kept.len(), usize::try_from(MAX_KEPT).unwrap());
-    assert_eq!(kept[0], message(true, "回复 5", NOW + 5));
+    // The other account's message is number 1, the replies 2 onwards.
+    assert_eq!(kept[0], message(7, true, "回复 5", NOW + 5));
     assert_eq!(
         kept.last().unwrap(),
-        &message(true, &format!("回复 {}", total - 1), NOW + total - 1)
+        &message(
+            total + 1,
+            true,
+            &format!("回复 {}", total - 1),
+            NOW + total - 1
+        )
     );
     assert_eq!(
-        store.conversation_with(&other.code).unwrap().unwrap().len(),
+        store
+            .conversation_with(&other.code, FeedbackId::START)
+            .unwrap()
+            .unwrap()
+            .len(),
         1
     );
 }
@@ -209,10 +315,12 @@ fn a_reply_is_unread_until_its_owner_reads_the_conversation() {
     reply(&mut store, &account.code, &body("在"), at(NOW + 2)).unwrap();
     assert!(store.signals(account.id).unwrap().unread_reply);
     // The operator reading it marks nothing.
-    store.conversation_with(&account.code).unwrap();
+    store
+        .conversation_with(&account.code, FeedbackId::START)
+        .unwrap();
     assert!(store.signals(account.id).unwrap().unread_reply);
     store
-        .feedback_for_session(&digest(1), at(NOW + 3))
+        .feedback_for_session(&digest(1), FeedbackId::START, at(NOW + 3))
         .unwrap()
         .unwrap();
     assert!(!store.signals(account.id).unwrap().unread_reply);
@@ -315,13 +423,38 @@ fn a_stored_message_is_checked_as_it_is_read() {
         )
         .unwrap();
     assert!(matches!(
-        store.conversation_with(&account.code),
+        store.conversation_with(&account.code, FeedbackId::START),
         Err(StoreError::Corrupt { .. })
     ));
     assert!(matches!(
-        store.feedback_for_session(&digest(1), at(NOW)),
+        store.feedback_for_session(&digest(1), FeedbackId::START, at(NOW)),
         Err(StoreError::Corrupt { .. })
     ));
+    // A message numbered as SQLite numbers no row, whatever is asked for.
+    store.conn.execute("DELETE FROM feedback", []).unwrap();
+    for id in [0, -1] {
+        store
+            .conn
+            .execute(
+                "INSERT INTO feedback (id, account_id, from_operator, body, sent_at)
+                 VALUES (?1, ?2, 0, 'x', ?3)",
+                rusqlite::params![id, account.id.0, NOW.cast_signed()],
+            )
+            .unwrap();
+        for after in [FeedbackId::START, FeedbackId::new(5)] {
+            assert!(
+                matches!(
+                    store.conversation_with(&account.code, after),
+                    Err(StoreError::Corrupt {
+                        what: "feedback number",
+                        ..
+                    })
+                ),
+                "{id} after {after:?}"
+            );
+        }
+        store.conn.execute("DELETE FROM feedback", []).unwrap();
+    }
     // A user's own message is never seen, and nothing else may say who
     // wrote a message.
     for refused in [
@@ -346,8 +479,8 @@ fn a_broken_database_is_an_error_never_an_empty_answer() {
         .unwrap();
     sqlite(store.signals(account.id));
     sqlite(store.conversations());
-    sqlite(store.conversation_with(&account.code));
-    sqlite(store.feedback_for_session(&digest(1), at(NOW)));
+    sqlite(store.conversation_with(&account.code, FeedbackId::START));
+    sqlite(store.feedback_for_session(&digest(1), FeedbackId::START, at(NOW)));
     sqlite(store.operator_session(&digest(1), at(NOW)));
     sqlite(store.as_operator(&digest(1), at(NOW), |_| Ok::<(), StoreError>(())));
     sqlite(store.confirm_session(&digest(1), &session(&account, 2, NOW, 3600)));

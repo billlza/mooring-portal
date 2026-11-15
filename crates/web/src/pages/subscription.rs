@@ -14,6 +14,8 @@ use crate::view::{CfmPanel, ShopView, SubscriptionView};
 /// How many of the account's orders the page lists: the newest.
 const ORDERS_SHOWN: u32 = 12;
 
+crate::pages::page_templates!(SubscriptionPage);
+
 #[derive(Template)]
 #[template(path = "subscription.html")]
 struct SubscriptionPage {

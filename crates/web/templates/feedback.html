@@ -7,6 +7,7 @@
 </div>
 <div class="container">
   {% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+  <div class="chat" data-chat="page" data-messages="/feedback/messages" data-after="{{ self.after() }}" data-expired="{{ chrome.t.feedback.expired }}" data-offline="{{ chrome.t.feedback.offline }}" data-unsent="{{ chrome.t.feedback.unsent }}">
   <section class="panel">
     <h2>{{ chrome.t.feedback.title }}</h2>
     <p class="muted">{{ chrome.t.feedback.lead }}</p>
@@ -22,6 +23,8 @@
       </label>
       <button class="button" type="submit">{{ chrome.t.feedback.send }}</button>
     </form>
+    <p class="small chat-status" data-chat-status aria-live="polite" hidden></p>
   </section>
+  </div>
 </div>
 {% endblock %}

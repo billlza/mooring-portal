@@ -8,6 +8,10 @@
 //! it. A user sends at most [`MAX_SENT_PER_DAY`] messages in any 24 hours
 //! and a conversation keeps its latest [`MAX_KEPT`] messages, so the table
 //! stays bounded however much anyone writes.
+//!
+//! Every message has a number, larger for each later message of its
+//! conversation ([`FeedbackId`]), so that a page kept open asks only for
+//! the messages after the last it shows.
 
 use portal_core::account::{AccountCode, Email};
 use portal_core::auth::TokenDigest;
@@ -30,9 +34,36 @@ pub const MAX_KEPT: u32 = 200;
 /// A day, in seconds.
 const DAY_SECS: i64 = 24 * 60 * 60;
 
+/// A message's number, or a place in a conversation: every message after
+/// it has a larger number. Numbers are the rows' ids, which only grow: a
+/// new row takes one more than the largest, and a conversation loses only
+/// its oldest messages, or all of them with its account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FeedbackId(u64);
+
+impl FeedbackId {
+    /// Before every message: the messages after it are the whole
+    /// conversation.
+    pub const START: Self = Self(0);
+
+    /// The place after message number `number`, as a page wrote it back.
+    #[must_use]
+    pub const fn new(number: u64) -> Self {
+        Self(number)
+    }
+
+    /// The number.
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
 /// A message of a conversation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeedbackMessage {
+    /// Its number.
+    pub id: FeedbackId,
     /// Whether the operator wrote it, rather than the account's owner.
     pub from_operator: bool,
     /// Its text.
@@ -122,14 +153,17 @@ impl Store {
         Ok(())
     }
 
-    /// The conversation of the account signed in with the unexpired
-    /// session whose token has `session`, oldest first, as its owner reads
-    /// it: the operator's messages count as seen from `now`. `None` if
-    /// there is no such session. The session is read in the same
-    /// transaction, as every write for a signed-in account reads it.
+    /// The messages after `after` of the conversation of the account
+    /// signed in with the unexpired session whose token has `session`,
+    /// oldest first, as its owner reads them: every message of the
+    /// operator's counts as seen from `now`, those before `after` having
+    /// been shown already. `None` if there is no such session. The session
+    /// is read in the same transaction, as every write for a signed-in
+    /// account reads it.
     pub fn feedback_for_session(
         &mut self,
         session: &TokenDigest,
+        after: FeedbackId,
         now: UnixTime,
     ) -> Result<Option<Vec<FeedbackMessage>>, StoreError> {
         let tx = self
@@ -143,16 +177,18 @@ impl Store {
              WHERE account_id = ?1 AND from_operator = 1 AND seen_at IS NULL",
             params![account.0, time_to_sql(now)],
         )?;
-        let messages = messages_of(&tx, account)?;
+        let messages = messages_of(&tx, account, after)?;
         tx.commit()?;
         Ok(Some(messages))
     }
 
-    /// The conversation of the account with `code`, oldest first, as the
-    /// operator reads it; `None` if no account has the code.
+    /// The messages after `after` of the conversation of the account with
+    /// `code`, oldest first, as the operator reads them; `None` if no
+    /// account has the code.
     pub fn conversation_with(
         &self,
         code: &AccountCode,
+        after: FeedbackId,
     ) -> Result<Option<Vec<FeedbackMessage>>, StoreError> {
         let account: Option<i64> = self
             .conn
@@ -163,7 +199,7 @@ impl Store {
             )
             .optional()?;
         account
-            .map(|account| messages_of(&self.conn, AccountId(account)))
+            .map(|account| messages_of(&self.conn, AccountId(account), after))
             .transpose()
     }
 
@@ -240,20 +276,31 @@ fn add_message(
     Ok(())
 }
 
-/// The conversation of `account`, oldest first, read on `conn`.
-fn messages_of(conn: &Connection, account: AccountId) -> Result<Vec<FeedbackMessage>, StoreError> {
-    let rows: Vec<(bool, String, i64)> = conn
+/// The messages after `after` of the conversation of `account`, oldest
+/// first, read on `conn`.
+fn messages_of(
+    conn: &Connection,
+    account: AccountId,
+    after: FeedbackId,
+) -> Result<Vec<FeedbackMessage>, StoreError> {
+    // No row's id is larger than `i64::MAX`, so there is no message after
+    // a larger number, as there is none after `i64::MAX`. A row numbered
+    // below 1, which SQLite never numbers so, is read whatever is asked
+    // for, so that it is reported rather than left out.
+    let after = i64::try_from(after.0).unwrap_or(i64::MAX);
+    let rows: Vec<(i64, bool, String, i64)> = conn
         .prepare(
-            "SELECT from_operator, body, sent_at FROM feedback
-             WHERE account_id = ?1 ORDER BY id",
+            "SELECT id, from_operator, body, sent_at FROM feedback
+             WHERE account_id = ?1 AND (id > ?2 OR id < 1) ORDER BY id",
         )?
-        .query_map([account.0], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        .query_map(params![account.0, after], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })?
         .collect::<Result<_, _>>()?;
     rows.into_iter()
-        .map(|(from_operator, body, sent_at)| {
+        .map(|(id, from_operator, body, sent_at)| {
             Ok(FeedbackMessage {
+                id: id_from_sql(id)?,
                 from_operator,
                 body: MessageBody::parse(&body)
                     .map_err(|error| corrupt("feedback message", error.to_string()))?,
@@ -261,4 +308,13 @@ fn messages_of(conn: &Connection, account: AccountId) -> Result<Vec<FeedbackMess
             })
         })
         .collect()
+}
+
+/// A message's number read back: a row's id, which SQLite makes positive.
+fn id_from_sql(id: i64) -> Result<FeedbackId, StoreError> {
+    u64::try_from(id)
+        .ok()
+        .filter(|&id| id > 0)
+        .map(FeedbackId)
+        .ok_or_else(|| corrupt("feedback number", format!("{id} is not positive")))
 }

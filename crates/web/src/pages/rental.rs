@@ -22,6 +22,8 @@ use crate::security::session::presented_token;
 use crate::state::AppState;
 use crate::view::{BookingView, MachineView, PeriodView};
 
+crate::pages::page_templates!(MacPage);
+
 #[derive(Template)]
 #[template(path = "mac.html")]
 struct MacPage {

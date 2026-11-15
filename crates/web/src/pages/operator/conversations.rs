@@ -1,22 +1,28 @@
 //! The operator's side of feedback: every account's conversation, and
-//! replying to one.
+//! replying to one. The page of one conversation runs the chat script,
+//! which keeps it current and sends a reply without leaving the page
+//! (`pages::chat`); its requests pass the same checks as the page's.
 
 use askama::Template;
 use axum::extract::rejection::PathRejection;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use portal_core::account::AccountCode;
 use portal_core::feedback::MessageBody;
-use portal_store::{AsOperator, ReplyError};
+use portal_store::{AsOperator, FeedbackId, FeedbackMessage, ReplyError};
 use serde::Deserialize;
 
 use super::{Confirmed, OperatorForm, Section, chrome, turned_away};
 use crate::error::AppError;
 use crate::format::beijing;
-use crate::i18n::fill;
+use crate::i18n::{Strings, fill};
+use crate::pages::chat::{self, AfterQuery};
 use crate::pages::feedback::message_problem;
-use crate::pages::{Chrome, PageContext, PageQuery, render, render_status, see_other};
+use crate::pages::{
+    Chrome, PageContext, PageQuery, render, render_status, request_lang, see_other,
+};
+use crate::security::csrf::FromCurrentPage;
 use crate::state::AppState;
 use crate::view::{MessageView, Reader};
 
@@ -49,6 +55,16 @@ struct ConversationPage {
     messages: Vec<MessageView>,
     /// What the form holds: a reply sent back with its error.
     draft: String,
+}
+
+crate::pages::page_templates!(ConversationsPage, ConversationPage);
+
+impl ConversationPage {
+    /// The number of the last message shown, which the chat script asks
+    /// for the messages after; 0 if there is none.
+    fn after(&self) -> u64 {
+        self.messages.last().map_or(0, |message| message.id)
+    }
 }
 
 /// A one-off message after a redirect, named by the redirect itself.
@@ -166,6 +182,73 @@ pub(crate) async fn reply(
     }
 }
 
+/// `GET /operator/feedback/<code>/messages?after=<n>`: the messages after
+/// number `n` of the account's conversation, for the script of its page,
+/// as long as the browser holds the token that page was shown with. The
+/// operator reading them marks nothing.
+pub(crate) async fn conversation_messages(
+    _: Confirmed,
+    _: FromCurrentPage,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    code: Result<Path<String>, PathRejection>,
+    PageQuery(query): PageQuery<AfterQuery>,
+) -> Result<Response, AppError> {
+    let code = account_of(code)?;
+    let after = FeedbackId::new(query.after);
+    let messages = state
+        .database()
+        .run(move |store| store.conversation_with(&code, after))
+        .await?
+        .map_err(AppError::internal)?
+        .ok_or(AppError::NotFound)?;
+    let t = request_lang(&headers).strings();
+    chat::messages(&views(&messages, code, t))
+}
+
+/// `POST /operator/feedback/<code>/messages`: sends the operator's reply,
+/// as `POST /operator/feedback/<code>` does, for the script, which then
+/// asks for it with whatever else came.
+pub(crate) async fn reply_message(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    code: Result<Path<String>, PathRejection>,
+    OperatorForm { gate, form }: OperatorForm<ReplyForm>,
+) -> Result<Response, AppError> {
+    let code = account_of(code)?;
+    let t = request_lang(&headers).strings();
+    let body = match MessageBody::parse(&form.body) {
+        Ok(body) => body,
+        Err(problem) => {
+            return chat::refused(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                &message_problem(t, problem, t.operator.reply_blank),
+            );
+        }
+    };
+    let now = state.now()?;
+    let replied = state
+        .database()
+        .run(move |store| store.as_operator(&gate.digest, now, |pages| pages.reply(&code, &body)))
+        .await?;
+    match replied {
+        Ok(AsOperator::Done(())) => Ok(chat::sent()),
+        Ok(AsOperator::NotAllowed(not)) => Ok(turned_away(not, Section::Feedback)),
+        Err(ReplyError::UnknownAccount(_)) => Err(AppError::NotFound),
+        Err(ReplyError::Store(error)) => Err(AppError::internal(error)),
+    }
+}
+
+/// `messages` of the account with `code`, as the operator reads them.
+fn views(messages: &[FeedbackMessage], code: AccountCode, t: &Strings) -> Vec<MessageView> {
+    MessageView::all(
+        messages,
+        Reader::Operator,
+        &code.to_string(),
+        t.feedback.operator,
+    )
+}
+
 /// The account an address names; one that names none does not exist.
 fn account_of(code: Result<Path<String>, PathRejection>) -> Result<AccountCode, AppError> {
     code.ok()
@@ -190,7 +273,7 @@ async fn show(
 ) -> Result<Response, AppError> {
     let messages = state
         .database()
-        .run(move |store| store.conversation_with(&code))
+        .run(move |store| store.conversation_with(&code, FeedbackId::START))
         .await?
         .map_err(AppError::internal)?
         .ok_or(AppError::NotFound)?;
@@ -203,10 +286,10 @@ async fn show(
             title: fill(t.operator.conversation_title, &account),
             notice: shown.notice,
             error: shown.error,
-            messages: MessageView::all(&messages, Reader::Operator, &account, t.feedback.operator),
+            messages: views(&messages, code, t),
             draft: shown.draft,
             account,
-            chrome: chrome(ctx),
+            chrome: chrome(ctx).with_live_thread(),
         },
     )
 }
