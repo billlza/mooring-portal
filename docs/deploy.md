@@ -156,6 +156,14 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 第 6 节的前三条重新查过，结果和以前一样。公开页面都是 `200`。没登录时打开 `/operator` 和 `/feedback`，都转到登录页；不带页面令牌请求 `/feedback/unread` 和 `/feedback/messages`，得到 `403`。没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。聊天脚本以 `text/javascript` 提供。登录后的页面没有在线上看过（没有任何账号的密码），只在本机的演示里看过。
 - 旧的二进制留在主机的 `/root/mooring-portal-d103dc0`，两份启动配置改动前的样子留在 `/root/mooring-portal.service.before-91b72cb` 和 `/root/50-live-payments.conf.before-91b72cb`。`d103dc0` 不认识 `--new-message-signal`，带着它会拒绝启动。所以要换回它：先 `systemctl disable --now mooring-portal-notify.path`（如果已经启用），把这两份配置放回原处（或者从两处启动命令里删掉这个参数），`systemctl daemon-reload`，再换回二进制、重启。数据库结构没变，不用撤销迁移。
 
+2026-11-19 换上了提交 `8959a7d`（首页主图的远岸改为三层山，`docs/security.md` 第 6 节；运营者当天决定部署）：
+- 换之前线上跑的是 `91b72cb`。这次只改了主图和场景怎么画，没有新的迁移，也没有改启动参数，数据库仍是第 8 版。
+- 在主机上构建用了 4 分 2 秒，没有警告。从发出重启到门户第一次答复用了 1.13 秒：curl 第一次没连上，隔 1 秒重试；门户的日志里，从收到停止信号到重新开始服务约 0.16 秒。之后 `quick_check` 是 `ok`。
+- 首页引用的场景脚本目录从 `js.de2406d35149bbff` 换成了 `js.77b3499e55b1da48`，主图从 `hero.25e716ea4ec988ae.svg` 换成了 `hero.81d0ff863098f145.svg`（138201 字节，三层山都在）。线上的八个场景脚本和提交里的逐字节相同；旧的目录已经是 `404`。
+- 第 6 节的前三条重新查过，结果和以前一样。公开页面（包括 `/mac`）都是 `200`。没登录时打开 `/operator` 和 `/feedback`，都转到登录页；不带页面令牌请求 `/feedback/unread` 和 `/feedback/messages`，得到 `403`。没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。聊天脚本仍以 `text/javascript` 提供。
+- 线上只在内置浏览器里看过静态主图（浏览器面板隐藏时场景不启动）；会动的场景只在本机的 Chromium（M1 Max）里看过。Safari、Firefox、手机和集成显卡都还没看过。
+- 旧的二进制留在主机的 `/root/mooring-portal-91b72cb`。启动参数和数据库结构都没变，要换回它，换回二进制、重启就行。
+
 数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，2026-11-14 随 `7ea4956` 部署）：
 - 迁移时 `cfm_profiles` 要么是空的，要么每份配置都有绑定、`profile_bundle` 也有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
 - 要撤销第 7 版，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：第 6 版的程序照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
