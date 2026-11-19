@@ -5,11 +5,11 @@
 
 use std::f64::consts::TAU;
 
-use super::field::{cloudy, far_crest, hash, mix, near_crest, smoothstep};
+use super::field::{along, cloudy, crest, hash, mix, smoothstep};
 use super::{
-    AXIS, CLOUD, FAR_DEEP, FAR_HIGH, HAZE, NEAR_DARK, NEAR_PALE, Rgb, SEA, SKY_LOW, SKY_MID,
-    SKY_RIM, SKY_TOP, STAR_COOL, STAR_WARM, TOWN_PALE, TOWN_WARM, WHITE, WIDTH, dim, gradient, n,
-    polygon, rect,
+    AXIS, CLOUD, FAR, FAR_LAND, HAZE, MIST, NEAR, NEAR_LAND, REMOTE, REMOTE_LAND, Rgb, SEA,
+    SKY_LOW, SKY_MID, SKY_RIM, SKY_TOP, STAR_COOL, STAR_WARM, TOWN_PALE, TOWN_WARM, WHITE, WIDTH,
+    dim, gradient, n, polygon, rect,
 };
 
 /// How far the haze reaches, in the lengths it falls away over.
@@ -68,36 +68,21 @@ pub(super) fn draw(out: &mut String) {
             (1.0, WHITE, 0.0),
         ],
     );
-    gradient(
-        out,
-        "linearGradient id=\"far\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"458\" x2=\"0\" y2=\"530\"",
-        &[(0.0, FAR_HIGH, 1.0), (1.0, FAR_DEEP, 1.0)],
-    );
-    let across: Vec<(f64, Rgb, f64)> = (0..=4)
-        .map(|step| {
-            let t = f64::from(step) / 4.0;
-            (t, NEAR_PALE.mix(NEAR_DARK, smoothstep(0.0, 1.0, t)), 1.0)
-        })
-        .collect();
-    gradient(
-        out,
-        &format!(
-            "linearGradient id=\"near\" gradientUnits=\"userSpaceOnUse\" x1=\"{}\" y1=\"0\" x2=\"{}\" y2=\"0\"",
-            AXIS - 60.0,
-            AXIS + 130.0
-        ),
-        &across,
-    );
-    gradient(
-        out,
-        "linearGradient id=\"deep\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"450\" x2=\"0\" y2=\"545\"",
-        &[(0.0, NEAR_DARK, 0.0), (1.0, NEAR_DARK, 0.5)],
-    );
+    for range in RANGES {
+        paint(out, range);
+    }
     out.push_str(&format!(
         "<filter id=\"mist\" x=\"-10%\" y=\"-40%\" width=\"120%\" height=\"180%\">\
          <feGaussianBlur stdDeviation=\"26 8\"/></filter>\
-         <clipPath id=\"above\"><rect width=\"{WIDTH}\" height=\"{SEA}\"/></clipPath></defs>"
+         <clipPath id=\"above\"><rect width=\"{WIDTH}\" height=\"{SEA}\"/></clipPath>"
     ));
+    // The land of every range, under the haze over it here and in the
+    // water.
+    out.push_str("<clipPath id=\"land\">");
+    for range in RANGES {
+        out.push_str(&format!("<use href=\"#{}-land\"/>", range.name));
+    }
+    out.push_str("</clipPath></defs>");
     rect(out, (0.0, 0.0), (WIDTH, SEA + 1.0), "url(#sky)", "");
     haze(out, HAZE_HEIGHT, " clip-path=\"url(#above)\"");
     clouds(out);
@@ -216,25 +201,145 @@ fn stars(out: &mut String) {
     }
 }
 
-/// The far range and the nearer hill, standing dark against the sky's rim.
-fn hills(out: &mut String) {
-    const STEP: f64 = 8.0;
-    let line = |crest: fn(f64) -> f64, from: f64| {
-        let mut shape = vec![(from, SEA + 2.0)];
-        let mut x = from;
-        while x < WIDTH {
-            shape.push((x, crest(x)));
-            x += STEP;
+/// A range of the far shore: the range of the same name in the live
+/// scene's `shader-sky.mjs`, which reads the same numbers. Where its line
+/// is in [`LINE`](super::LINE), the salt of its roughness, the colour of
+/// its land and how high above the water the mist at its foot reaches.
+/// The farther off a range stands, the paler its land and the lower its
+/// mist. The lie of its slopes is too fine to draw shape by shape, so
+/// only the live scene shows it.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Range {
+    /// What the picture calls it: its outline is `#{name}-land`.
+    pub(super) name: &'static str,
+    line: (usize, usize),
+    salt: u32,
+    land: Rgb,
+    mist: f64,
+    /// Where its outline begins; left of here its crest lies under the
+    /// water.
+    from: f64,
+}
+
+impl Range {
+    /// Its crest at `x`.
+    fn ridge(self, x: f64) -> f64 {
+        crest(along(self.line, x), x, self.salt)
+    }
+}
+
+/// The ranges of the far shore, from the farthest.
+pub(super) const RANGES: [Range; 3] = [
+    Range {
+        name: "remote",
+        line: REMOTE,
+        salt: 141,
+        land: REMOTE_LAND,
+        mist: 35.0,
+        from: 1170.0,
+    },
+    Range {
+        name: "far",
+        line: FAR,
+        salt: 121,
+        land: FAR_LAND,
+        mist: 60.0,
+        from: 550.0,
+    },
+    Range {
+        name: "near",
+        line: NEAR,
+        salt: 131,
+        land: NEAR_LAND,
+        mist: 60.0,
+        from: 2260.0,
+    },
+];
+
+/// Where the mist at the ranges' foot is thickest, and how much it pales
+/// their land there.
+const MIST_FOOT: f64 = SEA + 2.0;
+const LAND_MIST: f64 = 0.7;
+/// How much of the haze about the lighthouse lies over the land.
+const LAND_HAZE: f64 = 0.4;
+/// How far apart an outline's points are where its range shows, and at
+/// most where the water or a nearer range hides it.
+const FINE: f64 = 3.0;
+const COARSE: f64 = 24.0;
+
+/// The paint of a range's land: its colour, paler down to its foot in the
+/// mist, as the shader's smoothstep from the top of the range's mist to
+/// [`MIST_FOOT`].
+fn paint(out: &mut String, range: Range) {
+    let stops: Vec<(f64, Rgb, f64)> = (0..=8)
+        .map(|step| {
+            let t = f64::from(step) / 8.0;
+            let colour = range.land.mix(MIST, LAND_MIST * smoothstep(0.0, 1.0, t));
+            (t, colour, 1.0)
+        })
+        .collect();
+    gradient(
+        out,
+        &format!(
+            "linearGradient id=\"{}-paint\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"{}\" x2=\"0\" y2=\"{}\"",
+            range.name,
+            n(SEA - range.mist),
+            n(MIST_FOOT)
+        ),
+        &stops,
+    );
+}
+
+/// Whether the range `RANGES[index]` shows at `x`: its crest stands above
+/// the water, and no nearer range's crest stands higher.
+fn shows(index: usize, x: f64) -> bool {
+    let top = RANGES[index].ridge(x);
+    top < SEA && RANGES[index + 1..].iter().all(|near| near.ridge(x) > top)
+}
+
+/// The outline of the range `RANGES[index]`: its crest from where it
+/// rises out of the water to the picture's right edge, closed under the
+/// water. It follows the crest closely only where the range shows.
+fn outline(index: usize) -> Vec<(f64, f64)> {
+    let range = RANGES[index];
+    let mut shape = vec![(range.from, SEA + 2.0)];
+    let mut last = f64::NEG_INFINITY;
+    let mut x = range.from;
+    while x < WIDTH {
+        let shown_about = shows(index, x - FINE) || shows(index, x) || shows(index, x + FINE);
+        if x - last >= COARSE || shown_about {
+            shape.push((x, range.ridge(x)));
+            last = x;
         }
-        shape.push((WIDTH, crest(WIDTH)));
-        shape.push((WIDTH, SEA + 2.0));
-        shape
-    };
-    polygon(out, &line(far_crest, 0.0), "url(#far)", "");
-    // Left of here the nearer hill lies under the water.
-    let near = line(near_crest, 2260.0);
-    polygon(out, &near, "url(#near)", "");
-    polygon(out, &near, "url(#deep)", "");
+        x += FINE;
+    }
+    shape.push((WIDTH, range.ridge(WIDTH)));
+    shape.push((WIDTH, SEA + 2.0));
+    shape
+}
+
+/// The ranges of the far shore, from the farthest: each its outline in
+/// its land's paint, and over them all the haze about the lighthouse.
+fn hills(out: &mut String) {
+    for (index, range) in RANGES.iter().enumerate() {
+        polygon(
+            out,
+            &outline(index),
+            &format!("url(#{}-paint)", range.name),
+            &format!(" id=\"{}-land\"", range.name),
+        );
+    }
+    land_haze(out);
+}
+
+/// The haze about the lighthouse over the land of the far shore, as much
+/// of it as the live scene lays there.
+pub(super) fn land_haze(out: &mut String) {
+    haze(
+        out,
+        HAZE_HEIGHT,
+        &format!(" opacity=\"{LAND_HAZE}\" clip-path=\"url(#land)\""),
+    );
 }
 
 /// How likely a lamp is at `x` along the far shore: a town under the far
@@ -292,3 +397,6 @@ pub(super) fn lamps() -> Vec<Lamp> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

@@ -78,15 +78,18 @@ const float PIER_SINK = 0.035;
 const float CAP = 11.0;
 const float JOINT = 47.0;
 
-// The far range, the nearer hill and the rocks' crest: each a line through
-// these points, the first two across the picture, the last from the axis.
+// The far range, the nearer hill, the rocks' crest and the farthest range:
+// each a line through these points, the rocks' from the axis and the
+// others across the picture.
 const int FAR = 0;
 const int FAR_POINTS = 17;
 const int NEAR = 17;
 const int NEAR_POINTS = 12;
 const int ROCKS = 29;
 const int ROCKS_POINTS = 18;
-const vec2 LINE[47] = vec2[47](
+const int REMOTE = 47;
+const int REMOTE_POINTS = 11;
+const vec2 LINE[58] = vec2[58](
   vec2(0.0, 549.0), vec2(560.0, 549.0), vec2(760.0, 538.0), vec2(980.0, 533.0),
   vec2(1220.0, 539.0), vec2(1420.0, 549.0), vec2(1795.0, 549.0), vec2(1875.0, 526.0),
   vec2(1955.0, 506.0), vec2(2035.0, 492.0), vec2(2155.0, 478.0), vec2(2265.0, 461.0),
@@ -99,22 +102,25 @@ const vec2 LINE[47] = vec2[47](
   vec2(-206.0, 556.0), vec2(-181.0, 547.0), vec2(-151.0, 537.0), vec2(-131.0, 530.0),
   vec2(-106.0, 521.0), vec2(-89.0, 515.0), vec2(-73.0, 514.0), vec2(-58.0, 519.0),
   vec2(-46.0, 541.0), vec2(9.0, 543.0), vec2(24.0, 556.0), vec2(44.0, 568.0),
-  vec2(64.0, 584.0), vec2(77.0, 598.0)
+  vec2(64.0, 584.0), vec2(77.0, 598.0),
+  vec2(0.0, 549.0), vec2(1180.0, 549.0), vec2(1290.0, 540.0), vec2(1400.0, 531.0),
+  vec2(1510.0, 524.0), vec2(1620.0, 519.0), vec2(1730.0, 514.0), vec2(1840.0, 509.0),
+  vec2(1950.0, 503.0), vec2(2300.0, 505.0), vec2(3160.0, 530.0)
 );
 
 // The colours, each named for what it paints.
 const vec3 SKY_TOP = rgb(5.0, 19.0, 32.0);
 const vec3 SKY_MID = rgb(12.0, 30.0, 47.0);
 const vec3 SKY_LOW = rgb(21.0, 41.0, 61.0);
-const vec3 SKY_RIM = rgb(29.0, 49.0, 69.0);
+const vec3 SKY_RIM = rgb(34.0, 53.0, 73.0);
 const vec3 HAZE = rgb(75.0, 84.0, 99.0);
 const vec3 CLOUD = rgb(58.0, 77.0, 102.0);
 const vec3 STAR_COOL = rgb(190.0, 214.0, 255.0);
 const vec3 STAR_WARM = rgb(255.0, 232.0, 200.0);
-const vec3 FAR_HIGH = rgb(29.0, 49.0, 69.0);
-const vec3 FAR_DEEP = rgb(25.0, 42.0, 62.0);
-const vec3 NEAR_PALE = rgb(42.0, 59.0, 78.0);
-const vec3 NEAR_DARK = rgb(26.0, 45.0, 66.0);
+const vec3 REMOTE_LAND = rgb(26.0, 44.0, 63.0);
+const vec3 FAR_LAND = rgb(22.0, 38.0, 56.0);
+const vec3 NEAR_LAND = rgb(16.0, 30.0, 46.0);
+const vec3 MIST = rgb(44.0, 58.0, 76.0);
 const vec3 TOWN_WARM = rgb(255.0, 214.0, 150.0);
 const vec3 TOWN_PALE = rgb(255.0, 236.0, 200.0);
 const vec3 SEA_FAR = rgb(22.0, 41.0, 60.0);
@@ -207,16 +213,47 @@ float along(int from, int count, float x) {
   return y;
 }
 
-// The far range's crest at x and the nearer hill's, each roughened in its
-// own way.
-float farCrest(float x) {
-  return along(FAR, FAR_POINTS, x)
-    + 5.0 * (noise(vec2(x / 41.0, 3.5)) - 0.5) + 2.0 * (noise(vec2(x / 13.0, 9.5)) - 0.5);
+// Smooth noise along a line, in [0, 1]: noise in one dimension.
+float noise1(float x, uint salt) {
+  float corner = floor(x);
+  float f = x - corner;
+  ivec2 cell = ivec2(int(corner), 0);
+  return mix(hash(cell, salt), hash(cell + ivec2(1, 0), salt), f * f * (3.0 - 2.0 * f));
 }
 
-float nearCrest(float x) {
-  return along(NEAR, NEAR_POINTS, x)
-    + 6.0 * (noise(vec2(x / 47.0, 21.5)) - 0.5) + 2.0 * (noise(vec2(x / 11.0, 27.5)) - 0.5);
+// The hills and saddles along a crest at x, within [-1, 1]: noise in five
+// sizes from 150 picture units down, each half as tall as the last.
+float rough(float x, uint salt) {
+  float sum = 0.0;
+  float tall = 0.5;
+  float at = x / 150.0;
+  for (uint i = 0u; i < 5u; i++) {
+    sum += tall * (2.0 * noise1(at, salt + i) - 1.0);
+    tall *= 0.5;
+    at = at * 2.03 + 0.37;
+  }
+  return sum;
+}
+
+// The ragged edge of the woods along a crest at x, within [-1.05, 1.05]:
+// thicker along some stretches than others.
+float woods(float x, uint salt) {
+  float edge = noise1(x / 3.0, salt + 5u) - 0.5 + 0.5 * (noise1(x / 1.3, salt + 6u) - 0.5);
+  return edge * (0.4 + noise1(x / 70.0, salt + 7u));
+}
+
+// A range's crest at x, where its line is at level: hills and saddles
+// as tall as the range stands above the water, and its woods' edge.
+float crest(float level, float x, uint salt) {
+  float high = max(SEA + 4.0 - level, 0.0);
+  float wooded = min(high, 8.0) / 8.0;
+  return level - (0.16 * high + 1.2 * wooded) * rough(x, salt) - 1.1 * wooded * woods(x, salt);
+}
+
+// The most a crest may climb above its line where the line is at level.
+float climb(float level) {
+  float high = max(SEA + 4.0 - level, 0.0);
+  return 0.16 * high + 2.4 * min(high, 8.0) / 8.0;
 }
 
 // The lamp turns once in eighteen seconds, and throws two beams, so one
@@ -231,9 +268,13 @@ void main() {
   vec2 p = u_origin + vec2(gl_FragCoord.x, u_size.y - gl_FragCoord.y) * u_unit;
   vec2 q = vec2(p.x - AXIS, p.y);
   float angle = turn();
-  // The far waterline: sky and shore above it, the sea below.
+  // The far waterline: sky and shore above it, the sea below. Each is
+  // worked out only where it shows, and called for once, so that it is
+  // compiled once.
   float wet = within(SEA - p.y);
-  vec3 c = wet <= 0.0 ? heaven(p) : wet >= 1.0 ? sea(p, angle) : mix(heaven(p), sea(p, angle), wet);
+  vec3 above = wet < 1.0 ? heaven(p) : vec3(0.0);
+  vec3 below = wet > 0.0 ? sea(p, angle) : vec3(0.0);
+  vec3 c = mix(above, below, wet);
   c = shore(c, q, angle);
   c = lamplight(c, q, angle);
   // A grain of noise, so the dark gradients do not band.

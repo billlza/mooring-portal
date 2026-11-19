@@ -5,12 +5,12 @@
 //! the scene's clock reads nothing, and still: the points of light that
 //! flash there are here a scattering of the same light.
 
-use super::field::{along, far_crest, hash, mix, near_crest, noise, smoothstep};
+use super::field::{along, hash, mix, noise, smoothstep};
 use super::shore::{pier_foot, pier_top};
-use super::sky::{haze, lamps};
+use super::sky::{RANGES, haze, lamps, land_haze};
 use super::{
-    AXIS, FAR_DEEP, GOLD, GOLD_DEEP, HEIGHT, NEAR_DARK, PIER, ROCKS, SEA, SEA_DEEP, SEA_FAR,
-    SEA_MID, SEA_SHADE, SEA_SHEEN, STRAND, WIDTH, dim, gradient, n, polygon, rect,
+    AXIS, GOLD, GOLD_DEEP, HEIGHT, PIER, ROCKS, SEA, SEA_DEEP, SEA_FAR, SEA_MID, SEA_SHADE,
+    SEA_SHEEN, STRAND, WIDTH, dim, gradient, n, polygon, rect,
 };
 
 /// How long a ripple is at a depth: 0 at the far waterline, 1 at the
@@ -167,23 +167,19 @@ pub(super) fn draw(out: &mut String) {
     ));
     rect(out, (0.0, SEA), (WIDTH, HEIGHT), "url(#sea)", "");
     // What the water mirrors of the sky and the far shore, fainter with
-    // every ripple toward the viewer.
+    // every ripple toward the viewer: the haze, and the land of the far
+    // shore turned over at the waterline.
     out.push_str("<g mask=\"url(#far-water)\" opacity=\"0.8\">");
     haze(out, 2.0 * SEA - 500.0, "");
-    for (crest, colour, from) in [
-        (far_crest as fn(f64) -> f64, FAR_DEEP, 0.0),
-        (near_crest, NEAR_DARK, 2260.0),
-    ] {
-        let mut shape = vec![(from, SEA)];
-        let mut x = from;
-        while x <= WIDTH {
-            shape.push((x, 2.0 * SEA - crest(x)));
-            x += 16.0;
-        }
-        shape.push((WIDTH, SEA));
-        polygon(out, &shape, &colour.hex(), "");
+    out.push_str(&format!(
+        "<g transform=\"matrix(1 0 0 -1 0 {})\">",
+        n(2.0 * SEA)
+    ));
+    for range in RANGES {
+        out.push_str(&format!("<use href=\"#{}-land\"/>", range.name));
     }
-    out.push_str("</g>");
+    land_haze(out);
+    out.push_str("</g></g>");
     // The town's lamps, drawn out down the water.
     out.push_str("<g clip-path=\"url(#below)\">");
     for lamp in lamps() {

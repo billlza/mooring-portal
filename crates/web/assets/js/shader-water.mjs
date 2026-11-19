@@ -5,9 +5,10 @@
 
 export const WATER = `
 // What the far water mirrors at a place above the far waterline: the sky
-// and the hills under it, without the stars, which no ripple would hold.
+// and the hills under it, without the stars or the lie of the hills'
+// slopes, which no ripple would hold.
 vec3 mirrored(vec2 m) {
-  return hills(sky(m, veil(m)), m);
+  return hills(sky(m, veil(m)), m, false);
 }
 
 // The water's face at a place, measured in ripples along the row and in

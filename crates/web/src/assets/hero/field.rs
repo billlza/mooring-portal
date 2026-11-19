@@ -3,7 +3,7 @@
 //! where the scene's shader does. Each function here is the function of
 //! the same name there, and reads the same numbers.
 
-use super::{FAR, LINE, NEAR};
+use super::{LINE, SEA};
 
 /// PCG (O'Neill 2014), the RXS-M-XS output for one 32-bit word.
 pub(super) const fn pcg(v: u32) -> u32 {
@@ -75,12 +75,53 @@ pub(super) fn along((from, count): (usize, usize), x: f64) -> f64 {
     y
 }
 
-/// The far range's crest at `x`.
-pub(super) fn far_crest(x: f64) -> f64 {
-    along(FAR, x) + 5.0 * (noise(x / 41.0, 3.5) - 0.5) + 2.0 * (noise(x / 13.0, 9.5) - 0.5)
+/// Smooth noise along a line, in [0, 1]: [`noise`] in one dimension.
+pub(super) fn noise1(x: f64, salt: u32) -> f64 {
+    let f = x - x.floor();
+    let (corner, _) = cell(x, 0.0);
+    mix(
+        hash((corner, 0), salt),
+        hash((corner + 1, 0), salt),
+        f * f * (3.0 - 2.0 * f),
+    )
 }
 
-/// The nearer hill's crest at `x`.
-pub(super) fn near_crest(x: f64) -> f64 {
-    along(NEAR, x) + 6.0 * (noise(x / 47.0, 21.5) - 0.5) + 2.0 * (noise(x / 11.0, 27.5) - 0.5)
+/// The hills and saddles along a crest at `x`, within [-1, 1]: noise in
+/// five sizes from 150 picture units down, each half as tall as the last.
+pub(super) fn rough(x: f64, salt: u32) -> f64 {
+    let mut sum = 0.0;
+    let mut tall = 0.5;
+    let mut at = x / 150.0;
+    for i in 0..5 {
+        sum += tall * (2.0 * noise1(at, salt + i) - 1.0);
+        tall *= 0.5;
+        at = at * 2.03 + 0.37;
+    }
+    sum
+}
+
+/// The ragged edge of the woods along a crest at `x`, within
+/// [-1.05, 1.05]: thicker along some stretches than others.
+pub(super) fn woods(x: f64, salt: u32) -> f64 {
+    let edge = noise1(x / 3.0, salt + 5) - 0.5 + 0.5 * (noise1(x / 1.3, salt + 6) - 0.5);
+    edge * (0.4 + noise1(x / 70.0, salt + 7))
+}
+
+/// A range's crest at `x`, where its line is at `level`: hills and
+/// saddles as tall as the range stands above the water, and its woods'
+/// edge.
+pub(super) fn crest(level: f64, x: f64, salt: u32) -> f64 {
+    let high = f64::max(SEA + 4.0 - level, 0.0);
+    let wooded = f64::min(high, 8.0) / 8.0;
+    level - (0.16 * high + 1.2 * wooded) * rough(x, salt) - 1.1 * wooded * woods(x, salt)
+}
+
+/// The most a crest may climb above its line where the line is at
+/// `level`. The shader uses it to pass over places clear above the
+/// ranges; the drawing has no need of it, and keeps it to test that it
+/// holds.
+#[cfg(test)]
+pub(super) fn climb(level: f64) -> f64 {
+    let high = f64::max(SEA + 4.0 - level, 0.0);
+    0.16 * high + 2.4 * f64::min(high, 8.0) / 8.0
 }

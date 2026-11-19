@@ -118,14 +118,15 @@ pub(super) const MEASURES: [(&str, f64); 36] = [
     ("JOINT", JOINT),
 ];
 
-/// The far range, the nearer hill and the rocks' crest: each a line
-/// through its points, the first two across the picture, the last from
-/// the axis. Each is named by where it starts in [`LINE`] and how many
-/// points it has.
+/// The far range, the nearer hill, the rocks' crest and the farthest
+/// range: each a line through its points, the rocks' from the axis and
+/// the others across the picture. Each is named by where it starts in
+/// [`LINE`] and how many points it has.
 const FAR: (usize, usize) = (0, 17);
 const NEAR: (usize, usize) = (17, 12);
 const ROCKS: (usize, usize) = (29, 18);
-pub(super) const LINE: [(f64, f64); 47] = [
+const REMOTE: (usize, usize) = (47, 11);
+pub(super) const LINE: [(f64, f64); 58] = [
     (0.0, 549.0),
     (560.0, 549.0),
     (760.0, 538.0),
@@ -173,6 +174,17 @@ pub(super) const LINE: [(f64, f64); 47] = [
     (44.0, 568.0),
     (64.0, 584.0),
     (77.0, 598.0),
+    (0.0, 549.0),
+    (1180.0, 549.0),
+    (1290.0, 540.0),
+    (1400.0, 531.0),
+    (1510.0, 524.0),
+    (1620.0, 519.0),
+    (1730.0, 514.0),
+    (1840.0, 509.0),
+    (1950.0, 503.0),
+    (2300.0, 505.0),
+    (3160.0, 530.0),
 ];
 
 /// A colour, each part from 0 to 255.
@@ -209,15 +221,15 @@ const WHITE: Rgb = Rgb(255.0, 255.0, 255.0);
 const SKY_TOP: Rgb = Rgb(5.0, 19.0, 32.0);
 const SKY_MID: Rgb = Rgb(12.0, 30.0, 47.0);
 const SKY_LOW: Rgb = Rgb(21.0, 41.0, 61.0);
-const SKY_RIM: Rgb = Rgb(29.0, 49.0, 69.0);
+const SKY_RIM: Rgb = Rgb(34.0, 53.0, 73.0);
 const HAZE: Rgb = Rgb(75.0, 84.0, 99.0);
 const CLOUD: Rgb = Rgb(58.0, 77.0, 102.0);
 const STAR_COOL: Rgb = Rgb(190.0, 214.0, 255.0);
 const STAR_WARM: Rgb = Rgb(255.0, 232.0, 200.0);
-const FAR_HIGH: Rgb = Rgb(29.0, 49.0, 69.0);
-const FAR_DEEP: Rgb = Rgb(25.0, 42.0, 62.0);
-const NEAR_PALE: Rgb = Rgb(42.0, 59.0, 78.0);
-const NEAR_DARK: Rgb = Rgb(26.0, 45.0, 66.0);
+const REMOTE_LAND: Rgb = Rgb(26.0, 44.0, 63.0);
+const FAR_LAND: Rgb = Rgb(22.0, 38.0, 56.0);
+const NEAR_LAND: Rgb = Rgb(16.0, 30.0, 46.0);
+const MIST: Rgb = Rgb(44.0, 58.0, 76.0);
 const TOWN_WARM: Rgb = Rgb(255.0, 214.0, 150.0);
 const TOWN_PALE: Rgb = Rgb(255.0, 236.0, 200.0);
 const SEA_FAR: Rgb = Rgb(22.0, 41.0, 60.0);
@@ -260,10 +272,10 @@ pub(super) const PALETTE: [(&str, Rgb); 42] = [
     ("CLOUD", CLOUD),
     ("STAR_COOL", STAR_COOL),
     ("STAR_WARM", STAR_WARM),
-    ("FAR_HIGH", FAR_HIGH),
-    ("FAR_DEEP", FAR_DEEP),
-    ("NEAR_PALE", NEAR_PALE),
-    ("NEAR_DARK", NEAR_DARK),
+    ("REMOTE_LAND", REMOTE_LAND),
+    ("FAR_LAND", FAR_LAND),
+    ("NEAR_LAND", NEAR_LAND),
+    ("MIST", MIST),
     ("TOWN_WARM", TOWN_WARM),
     ("TOWN_PALE", TOWN_PALE),
     ("SEA_FAR", SEA_FAR),

@@ -101,18 +101,96 @@ vec3 shooting(vec3 c, vec2 p, float clear) {
   return c + STAR_COOL * trail * sin(3.14159265 * age) * clear;
 }
 
-// The far range and the nearer hill, standing dark against the sky's rim.
-vec3 hills(vec3 c, vec2 p) {
-  if (p.y < 425.0) {
+// A range of the far shore: where its line is in LINE, the salt of its
+// roughness, the colour of its land, how plainly the lie of its slopes
+// shows, and how high above the water the mist at its foot reaches. The
+// farther off a range stands, the paler its land, the fainter its slopes
+// and the lower its mist.
+struct Range {
+  int from;
+  int count;
+  uint salt;
+  vec3 land;
+  float relief;
+  float mist;
+};
+
+const Range REMOTE_RANGE = Range(REMOTE, REMOTE_POINTS, 141u, REMOTE_LAND, 0.2, 35.0);
+const Range FAR_RANGE = Range(FAR, FAR_POINTS, 121u, FAR_LAND, 0.6, 60.0);
+const Range NEAR_RANGE = Range(NEAR, NEAR_POINTS, 131u, NEAR_LAND, 1.0, 60.0);
+
+// Range r's crest at x.
+float ridge(Range r, float x) {
+  return crest(along(r.from, r.count, x), x, r.salt);
+}
+
+// The highest range r's crest may stand at x.
+float highest(Range r, float x) {
+  float level = along(r.from, r.count, x);
+  return level - climb(level);
+}
+
+// The lie of a range's slopes about at: noise in three sizes, within
+// [0, 1.75].
+float slopes(vec2 at) {
+  return noise(at) + 0.5 * noise(at * 2.07 + 13.0) + 0.25 * noise(at * 4.13 + 29.0);
+}
+
+// How a range's land is lit at p, below its crest at top: the rises that
+// run down from the crest lit on the lighthouse's side, the hollows
+// between them darker, and the grain of the woods over all. The rises
+// lean by lean as the land falls away.
+float relief(vec2 p, float top, float lean, float offset) {
+  float d = max(p.y - top, 0.0);
+  vec2 at = vec2((p.x + lean * d) / 20.0, d / 30.0) + offset;
+  at.x += 1.6 * (noise(at * vec2(0.35, 0.6) + 3.1) - 0.5);
+  float h = slopes(at);
+  float east = slopes(at + vec2(0.3, 0.0));
+  float side = clamp((p.x - AXIS) / 80.0, -1.0, 1.0);
+  return 0.1 * side * (east - h) / 0.3 + 0.18 * (h - 0.875) + 0.12 * (noise(p / 2.4 + offset * 7.0) - 0.5);
+}
+
+// Range r over c at p, its crest above p at top: its land, lit by the lie
+// of its slopes where it is seen (the water mirrors too little of it to
+// show them), and paler in the mist at its foot and in the haze about the
+// lighthouse.
+vec3 range(vec3 c, vec2 p, Range r, float top, bool seen) {
+  float cover = within(top - p.y);
+  if (cover <= 0.0) {
     return c;
   }
-  float far = farCrest(p.x);
-  vec3 range = mix(FAR_HIGH, FAR_DEEP, clamp((p.y - far) / 60.0, 0.0, 1.0));
-  c = mix(c, range, within(far - p.y));
-  float near = nearCrest(p.x);
-  vec3 hill = mix(NEAR_PALE, NEAR_DARK, smoothstep(AXIS - 60.0, AXIS + 130.0, p.x));
-  hill = mix(hill, NEAR_DARK, 0.5 * clamp((p.y - near) / 70.0, 0.0, 1.0));
-  return mix(c, hill, within(near - p.y));
+  float mist = smoothstep(SEA - r.mist, SEA + 2.0, p.y);
+  vec3 land = r.land;
+  if (seen) {
+    // The land falls away from the crest: down to the left where the crest
+    // climbs to the right.
+    float slope = (along(r.from, r.count, p.x + 25.0) - along(r.from, r.count, p.x - 25.0)) / 50.0;
+    land *= 1.0 + r.relief * (1.0 - mist) * relief(p, top, clamp(-1.6 * slope, -0.9, 0.9), float(r.salt));
+  }
+  land = mix(land, MIST, 0.7 * mist);
+  return mix(c, mix(land, HAZE, 0.4 * veil(p)), cover);
+}
+
+// The ranges of the far shore over c at p, from the farthest. A range is
+// worked out only where it may show: not where no crest can climb to
+// cover any of the pixel, nor where a nearer range covers all of it.
+vec3 hills(vec3 c, vec2 p, bool seen) {
+  if (p.y < 420.0) {
+    return c;
+  }
+  float skyline = min(min(highest(REMOTE_RANGE, p.x), highest(FAR_RANGE, p.x)), highest(NEAR_RANGE, p.x));
+  if (within(skyline - p.y) <= 0.0) {
+    return c;
+  }
+  float near = ridge(NEAR_RANGE, p.x);
+  if (within(near - p.y) < 1.0) {
+    float far = ridge(FAR_RANGE, p.x);
+    if (within(far - p.y) < 1.0) {
+      c = range(c, p, REMOTE_RANGE, ridge(REMOTE_RANGE, p.x), seen);
+    }
+    c = range(c, p, FAR_RANGE, far, seen);
+  }
+  return range(c, p, NEAR_RANGE, near, seen);
 }
 
 // How likely a lamp is at x along the far shore: a town under the far
@@ -157,7 +235,7 @@ vec3 heaven(vec2 p) {
   c = stars(c, s, clear);
   c = shooting(c, p, clear);
   c = mix(c, CLOUD, 0.5 * cloud);
-  c = hills(c, p);
+  c = hills(c, p, true);
   if (p.y > SEA - 30.0) {
     c += lamps(p, 1.0);
   }

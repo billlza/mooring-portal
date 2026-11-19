@@ -1,7 +1,7 @@
 //! The hero image: what it is made of, and that it and the live scene's
 //! shader are two writings of one picture.
 
-use super::field::{along, cell, cloudy, far_crest, hash, near_crest, noise, pcg, smoothstep};
+use super::field::{along, cell, cloudy, hash, noise, pcg, smoothstep};
 use super::*;
 use crate::assets::module;
 
@@ -137,10 +137,18 @@ fn the_image_holds_every_part_of_the_picture_in_its_order() {
     // The sky and its haze, the hills, the sea and what it mirrors.
     for (part, times) in [
         ("fill=\"url(#sky)\"", 1),
-        ("fill=\"url(#haze)\"", 2),
-        ("fill=\"url(#far)\"", 1),
-        ("fill=\"url(#near)\"", 1),
-        ("fill=\"url(#deep)\"", 1),
+        // The sky's haze and the water's, each over the sky and over the
+        // land of the far shore.
+        ("fill=\"url(#haze)\"", 4),
+        ("clip-path=\"url(#land)\"", 2),
+        // The three ranges, each drawn once and turned over in the water.
+        ("fill=\"url(#remote-paint)\" id=\"remote-land\"", 1),
+        ("fill=\"url(#far-paint)\" id=\"far-land\"", 1),
+        ("fill=\"url(#near-paint)\" id=\"near-land\"", 1),
+        ("<use href=\"#remote-land\"/>", 2),
+        ("<use href=\"#far-land\"/>", 2),
+        ("<use href=\"#near-land\"/>", 2),
+        ("transform=\"matrix(1 0 0 -1 0 1090)\"", 1),
         ("fill=\"url(#sea)\"", 1),
         ("fill=\"url(#lee)\"", 1),
         // The pier, its two posts, and the block the tower stands on.
@@ -188,8 +196,11 @@ fn the_image_holds_every_part_of_the_picture_in_its_order() {
     // Back to front: the sky, the sea, the shore, the rocks, the light.
     let order = [
         "fill=\"url(#sky)\"",
-        "fill=\"url(#far)\"",
+        "fill=\"url(#remote-paint)\" id=",
+        "fill=\"url(#far-paint)\" id=",
+        "fill=\"url(#near-paint)\" id=",
         "fill=\"url(#sea)\"",
+        "<g transform=",
         "stroke-linecap=\"round\"",
         "fill=\"url(#lee)\"",
         "z\" fill=\"#",
@@ -250,8 +261,9 @@ fn the_shader_takes_its_measures_from_the_drawing() {
     assert!(shader.contains("\nconst float TAU = 6.28318530718;\n"));
     // A boulder has as many faces in the shader as in the drawing.
     assert!(shader.contains(&format!("float sector = TAU / {}.0;", rocks::FACES)));
-    // The lines through the far range, the nearer hill and the rocks.
-    let from = shader.find("const vec2 LINE[47] = vec2[47](").unwrap();
+    // The lines through the far range, the nearer hill, the rocks and the
+    // farthest range.
+    let from = shader.find("const vec2 LINE[58] = vec2[58](").unwrap();
     let written: String = shader[from..shader[from..].find(");").unwrap() + from]
         .chars()
         .filter(|c| !c.is_whitespace())
@@ -262,14 +274,22 @@ fn the_shader_takes_its_measures_from_the_drawing() {
         .collect();
     assert_eq!(
         written,
-        format!("constvec2LINE[47]=vec2[47]({}", points.join(","))
+        format!("constvec2LINE[58]=vec2[58]({}", points.join(","))
     );
-    for (name, (from, count)) in [("FAR", FAR), ("NEAR", NEAR), ("ROCKS", ROCKS)] {
+    for (name, (from, count)) in [
+        ("FAR", FAR),
+        ("NEAR", NEAR),
+        ("ROCKS", ROCKS),
+        ("REMOTE", REMOTE),
+    ] {
         assert!(shader.contains(&format!("\nconst int {name} = {from};\n")));
         assert!(shader.contains(&format!("\nconst int {name}_POINTS = {count};\n")));
     }
-    assert_eq!(FAR.1 + NEAR.1 + ROCKS.1, LINE.len());
-    assert_eq!((NEAR.0, ROCKS.0), (FAR.1, FAR.1 + NEAR.1));
+    assert_eq!(FAR.1 + NEAR.1 + ROCKS.1 + REMOTE.1, LINE.len());
+    assert_eq!(
+        (NEAR.0, ROCKS.0, REMOTE.0),
+        (FAR.1, FAR.1 + NEAR.1, FAR.1 + NEAR.1 + ROCKS.1)
+    );
 }
 
 #[test]
@@ -302,7 +322,7 @@ fn the_shader_and_the_drawing_share_their_rules() {
     // star or a lamp or a boulder goes, and how a round wall is lit. Each
     // line here stands in the drawing's code and in the shader's; change
     // one, and this fails until the other follows. The water's rules are
-    // in `water::tests`.
+    // in `water::tests`, and the far shore's ranges' in `sky::tests`.
     let shader = shader();
     let drawing = [
         include_str!("field.rs"),
@@ -329,11 +349,6 @@ fn the_shader_and_the_drawing_share_their_rules() {
     }
     for rule in [
         "/1.875",
-        // The crests.
-        "/41.0,3.5)",
-        "/13.0,9.5)",
-        "/47.0,21.5)",
-        "/11.0,27.5)",
         // The haze, the cloud and the stars.
         "0.95*",
         "smoothstep(215.0,300.0,",
@@ -485,7 +500,12 @@ fn noise_is_smooth_and_passes_through_its_lattice() {
 
 #[test]
 fn a_line_passes_through_its_points_and_is_level_beyond_them() {
-    for (name, line) in [("far", FAR), ("near", NEAR), ("rocks", ROCKS)] {
+    for (name, line) in [
+        ("far", FAR),
+        ("near", NEAR),
+        ("rocks", ROCKS),
+        ("remote", REMOTE),
+    ] {
         let points = &LINE[line.0..line.0 + line.1];
         for &(x, y) in points {
             assert!((along(line, x) - y).abs() < 1e-9, "{name} at {x}");
@@ -512,12 +532,6 @@ fn a_line_passes_through_its_points_and_is_level_beyond_them() {
             let (low, high) = (pair[0].1.min(pair[1].1), pair[0].1.max(pair[1].1));
             assert!(middle >= low && middle <= high, "{name}");
         }
-    }
-    // The crests keep within their roughness of their lines.
-    for step in 0..=395 {
-        let x = f64::from(step) * 8.0;
-        assert!((far_crest(x) - along(FAR, x)).abs() <= 3.5);
-        assert!((near_crest(x) - along(NEAR, x)).abs() <= 4.0);
     }
 }
 
