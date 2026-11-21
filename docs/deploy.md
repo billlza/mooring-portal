@@ -1,6 +1,6 @@
 # 部署：moorlight.app
 
-2026-11-12 起，`https://moorlight.app` 已经能打开门户，但还没有对外开放：注册只限 5 个账号（2026-11-14 起，原来是 1 个；第 1 节），开放的条件见第 7 节。本文写第一次部署的做法：
+2026-11-12 起，`https://moorlight.app` 已经能打开门户，但还没有对外开放：注册只限 10 个账号（2026-11-21 起；之前是 5 个，最早是 1 个；第 1 节），开放的条件见第 7 节。本文写第一次部署的做法：
 
 - 一台 Akamai（Linode）伦敦机房的 Linode 2 GB，系统 Debian 13（运营者 2026-11-12 决定）；
 - 域名 `moorlight.app`（运营者 2026-11-12 决定，当天在 Porkbun 注册）；
@@ -21,7 +21,7 @@ Caddy 配置还没有运行过。第 6 节的检查要在任何用户注册之�
 - **不记请求**。Caddy 没有配置访问日志。转发失败时，它会记一条错误日志（`http.log.error`），里面有请求的路径和客户端地址，所以这类日志整个排除掉。门户是否在运行，看 `systemctl status mooring-portal` 和门户自己的日志。
 - **只压缩 `/assets/`**。页面里有 CSRF 令牌，压缩会引入 BREACH 类侧信道（`docs/security.md` 第 6 节）；`/sub/` 不能压缩，因为 CFM 0.5.1 只接受 identity 编码。
 - **客户端地址**。门户只听本机的 `127.0.0.1:8080`，以 `--behind-proxy` 启动，取 `X-Forwarded-For` 的最后一个地址，只用于限流，不记日志。客户端自己带来的 `X-Forwarded-For`，Caddy 不予理会，只写上它自己看到的地址。
-- **开放之前限住注册**。启动时用 `--max-accounts 1`，只够运营者自己注册一个账号来试。门户在用户确认《使用约定》第 2 版之后才开放（README 待定事项第 2 条）；开放时去掉这个参数（默认上限 200），或者改成想要的上限。2026-11-14 运营者决定在开放前先让几个人试用，线上上限改成了 5。正式付款用 `mooring-portal.service.d/50-live-payments.conf` 换掉了 unit 里的整行启动命令，生效的是那里的 `--max-accounts`；unit 和它两处现在都是 5，以后改上限也要两处一起改（`systemctl cat mooring-portal` 能同时看到两处）。
+- **开放之前限住注册**。启动时用 `--max-accounts 1`，只够运营者自己注册一个账号来试。门户在用户确认《使用约定》第 2 版之后才开放（README 待定事项第 2 条）；开放时去掉这个参数（默认上限 200），或者改成想要的上限。2026-11-14 运营者决定在开放前先让几个人试用，线上上限改成了 5；2026-11-21 运营者又把它改成了 10。正式付款用 `mooring-portal.service.d/50-live-payments.conf` 换掉了 unit 里的整行启动命令，生效的是那里的 `--max-accounts`；unit 和它两处现在都是 10，以后改上限也要两处一起改（`systemctl cat mooring-portal` 能同时看到两处），改完运行 `systemctl daemon-reload`，重启门户，再看运行中的进程用的是不是新的数（`/proc/<pid>/cmdline`）。2026-11-21 改之前的两个文件留在主机的 `/root/mooring-portal-units-20261121/`。
 
 ## 2. 主机
 
