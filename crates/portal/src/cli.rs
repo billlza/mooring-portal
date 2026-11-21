@@ -225,8 +225,8 @@ pub(crate) struct ServeArgs {
     pub(crate) stripe_webhook_secret: Option<PathBuf>,
     /// A file to write the time to whenever a user writes to the operator,
     /// for a service on the host that watches it to tell the operator
-    /// (`docs/deploy.md`, section 8). It holds the time alone. Its
-    /// directory must exist.
+    /// (`docs/notices.md`). It holds the time alone. Its directory must
+    /// exist.
     #[arg(long, value_name = "FILE")]
     pub(crate) new_message_signal: Option<PathBuf>,
 }

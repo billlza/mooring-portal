@@ -34,9 +34,8 @@ pub struct WebConfig {
 
 /// The file the portal writes each time a user writes to the operator, for
 /// a service on the host that watches it to tell the operator
-/// (`docs/deploy.md`, section 8). It holds the time of the latest message
-/// and nothing else: no account, no text. The portal connects nowhere to
-/// tell anyone.
+/// (`docs/notices.md`). It holds the time of the latest message and nothing
+/// else: no account, no text. The portal connects nowhere to tell anyone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewMessageSignal {
     file: PathBuf,

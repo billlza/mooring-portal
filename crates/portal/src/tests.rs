@@ -5,6 +5,7 @@ mod commands;
 mod deploy;
 mod erasure;
 mod import;
+mod notices;
 mod operators;
 mod orders_list;
 mod paying;
