@@ -4,7 +4,10 @@
 //!
 //! The script asks for the messages after the last its page shows, by the
 //! number of that message (`?after=`), and sends a message as the page's
-//! form does, CSRF token included. Its questions carry the page's token
+//! form does, CSRF token included. On the operator's page it asks as well
+//! for the translations made after the last it shows (`&translated=`): a
+//! translation is made after its message, so it may come when the message
+//! is already on the page. Its questions carry the page's token
 //! too, and are answered only while it is the browser's
 //! (`security::csrf::FromCurrentPage`): a page shown before someone signed
 //! in or out is answered 403. Each answer is a JSON document of this
@@ -21,19 +24,28 @@ use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
-use crate::view::MessageView;
+use crate::view::{MessageView, TranslationView};
 
 /// The script's question: the messages after which.
 #[derive(Debug, Deserialize)]
 pub(crate) struct AfterQuery {
     /// The number of the last message the page shows; 0 if it shows none.
     pub(crate) after: u64,
+    /// On a page that shows translations, the operator's: the number of
+    /// the last translation it shows, 0 if it shows none. The script of
+    /// any other page does not say.
+    #[serde(default)]
+    pub(crate) translated: Option<u64>,
 }
 
 /// The messages asked for, oldest first.
 #[derive(Debug, Serialize)]
 struct Messages<'a> {
     messages: &'a [MessageView],
+    /// The translations asked for, in the order they were made, where the
+    /// page asked for any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    translations: Option<&'a [TranslationView]>,
 }
 
 /// Whether a reply waits unread.
@@ -48,9 +60,19 @@ struct Refusal<'a> {
     error: &'a str,
 }
 
-/// `messages`, oldest first.
-pub(crate) fn messages(messages: &[MessageView]) -> Result<Response, AppError> {
-    json(StatusCode::OK, &Messages { messages })
+/// `messages`, oldest first, and `translations`, in the order they were
+/// made, where the page asked for any.
+pub(crate) fn messages(
+    messages: &[MessageView],
+    translations: Option<&[TranslationView]>,
+) -> Result<Response, AppError> {
+    json(
+        StatusCode::OK,
+        &Messages {
+            messages,
+            translations,
+        },
+    )
 }
 
 /// Whether a reply waits unread.

@@ -14,6 +14,8 @@ mod profile_for_account;
 mod profiles;
 mod release;
 mod rentals;
+mod translate;
+mod translate_failures;
 mod usage;
 
 use std::path::{Path, PathBuf};

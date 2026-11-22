@@ -16,3 +16,4 @@ pub mod release;
 pub mod rental;
 pub mod snapshot;
 pub mod time;
+pub mod translation;

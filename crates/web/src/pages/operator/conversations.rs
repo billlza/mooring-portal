@@ -2,6 +2,11 @@
 //! replying to one. The page of one conversation runs the chat script,
 //! which keeps it current and sends a reply without leaving the page
 //! (`pages::chat`); its requests pass the same checks as the page's.
+//!
+//! Under a message a user wrote in another language than the page's
+//! stands its translation into that one, where the host's translator has
+//! made it (`portal_core::translation`). The message's owner is shown
+//! none.
 
 use askama::Template;
 use axum::extract::rejection::PathRejection;
@@ -10,7 +15,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use portal_core::account::AccountCode;
 use portal_core::feedback::MessageBody;
-use portal_store::{AsOperator, FeedbackId, FeedbackMessage, ReplyError};
+use portal_store::{AsOperator, FeedbackId, FeedbackMessage, ReplyError, TranslationId};
 use serde::Deserialize;
 
 use super::{Confirmed, OperatorForm, Section, chrome, turned_away};
@@ -24,7 +29,7 @@ use crate::pages::{
 };
 use crate::security::csrf::FromCurrentPage;
 use crate::state::AppState;
-use crate::view::{MessageView, Reader};
+use crate::view::{MessageView, Reader, TranslationView};
 
 #[derive(Template)]
 #[template(path = "operator_feedback.html")]
@@ -53,6 +58,9 @@ struct ConversationPage {
     notice: Option<&'static str>,
     error: Option<String>,
     messages: Vec<MessageView>,
+    /// The number of the last translation shown, which the chat script
+    /// asks for the translations after; 0 if there is none.
+    translated: u64,
     /// What the form holds: a reply sent back with its error.
     draft: String,
 }
@@ -182,10 +190,11 @@ pub(crate) async fn reply(
     }
 }
 
-/// `GET /operator/feedback/<code>/messages?after=<n>`: the messages after
-/// number `n` of the account's conversation, for the script of its page,
-/// as long as the browser holds the token that page was shown with. The
-/// operator reading them marks nothing.
+/// `GET /operator/feedback/<code>/messages?after=<n>&translated=<m>`: the
+/// messages after number `n` of the account's conversation and its
+/// translations after number `m` into the language of the page, for the
+/// script of its page, as long as the browser holds the token that page
+/// was shown with. The operator reading them marks nothing.
 pub(crate) async fn conversation_messages(
     _: Confirmed,
     _: FromCurrentPage,
@@ -196,14 +205,28 @@ pub(crate) async fn conversation_messages(
 ) -> Result<Response, AppError> {
     let code = account_of(code)?;
     let after = FeedbackId::new(query.after);
-    let messages = state
+    let translated = query.translated.map(TranslationId::new);
+    let lang = request_lang(&headers);
+    let language = lang.page_language();
+    let (messages, translations) = state
         .database()
-        .run(move |store| store.conversation_with(&code, after))
+        .run(move |store| match translated {
+            Some(translated) => store
+                .conversation_translated(&code, after, language, translated)
+                .map(|found| found.map(|read| (read.messages, Some(read.translations)))),
+            // A page that shows no translations asks for none.
+            None => store
+                .conversation_with(&code, after)
+                .map(|found| found.map(|messages| (messages, None))),
+        })
         .await?
         .map_err(AppError::internal)?
         .ok_or(AppError::NotFound)?;
-    let t = request_lang(&headers).strings();
-    chat::messages(&views(&messages, code, t))
+    let translations = translations.as_deref().map(TranslationView::all);
+    chat::messages(
+        &views(&messages, code, lang.strings()),
+        translations.as_deref(),
+    )
 }
 
 /// `POST /operator/feedback/<code>/messages`: sends the operator's reply,
@@ -271,12 +294,16 @@ async fn show(
     code: AccountCode,
     shown: Shown,
 ) -> Result<Response, AppError> {
-    let messages = state
+    let language = ctx.lang.page_language();
+    let read = state
         .database()
-        .run(move |store| store.conversation_with(&code, FeedbackId::START))
+        .run(move |store| {
+            store.conversation_translated(&code, FeedbackId::START, language, TranslationId::START)
+        })
         .await?
         .map_err(AppError::internal)?
         .ok_or(AppError::NotFound)?;
+    let translations = TranslationView::all(&read.translations);
     let t = ctx.t();
     let account = code.to_string();
     render_status(
@@ -286,7 +313,8 @@ async fn show(
             title: fill(t.operator.conversation_title, &account),
             notice: shown.notice,
             error: shown.error,
-            messages: views(&messages, code, t),
+            messages: MessageView::translated(views(&read.messages, code, t), &translations),
+            translated: translations.last().map_or(0, |translation| translation.id),
             draft: shown.draft,
             account,
             chrome: chrome(ctx).with_live_thread(),

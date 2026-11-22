@@ -2,7 +2,8 @@
 //! commands manage accounts, bindings, snapshot and CFM profile imports,
 //! the CFM release on offer, what payments need of the operator, and the
 //! Mac rental bookings, in the same database file, while the server runs
-//! or not.
+//! or not. `translate` is the host's: a service runs it when a user has
+//! written to the operator.
 
 mod cli;
 mod error;
@@ -10,6 +11,7 @@ mod operator;
 mod payments;
 mod rentals;
 mod serve;
+mod translate;
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -19,7 +21,7 @@ use clap::Parser as _;
 use portal_core::time::Clock;
 use portal_store::{OpenMode, Store};
 
-pub use error::CommandError;
+pub use error::{CommandError, TranslatorError};
 
 use cli::{Cli, Command};
 
@@ -126,6 +128,9 @@ fn execute(cli: Cli, clock: &dyn Clock, out: &mut dyn Write) -> Result<(), Comma
             with_store(&mut |store| payments::revoke_pull_token(store, out))
         }
         Command::EraseDeleted => with_store(&mut |store| operator::erase_deleted(store, out)),
+        Command::Translate { translator } => {
+            with_store(&mut |store| translate::translate(store, clock, &translator, out))
+        }
     }
 }
 

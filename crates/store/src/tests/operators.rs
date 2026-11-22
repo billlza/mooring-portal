@@ -277,19 +277,6 @@ const ROLLBACK_TO_7: &str = "DROP TABLE feedback; DROP TABLE operators; \
                              ALTER TABLE sessions DROP COLUMN confirmed_at; \
                              PRAGMA user_version = 7;";
 
-/// Every table, index and trigger of the database at `path`, as SQLite
-/// keeps their definitions.
-fn schema(path: &std::path::Path) -> Vec<(String, String, Option<String>)> {
-    Connection::open(path)
-        .unwrap()
-        .prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name")
-        .unwrap()
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-        .unwrap()
-        .collect::<Result<_, _>>()
-        .unwrap()
-}
-
 #[test]
 fn the_documented_rollback_leaves_version_7_as_it_was() {
     let dir = tempfile::tempdir().unwrap();
@@ -320,10 +307,13 @@ fn the_documented_rollback_leaves_version_7_as_it_was() {
         )
         .unwrap();
     }
-    Connection::open(&rolled_back)
-        .unwrap()
-        .execute_batch(ROLLBACK_TO_7)
+    // Back a version at a time, as `docs/deploy.md` says: what version 9
+    // added goes before what version 8 did.
+    let conn = Connection::open(&rolled_back).unwrap();
+    conn.execute_batch(translations_schema::ROLLBACK_TO_8)
         .unwrap();
+    conn.execute_batch(ROLLBACK_TO_7).unwrap();
+    drop(conn);
     assert_eq!(schema(&rolled_back), schema(&version_7));
     let version: i64 = Connection::open(&rolled_back)
         .unwrap()

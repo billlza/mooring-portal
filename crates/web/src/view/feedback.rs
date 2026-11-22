@@ -1,7 +1,9 @@
 //! A conversation with the operator, as its pages and the chat script
 //! show it.
 
-use portal_store::FeedbackMessage;
+use std::collections::BTreeMap;
+
+use portal_store::{FeedbackMessage, Translation};
 use serde::Serialize;
 
 use crate::format::beijing;
@@ -32,6 +34,39 @@ pub(crate) struct MessageView {
     pub(crate) sent: String,
     /// Its text; the template keeps its line breaks.
     pub(crate) body: String,
+    /// The message in the reader's language, where the host's translator
+    /// wrote it in that one: the operator's page shows it under the
+    /// message. The chat script is told of translations by themselves
+    /// ([`TranslationView`]), as one may be made after its message was
+    /// shown.
+    #[serde(skip)]
+    pub(crate) translation: Option<String>,
+}
+
+/// A translation of a message into the reader's language, as the chat
+/// script is told of it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct TranslationView {
+    /// Its number: every translation made later has a larger one.
+    pub(crate) id: u64,
+    /// The number of the message it translates.
+    pub(crate) message: u64,
+    /// Its text, with its line breaks.
+    pub(crate) body: String,
+}
+
+impl TranslationView {
+    /// `translations`, in the order they were made.
+    pub(crate) fn all(translations: &[Translation]) -> Vec<Self> {
+        translations
+            .iter()
+            .map(|translation| Self {
+                id: translation.id.get(),
+                message: translation.message.get(),
+                body: translation.text.as_str().to_owned(),
+            })
+            .collect()
+    }
 }
 
 impl MessageView {
@@ -57,8 +92,25 @@ impl MessageView {
                 .to_owned(),
                 sent: beijing(message.sent_at),
                 body: message.body.as_str().to_owned(),
+                translation: None,
             })
             .collect()
+    }
+
+    /// `messages` with each of `translations` under its message. A
+    /// translation of a message that is not among them is left out.
+    pub(crate) fn translated(
+        mut messages: Vec<Self>,
+        translations: &[TranslationView],
+    ) -> Vec<Self> {
+        let by_message: BTreeMap<u64, &str> = translations
+            .iter()
+            .map(|translation| (translation.message, translation.body.as_str()))
+            .collect();
+        for message in &mut messages {
+            message.translation = by_message.get(&message.id).map(|&text| text.to_owned());
+        }
+        messages
     }
 }
 
@@ -95,6 +147,7 @@ mod tests {
                     who: "你".to_owned(),
                     sent: "2026-11-05 20:00".to_owned(),
                     body: "第一行\n第二行".to_owned(),
+                    translation: None,
                 },
                 MessageView {
                     id: 8,
@@ -103,6 +156,7 @@ mod tests {
                     who: "运营者".to_owned(),
                     sent: "2026-11-05 20:01".to_owned(),
                     body: "第一行\n第二行".to_owned(),
+                    translation: None,
                 },
             ]
         );

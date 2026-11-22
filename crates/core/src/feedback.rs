@@ -48,6 +48,23 @@ const fn is_bidi_control(c: char) -> bool {
     )
 }
 
+/// `text` as the site keeps what was written: every line break `\n`, as
+/// browsers send `\r\n`, and no white space around it.
+pub(crate) fn tidy(text: &str) -> String {
+    text.replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .trim()
+        .to_owned()
+}
+
+/// Whether `text` holds a control character other than a line break or a
+/// tab, or a control of the direction of text: what no text the site
+/// shows may hold.
+pub(crate) fn holds_control(text: &str) -> bool {
+    text.chars()
+        .any(|c| (c.is_control() && c != '\n' && c != '\t') || is_bidi_control(c))
+}
+
 impl MessageBody {
     /// The message `text` writes. Browsers send a form's line breaks as
     /// `\r\n`; every line break is kept as `\n`.
@@ -58,21 +75,17 @@ impl MessageBody {
     /// control character other than a line break or a tab, or a control
     /// of the direction of text.
     pub fn parse(text: &str) -> Result<Self, MessageBodyError> {
-        let text = text.replace("\r\n", "\n").replace('\r', "\n");
-        let text = text.trim();
+        let text = tidy(text);
         if text.is_empty() {
             return Err(MessageBodyError::Blank);
         }
         if text.chars().count() > MAX_MESSAGE_CHARS {
             return Err(MessageBodyError::TooLong);
         }
-        if text
-            .chars()
-            .any(|c| (c.is_control() && c != '\n' && c != '\t') || is_bidi_control(c))
-        {
+        if holds_control(&text) {
             return Err(MessageBodyError::ControlCharacter);
         }
-        Ok(Self(text.to_owned()))
+        Ok(Self(text))
     }
 
     /// The text.

@@ -16,6 +16,32 @@ use portal_store::{
 };
 use portal_web::{OriginError, SecretCount, SignalPathError, StartupError};
 
+/// Why the host's translator gave no answer to a question of `translate`.
+#[derive(Debug, thiserror::Error)]
+pub enum TranslatorError {
+    /// Nothing listens on its socket, or the socket may not be opened.
+    #[error("it cannot be reached: {0}")]
+    Unreachable(#[source] io::Error),
+    /// It did not take the question, or did not answer in time.
+    #[error("it gave no answer: {0}")]
+    Silent(#[source] io::Error),
+    /// Its answer is longer than any answer to the question.
+    #[error("its answer is too long")]
+    TooLong,
+    /// What follows the first line of its answer is not as many bytes as
+    /// that line says: the answer was cut short, or counted wrongly.
+    #[error("its answer is not as long as it says")]
+    Incomplete,
+    /// Its answer is not text.
+    #[error("its answer is not UTF-8 text")]
+    NotText,
+    /// Its answer begins with neither `ok` and a number of bytes nor
+    /// `none`, or names no language where one was asked for. What it said
+    /// is not repeated: it may hold a message's words.
+    #[error("it answered neither `ok` with what was asked for nor `none`")]
+    Unexpected,
+}
+
 /// Why a command failed.
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
@@ -192,6 +218,18 @@ pub enum CommandError {
         /// Why not.
         #[source]
         source: io::Error,
+    },
+    /// `translate` could not have some messages examined. They wait for
+    /// the next run.
+    #[error("the translator at {socket} left {failed} message(s) for the next run: {source}")]
+    Translator {
+        /// Its socket.
+        socket: PathBuf,
+        /// How many messages it was asked about in vain.
+        failed: u32,
+        /// Why the first of them had no answer.
+        #[source]
+        source: TranslatorError,
     },
     /// The clock is unusable.
     #[error(transparent)]

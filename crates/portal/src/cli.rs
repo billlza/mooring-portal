@@ -193,6 +193,15 @@ pub(crate) enum Command {
     /// hold. Every command that deletes or overwrites rows does it itself;
     /// run this when one of them says it could not.
     EraseDeleted,
+    /// Have the host's translator examine what users wrote to the
+    /// operator: find the language of each message that waits, and write
+    /// the message in the languages of the pages (`docs/translation.md`).
+    /// A service on the host runs this whenever a user writes.
+    Translate {
+        /// The translator's socket.
+        #[arg(long, value_name = "SOCKET")]
+        translator: PathBuf,
+    },
 }
 
 /// How the server runs.

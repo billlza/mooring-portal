@@ -81,7 +81,7 @@ async fn the_operator_answers_feedback_and_the_user_reads_it() {
     assert!(
         shown
             .body
-            .contains("<li class=\"message mine from-operator\">")
+            .contains("<li class=\"message mine from-operator\" data-id=\"2\">")
     );
     assert_eq!(
         conversation(&app, code).await,

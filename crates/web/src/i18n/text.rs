@@ -418,6 +418,8 @@ pub(crate) struct FeedbackText {
     /// What it says of a message it could not send, which stays in the
     /// form to be sent again.
     pub(crate) unsent: &'static str,
+    /// What stands over a message's translation, on the operator's page.
+    pub(crate) translated: &'static str,
 }
 
 /// The operator pages.

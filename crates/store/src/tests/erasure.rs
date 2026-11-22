@@ -18,7 +18,7 @@ use crate::{OpenMode, StoreError};
 
 /// Two bound accounts, each with everything the portal keeps of one: a
 /// session, a binding, a snapshot record, a CFM profile, a link, and a
-/// conversation with the operator.
+/// conversation with the operator, its question translated.
 fn two_accounts(store: &mut Store) -> (Account, Account) {
     let gone = register(store, "gone.away@qq.com", 1);
     let kept = register(store, "still.here@qq.com", 2);
@@ -31,6 +31,14 @@ fn two_accounts(store: &mut Store) -> (Account, Account) {
         store
             .send_feedback(&digest(byte), &message(&question), at(NOW))
             .unwrap();
+        let handed = store
+            .untranslated(&crate::Waiting::since(at(NOW)), 1)
+            .unwrap();
+        assert!(
+            store
+                .record_examined(&handed[0], &translated(byte), at(NOW))
+                .unwrap()
+        );
         reply(store, &account.code, &message(&answer), at(NOW)).unwrap();
     }
     store
@@ -60,10 +68,28 @@ fn message(text: &str) -> portal_core::feedback::MessageBody {
     portal_core::feedback::MessageBody::parse(text).unwrap()
 }
 
+/// What the translator wrote of that question, in Chinese.
+fn translation(byte: u8) -> String {
+    format!("translation {byte:02x}")
+}
+
+/// What the translator made of that question.
+fn translated(byte: u8) -> crate::Examined {
+    use portal_core::translation::{Language, PageLanguage, TranslatedText};
+    crate::Examined {
+        language: Some(Language::parse("ja").unwrap()),
+        translations: [(
+            PageLanguage::Chinese,
+            TranslatedText::parse(&translation(byte)).unwrap(),
+        )]
+        .into(),
+    }
+}
+
 /// What would show that `account` was here: its address and code, its
 /// Mooring user (which its profile names too), its session's and link's
-/// token digests, and its conversation.
-fn traces(account: &Account, user: &str, session: u8, link: u8) -> [Vec<u8>; 7] {
+/// token digests, its conversation, and the translation of what it wrote.
+fn traces(account: &Account, user: &str, session: u8, link: u8) -> [Vec<u8>; 8] {
     let [question, answer] = conversation(session);
     [
         account.email.as_str().as_bytes().to_vec(),
@@ -73,6 +99,7 @@ fn traces(account: &Account, user: &str, session: u8, link: u8) -> [Vec<u8>; 7] 
         vec![link; 32],
         question.into_bytes(),
         answer.into_bytes(),
+        translation(session).into_bytes(),
     ]
 }
 

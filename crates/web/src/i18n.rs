@@ -8,6 +8,7 @@ mod en;
 mod text;
 mod zh;
 
+use portal_core::translation::PageLanguage;
 use serde::Deserialize;
 
 pub(crate) use text::{Item, Strings};
@@ -48,6 +49,15 @@ impl Lang {
         }
     }
 
+    /// The language, as the translations of users' messages are kept by
+    /// it.
+    pub(crate) const fn page_language(self) -> PageLanguage {
+        match self {
+            Self::Zh => PageLanguage::Chinese,
+            Self::En => PageLanguage::English,
+        }
+    }
+
     /// The language the switch offers.
     pub(crate) const fn other(self) -> Self {
         match self {
@@ -83,6 +93,10 @@ mod tests {
         assert_eq!(Lang::En.other(), Lang::Zh);
         assert_eq!(Lang::En.code(), "en");
         assert_eq!(Lang::Zh.html_lang(), "zh-CN");
+        // A page reads the translations kept under its own language.
+        for lang in [Lang::Zh, Lang::En] {
+            assert_eq!(lang.page_language().code(), lang.code());
+        }
     }
 
     #[test]

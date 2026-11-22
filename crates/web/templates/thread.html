@@ -2,9 +2,15 @@
 <p class="muted" data-chat-empty{% if !messages.is_empty() %} hidden{% endif %}>{{ chrome.t.feedback.empty }}</p>
 <ol class="thread" data-chat-thread{% if messages.is_empty() %} hidden{% endif %}>
   {% for message in messages %}
-  <li class="message{% if message.mine %} mine{% endif %}{% if message.from_operator %} from-operator{% endif %}">
+  <li class="message{% if message.mine %} mine{% endif %}{% if message.from_operator %} from-operator{% endif %}" data-id="{{ message.id }}">
     <p class="message-meta"><span class="message-who">{{ message.who }}</span> <span class="muted small">{{ message.sent }}</span></p>
     <p class="message-body">{{ message.body }}</p>
+    {% if let Some(translation) = message.translation %}
+    <div class="message-translation">
+      <p class="message-translated muted small">{{ chrome.t.feedback.translated }}</p>
+      <p class="message-body">{{ translation }}</p>
+    </div>
+    {% endif %}
   </li>
   {% endfor %}
 </ol>

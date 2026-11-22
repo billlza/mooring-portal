@@ -159,7 +159,7 @@ pub(crate) async fn messages(
 ) -> Result<Response, AppError> {
     let t = request_lang(&headers).strings();
     match read(&state, &headers, FeedbackId::new(query.after), t).await? {
-        Some(messages) => chat::messages(&messages),
+        Some(messages) => chat::messages(&messages, None),
         None => Ok(chat::signed_out()),
     }
 }

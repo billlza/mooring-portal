@@ -207,6 +207,18 @@ body:has(> .dock) .footer {
   overflow-wrap: anywhere;
 }
 
+/* The message in the reader's language, as the host's translator wrote
+   it: under the message and apart from it, marked as a machine's. */
+.message-translation {
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed rgba(159, 214, 241, 0.24);
+}
+
+.message-translated {
+  margin: 0 0 4px;
+}
+
 /* A number or a word beside a link: what waits there. */
 .count {
   display: inline-block;

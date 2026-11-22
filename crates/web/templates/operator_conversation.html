@@ -5,7 +5,7 @@
 <div class="container">
   <p><a class="link" href="/operator/feedback">{{ chrome.t.operator.back }}</a></p>
   {% if let Some(notice) = notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
-  <div class="chat" data-chat="page" data-messages="/operator/feedback/{{ account }}/messages" data-after="{{ self.after() }}" data-expired="{{ chrome.t.feedback.expired }}" data-offline="{{ chrome.t.feedback.offline }}" data-unsent="{{ chrome.t.feedback.unsent }}">
+  <div class="chat" data-chat="page" data-messages="/operator/feedback/{{ account }}/messages" data-after="{{ self.after() }}" data-translated="{{ translated }}" data-translation="{{ chrome.t.feedback.translated }}" data-expired="{{ chrome.t.feedback.expired }}" data-offline="{{ chrome.t.feedback.offline }}" data-unsent="{{ chrome.t.feedback.unsent }}">
   <section class="panel">
     <h2>{{ title }}</h2>
     {% include "thread.html" %}

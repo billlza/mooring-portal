@@ -81,6 +81,8 @@ fn malformed_lines_are_usage_errors() {
             "--listen",
             "nowhere",
         ],
+        // The translator's socket is not guessed.
+        &["mooring-portal", "--db", "x.db", "translate"],
     ] {
         let outcome = run_line(line, &clock());
         assert_eq!(outcome.code, ExitCode::from(2), "{line:?}");

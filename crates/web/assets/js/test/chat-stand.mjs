@@ -94,6 +94,15 @@ class Node {
     return event;
   }
 
+  /** Under each message shown, its translation as `mark|text`, or `null`. */
+  get translations() {
+    return this.children.map((line) => {
+      const blocks = line.children.filter((part) => part.className === "message-translation");
+      assert.ok(blocks.length <= 1, "at most one translation under a message");
+      return blocks.length === 1 ? blocks[0].children.map((part) => part.textContent).join("|") : null;
+    });
+  }
+
   /** The texts of the messages shown, as `who|sent|body|classes`. */
   get messages() {
     return this.children.map((line) => {
@@ -110,6 +119,9 @@ export const WORDS = {
   "data-offline": "暂时连不上网站，稍后会自动重试。",
   "data-unsent": "没有发出去：暂时连不上网站。文字还在框里，稍后再按一次发送。",
 };
+
+/** What marks a translation on the page. */
+export const MARK = "机器翻译，可能有误";
 
 /** The token the page's form carries. */
 export const TOKEN = "a".repeat(64);
@@ -188,6 +200,44 @@ export function page({ after = "0", messages = "/feedback/messages", rows = [], 
     ...more,
   });
   return { root, ...parts(root, { empty: rows.length > 0, thread: rows.length === 0, rows }) };
+}
+
+/** Where the script of the operator's page of a conversation asks. */
+export const OPERATORS = "/operator/feedback/abcd/messages";
+
+/**
+ * The operator's page of one conversation, which shows the translations
+ * up to number `translated` (`operator_conversation.html`).
+ */
+export function operatorPage({ translated = "0", ...more } = {}) {
+  return page({ messages: OPERATORS, "data-translated": translated, "data-translation": MARK, ...more });
+}
+
+/**
+ * Message number `id` as `thread.html` writes it into the page, with
+ * `translation` under it where the page shows one.
+ */
+export function row(id, { translation = null } = {}) {
+  const line = new Node("li", { class: "message", "data-id": String(id) });
+  const meta = new Node("p", { class: "message-meta" });
+  const who = new Node("span", { class: "message-who" });
+  who.textContent = "abcd";
+  const sent = new Node("span", { class: "muted small" });
+  sent.textContent = "2026-11-05 20:00";
+  meta.append(who, " ", sent);
+  const body = new Node("p", { class: "message-body" });
+  body.textContent = `第 ${id} 条`;
+  line.append(meta, body);
+  if (translation !== null) {
+    const block = new Node("div", { class: "message-translation" });
+    const mark = new Node("p", { class: "message-translated muted small" });
+    mark.textContent = MARK;
+    const words = new Node("p", { class: "message-body" });
+    words.textContent = translation;
+    block.append(mark, words);
+    line.append(block);
+  }
+  return line;
 }
 
 /** A site that answers as the test says, and a clock the test turns. */

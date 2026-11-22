@@ -234,6 +234,27 @@ pub(crate) const MIGRATIONS: &[&str] = &[
          CHECK (from_operator = 1 OR seen_at IS NULL)
      ) STRICT;
      CREATE INDEX feedback_by_account ON feedback (account_id, id);",
+    // 9: translations of what users write to the operator
+    // (docs/translation.md). The translator on the host examines each
+    // message of a user's once: `feedback_examined` says that it has, and
+    // names the language it found, or none where it could not tell. A
+    // translation is the message in a language of the pages. Its number
+    // is never used twice, so that a page asking for the translations
+    // after a number misses none (`AUTOINCREMENT`). Both go with the
+    // message.
+    "CREATE TABLE feedback_examined (
+         feedback_id INTEGER PRIMARY KEY REFERENCES feedback (id) ON DELETE CASCADE,
+         language TEXT,
+         examined_at INTEGER NOT NULL
+     ) STRICT;
+     CREATE TABLE feedback_translations (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         feedback_id INTEGER NOT NULL REFERENCES feedback (id) ON DELETE CASCADE,
+         language TEXT NOT NULL CHECK (language IN ('zh', 'en')),
+         body TEXT NOT NULL,
+         made_at INTEGER NOT NULL,
+         UNIQUE (feedback_id, language)
+     ) STRICT;",
 ];
 
 /// Applies the migrations the database lacks.

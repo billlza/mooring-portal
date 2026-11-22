@@ -8,6 +8,7 @@ mod cfm_races;
 mod chat;
 mod chat_operator;
 mod chat_pages;
+mod chat_translated;
 mod csrf;
 mod failures;
 mod feedback;

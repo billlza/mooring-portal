@@ -26,7 +26,7 @@ mod review;
 mod shop;
 
 pub(crate) use cfm::CfmPanel;
-pub(crate) use feedback::{MessageView, Reader};
+pub(crate) use feedback::{MessageView, Reader, TranslationView};
 pub(crate) use release::ReleaseView;
 pub(crate) use rental::{BookingView, MachineView, PeriodView};
 pub(crate) use review::{WaitingView, approve_refusal, shown_from_key, why_it_waits};

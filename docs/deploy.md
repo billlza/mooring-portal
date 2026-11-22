@@ -173,6 +173,11 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 部署后在主机上用 `grant-operator --account <编号>` 把运营者自己的账号设为运营者，网页上才有"运营"。
 - 要撤销第 8 版，先停掉门户，用门户的账号在数据库上执行 `DROP TABLE feedback; DROP TABLE operators; ALTER TABLE sessions DROP COLUMN confirmed_at; PRAGMA user_version = 7;`。反馈和运营者名单随之删除，会话保留。执行后的结构和第 7 版完全相同（`crates/store/src/tests/operators.rs` 里有测试）。删表之后，反馈的原文还可能留在数据库文件的空闲页或预写日志里（没开 `secure_delete` 时留在空闲页；主机上的 SQLite 默认开着，但改动先写进预写日志，旧的内容要等日志并回数据库才被盖掉）：换回旧的程序后、启动门户之前，用它运行一次 `erase-deleted`，它重整数据库文件、清空预写日志，把这些内容从文件里抹掉。
 
+数据库第 9 版（留言的译文，`docs/translation.md`；分支 `feature/host-translation`，接在第 8 版之后，还没有部署）：
+- 迁移只新建两张表（`feedback_examined`、`feedback_translations`），不改已有的行，线上的数据不会让它失败。
+- 部署这一版本身不会让页面上出现译文：主机上还没有翻译服务，也没有运行 `translate` 的单元（`docs/translation.md` 第 4 节）。
+- 要撤销第 9 版，先停掉门户和运行 `translate` 的单元，用门户的账号在数据库上执行 `DROP TABLE feedback_translations; DROP TABLE feedback_examined; PRAGMA user_version = 8;`。译文和"问过了"的记录随之删除，留言保留。执行后的结构和第 8 版完全相同（`crates/store/src/tests/translations_schema.rs` 里有测试）；要接着撤到第 7 版，先做这一步，再做上面第 8 版那一步（也有测试）。删表之后，译文还可能留在数据库文件的空闲页或预写日志里：和第 8 版一样，换回旧的程序后、启动门户之前，用它运行一次 `erase-deleted`。
+
 ## 3. DNS
 
 - Porkbun 注册时自动加了两条记录，把 `moorlight.app` 和它的所有子域名都指向 Porkbun 的停放页（一条 `ALIAS`、一条 `*` 的 `CNAME`，目标都是 `pixie.porkbun.com`）。先删掉这两条，否则 `www` 这类子域名会指向 Porkbun。

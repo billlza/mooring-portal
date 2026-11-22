@@ -30,6 +30,8 @@ mod sharing;
 mod signals;
 mod strays;
 mod subscriptions;
+mod translations;
+mod translations_schema;
 
 use portal_core::account::{AccountCode, Email};
 use portal_core::auth::{BanDigest, DigestedEmail, StoredPasswordHash, TokenDigest};
@@ -57,6 +59,19 @@ fn new_file(dir: &tempfile::TempDir) -> std::path::PathBuf {
         .open(&path)
         .unwrap();
     path
+}
+
+/// Every table, index and trigger of the database at `path`, as SQLite
+/// keeps their definitions.
+fn schema(path: &std::path::Path) -> Vec<(String, String, Option<String>)> {
+    rusqlite::Connection::open(path)
+        .unwrap()
+        .prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name")
+        .unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
 }
 
 fn at(secs: u64) -> UnixTime {

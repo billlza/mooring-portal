@@ -8,9 +8,9 @@
 //! (digests of banned accounts' email addresses and of their cards'
 //! fingerprints), the CFM release the download page offers, the Mac
 //! rental bookings that wait for the operator, which accounts are
-//! operators, and each account's conversation with the operator. The
-//! server and the
-//! operator's commands open the same file: SQLite's write lock serialises
+//! operators, and each account's conversation with the operator, with
+//! what the host's translator made of the user's messages. The server
+//! and the operator's commands open the same file: SQLite's write lock serialises
 //! them (WAL journal, five-second busy timeout), and every operation that
 //! reads before it writes runs in an immediate transaction, so its checks
 //! still hold when it writes.
@@ -48,6 +48,7 @@ mod settle;
 mod signals;
 mod stripe_events;
 mod subscriptions;
+mod translations;
 
 use std::path::Path;
 use std::time::Duration;
@@ -83,6 +84,9 @@ pub use sessions::{MAX_SESSIONS_PER_ACCOUNT, NewSession, PasswordChange};
 pub use signals::Signals;
 pub use stripe_events::{Recorded, StrayReason};
 pub use subscriptions::{ImportError, ImportReport, MAX_CLOCK_SKEW_SECS, Subscription};
+pub use translations::{
+    Examined, TranslatedConversation, Translation, TranslationId, Untranslated, Waiting,
+};
 
 /// How long a writer waits for another's lock before failing.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);

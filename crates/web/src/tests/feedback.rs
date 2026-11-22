@@ -89,7 +89,7 @@ async fn a_message_reaches_the_operator_and_the_reply_comes_back() {
     let page = user.get(&app, sent.location()).await;
     assert!(page.body.contains("已发送。运营者回复后会显示在这里。"));
     assert!(page.body.contains(
-        "<li class=\"message mine\">\n    <p class=\"message-meta\"><span \
+        "<li class=\"message mine\" data-id=\"1\">\n    <p class=\"message-meta\"><span \
          class=\"message-who\">你</span> <span class=\"muted small\">2026-11-05 20:00</span></p>\n    \
          <p class=\"message-body\">订阅链接打不开\n换了节点也不行</p>"
     ));
@@ -109,7 +109,7 @@ async fn a_message_reaches_the_operator_and_the_reply_comes_back() {
     }
     let read = user.get(&app, "/feedback").await;
     assert!(read.body.contains(
-        "<li class=\"message from-operator\">\n    <p class=\"message-meta\"><span \
+        "<li class=\"message from-operator\" data-id=\"2\">\n    <p class=\"message-meta\"><span \
          class=\"message-who\">运营者</span>"
     ));
     assert!(read.body.contains("请在订阅页重新生成链接"));

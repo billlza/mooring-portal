@@ -278,7 +278,7 @@ fn add_message(
 
 /// The messages after `after` of the conversation of `account`, oldest
 /// first, read on `conn`.
-fn messages_of(
+pub(crate) fn messages_of(
     conn: &Connection,
     account: AccountId,
     after: FeedbackId,
@@ -311,7 +311,7 @@ fn messages_of(
 }
 
 /// A message's number read back: a row's id, which SQLite makes positive.
-fn id_from_sql(id: i64) -> Result<FeedbackId, StoreError> {
+pub(crate) fn id_from_sql(id: i64) -> Result<FeedbackId, StoreError> {
     u64::try_from(id)
         .ok()
         .filter(|&id| id > 0)

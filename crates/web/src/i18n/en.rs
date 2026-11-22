@@ -413,6 +413,7 @@ pub(super) const STRINGS: Strings = Strings {
         expired: "This page has expired; reload it to carry on.",
         offline: "Cannot reach the site right now; trying again shortly.",
         unsent: "Not sent: the site cannot be reached. Your message is still in the box; send it again shortly.",
+        translated: "Machine translation; it may be wrong",
     },
     operator: OperatorText {
         title: "Operator",
