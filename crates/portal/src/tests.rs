@@ -16,6 +16,7 @@ mod release;
 mod rentals;
 mod translate;
 mod translate_failures;
+mod translator_units;
 mod usage;
 
 use std::path::{Path, PathBuf};
@@ -25,6 +26,32 @@ use portal_core::account::{AccountCode, Email};
 use portal_core::auth::{DigestedEmail, StoredPasswordHash, TokenDigest};
 use portal_core::time::{ManualClock, UnixTime};
 use portal_store::{Account, NewAccount, NewSession, OpenMode, Store};
+
+/// The block fenced as `fence` that comes first after `title` in `notes`.
+fn block_after(notes: &str, title: &str, fence: &str) -> String {
+    let start = notes
+        .find(title)
+        .unwrap_or_else(|| panic!("the notes have {title}"));
+    let mut lines = notes[start..].lines().skip_while(|line| *line != fence);
+    lines.next();
+    let mut block: Vec<&str> = lines.take_while(|line| !line.starts_with("```")).collect();
+    block.push("");
+    block.join("\n")
+}
+
+/// The value of the first `key` line in the `[section]` of the unit file
+/// `block`: a setting in the wrong section means something else to
+/// systemd, or nothing.
+fn setting<'a>(block: &'a str, section: &str, key: &str) -> &'a str {
+    let header = format!("[{section}]");
+    block
+        .lines()
+        .skip_while(|line| *line != header)
+        .skip(1)
+        .take_while(|line| !line.starts_with('['))
+        .find_map(|line| line.strip_prefix(key))
+        .unwrap_or_else(|| panic!("no {key} in {header} of {block}"))
+}
 
 /// 2026-11-05T12:00:00Z.
 const NOW: u64 = 1_793_880_000;

@@ -18,7 +18,7 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里引船进
 
 ## 当前状态
 
-2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。2026-11-10：重做全站样式，首页主图加上会动的场景；下载页改为跟随 CFM 的最新发布；同日按运营者给的设计图重排首页和配色，主图换成灯塔夜景，场景改为完全由着色器画出，不再加载任何图片（分支 `feature/ui-refresh`，接在前一个分支之后）。2026-11-11：接入付款（分支 `feature/payments`，接在 `feature/ui-refresh` 之后）：下单、接收 Stripe 的通知、给 Mooring 的清单、运营者核对用的命令；只用合成的事件在本机走通过。只在本地运行过，没有部署。2026-11-14：加入 Mac 租赁的选配置页面和预订（分支 `feature/mac-rental`），同日部署到 moorlight.app。同日起可以只给一个账号导入 CFM 配置（分支 `feature/one-account-profile`），并加入反馈和运营页面（分支 `feature/feedback-and-operator-pages`，接在 `feature/one-account-profile` 之后），两者同日部署到 moorlight.app。同日下载页改为也接受 CFM 的重新构建，运营页面的概况显示下载页上次核对的时间（分支 `fix/release-build-tags`，接在 `feature/feedback-and-operator-pages` 之后），也部署到 moorlight.app。2026-11-15：右下角的反馈框改成实时聊天框，运营者的对话页也跟着实时显示，新消息可以经主机上的服务提醒到运营者的 Telegram（分支 `feature/live-chat`，接在 `fix/release-build-tags` 之后），同日部署到 moorlight.app；Telegram 提醒等运营者建好机器人、放好令牌后启用。2026-11-19：首页主图的远岸改为三层山，越远越淡，山脚落在雾里（分支 `feature/hero-hills`，接在 `feature/live-chat` 之后），同日部署到 moorlight.app。2026-11-21：新消息的提醒也可以发到运营者的飞书群，提醒的做法从部署文档里搬成了 `docs/notices.md`（分支 `feature/feishu-notice`，接在 `feature/hero-hills` 之后）；主机上还没有装。2026-11-22：门户可以存下用户留言的译文，并显示在运营者的对话页上（分支 `feature/host-translation`，接在 `feature/feishu-notice` 之后）；译文要由主机上的翻译服务生成，那一半还没有选定和安装，所以没有部署。许可证尚未选定。
+2026-11-06：v1 完成；同日加入订阅链接与配置下载（分支 `feature/cfm-subscription-links`）。2026-11-10：重做全站样式，首页主图加上会动的场景；下载页改为跟随 CFM 的最新发布；同日按运营者给的设计图重排首页和配色，主图换成灯塔夜景，场景改为完全由着色器画出，不再加载任何图片（分支 `feature/ui-refresh`，接在前一个分支之后）。2026-11-11：接入付款（分支 `feature/payments`，接在 `feature/ui-refresh` 之后）：下单、接收 Stripe 的通知、给 Mooring 的清单、运营者核对用的命令；只用合成的事件在本机走通过。只在本地运行过，没有部署。2026-11-14：加入 Mac 租赁的选配置页面和预订（分支 `feature/mac-rental`），同日部署到 moorlight.app。同日起可以只给一个账号导入 CFM 配置（分支 `feature/one-account-profile`），并加入反馈和运营页面（分支 `feature/feedback-and-operator-pages`，接在 `feature/one-account-profile` 之后），两者同日部署到 moorlight.app。同日下载页改为也接受 CFM 的重新构建，运营页面的概况显示下载页上次核对的时间（分支 `fix/release-build-tags`，接在 `feature/feedback-and-operator-pages` 之后），也部署到 moorlight.app。2026-11-15：右下角的反馈框改成实时聊天框，运营者的对话页也跟着实时显示，新消息可以经主机上的服务提醒到运营者的 Telegram（分支 `feature/live-chat`，接在 `fix/release-build-tags` 之后），同日部署到 moorlight.app；Telegram 提醒等运营者建好机器人、放好令牌后启用。2026-11-19：首页主图的远岸改为三层山，越远越淡，山脚落在雾里（分支 `feature/hero-hills`，接在 `feature/live-chat` 之后），同日部署到 moorlight.app。2026-11-21：新消息的提醒也可以发到运营者的飞书群，提醒的做法从部署文档里搬成了 `docs/notices.md`（分支 `feature/feishu-notice`，接在 `feature/hero-hills` 之后）；主机上还没有装。2026-11-22：门户可以存下用户留言的译文，并显示在运营者的对话页上（分支 `feature/host-translation`，接在 `feature/feishu-notice` 之后）；同日写好生成译文的翻译服务，用 Firefox 的翻译引擎和模型，在运营者的 Mac 上试过，还没有装到主机上，所以没有部署。许可证尚未选定。
 
 ## 仓库结构
 
@@ -29,6 +29,7 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里引船进
 | `crates/web` | HTTP 层（axum）：页面与模板（askama，编译期检查）、会话、CSRF、限流、安全响应头、中英文文案、品牌、样式与程序生成的主图；下单与订单页，以及给机器用的两个地址（Stripe 的通知、Mooring 的拉取）；Mac 租赁页与预订 |
 | `crates/web/assets/js` | 首页场景的脚本和聊天脚本 `chat.mjs`（ES 模块，不经打包，编进二进制）；它们的测试在 `test/` 子目录里，不随站点提供 |
 | `crates/portal` | 二进制 `mooring-portal`：`serve`、运营者命令，以及主机上的单元运行的 `translate` |
+| `crates/portal/translator` | 主机上的翻译服务 `translator.mjs`（Node 脚本，不编进二进制，装在主机上，由 systemd 按连接启动）和它要的文件清单 `files.txt`；它的测试在 `test/` 子目录里 |
 | `contract/fixtures/v1/` | 快照契约的合成样例与金样 |
 | `contract/fixtures/cfm-profiles-v2/` | 配置包契约的合成样例与金样（凭据都是假的，地址都在文档保留网段） |
 | `contract/fixtures/cfm-release/` | GitHub 对 CFM 0.5.1 和它的重新构建 0.5.1-build.51006 这两次发布的描述（删去了发布说明和上传者资料），以及每条校验规则各一份被拒绝的样例 |
@@ -44,7 +45,7 @@ Mooring 的用户门户，对外品牌为 **泊光 Moorlight**：夜里引船进
 | `docs/releases.md` | 下载页怎样跟随 CFM 的发布：决定、门户读什么信什么、这改变了什么、部署时的定时器 |
 | `docs/rentals.md` | Mac 租赁：运营者的决定、配置与价格、预订的做法、页面、运营者的步骤与还没定的 |
 | `docs/notices.md` | 新消息提醒：Telegram 和飞书各自知道什么、令牌和地址放在哪、脚本和 systemd 单元 |
-| `docs/translation.md` | 留言翻译：谁看得到译文、留言去了哪里、`translate` 和主机上翻译服务之间的问答格式、失败时怎样、还没做的 |
+| `docs/translation.md` | 留言翻译：谁看得到译文、留言去了哪里、`translate` 和主机上翻译服务之间的问答格式、失败时怎样、翻译服务和它用的引擎与模型、在 Mac 上量的时间和内存、装到主机上的步骤和单元、还没做的 |
 
 依赖方向只有一条：`core ← store ← web ← portal`。
 
@@ -78,10 +79,10 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-it
 
 覆盖率要求 95% 以上（区域、函数、行三项）。编译输出只写仓库内的 `target/`，用完执行 `cargo clean`。
 
-脚本另有两条检查，要用 Node 22.8 或更新的版本（只在开发时用，构建和运行门户都不需要它）。第一条跑首页场景和聊天脚本的测试，并要求行覆盖率 95% 以上；测试用假的页面、假的显卡驱动和假的网站，不需要浏览器。第二条检查首页场景的入口文件能被解析，它只有一行调用，测试不导入它（聊天脚本由测试导入，不需要这一条）：
+脚本另有两条检查，要用 Node 22.8 或更新的版本（只在开发时用，构建和运行门户都不需要它；主机上的翻译服务用 Debian 的 Node 20，见 `docs/translation.md`）。第一条跑首页场景、聊天脚本和翻译服务的测试，并要求行覆盖率 95% 以上；测试用假的页面、假的显卡驱动、假的网站，以及假的 fastText 和翻译引擎，不需要浏览器，也不需要下载模型。第二条检查首页场景的入口文件能被解析，它只有一行调用，测试不导入它（聊天脚本由测试导入，不需要这一条）：
 
 ```bash
-node --test --experimental-test-coverage --test-coverage-lines=95 "crates/web/assets/js/test/*.test.mjs"
+node --test --experimental-test-coverage --test-coverage-lines=95 "crates/web/assets/js/test/*.test.mjs" "crates/portal/translator/test/*.test.mjs"
 ```
 
 ```bash
@@ -207,4 +208,4 @@ cargo run -p mooring-portal -- --db target/demo/portal.db import-profile --accou
 11. **界面与首页的动画**：运营者 2026-11-10 要求把界面做得更好看，并说可以用 three.js；同日给了一张首页的设计图，要求界面照它做：星星要会眨，水要会动、有波光，灯塔里的光要会转，并且不要用贴图。首页已按设计图重排（顶栏、标题、两个按钮、两条事实、三步、页脚），全站配色随之统一；首页原有的服务介绍和四条承诺移到了订阅说明页。主图是一幅灯塔夜景，由着色器逐像素算出（WebGL 2），不加载任何图片；不开脚本时显示的是同一幅画的静态版本（SVG，由代码画出）。这一段脚本只有首页运行（另一段是 2026-11-15 加的聊天脚本），安全上的说明和代价见 `docs/security.md` 第 6 节。没有引入 three.js，理由也在那里。设计图里的文案照用了：导航和按钮里的“套餐”指向订阅说明页，那一页在门户没有配套餐文件时写的是“付款还没有开通”，配了之后列出套餐和价格（第 6 项）。场景只在 Chromium 里实际运行过。运营者 2026-11-19 说主图里的群山有点儿假：远岸改为三层山，越远越淡，山脊有大小起伏和树林的毛边，山脚落在雾里；山坡的明暗只在动画里有，静态图里没有（`docs/security.md` 第 6 节）。
 12. **下载页跟随 CFM 的发布**：运营者 2026-11-10 要求 CFM 发布后下载页自己跟上，不能有人工步骤。已实现为"门户主机定时去取、门户校验后导入"，见 `docs/releases.md`。它的代价是没有人再为每个版本把关：GitHub 上标成最新的正式发布，几分钟内就出现在下载页上（`docs/releases.md` 第 3 节）。定时器要到部署时才装。发布后几秒内就更新的做法（由 CFM 的发布流程来推）没有做，那需要在 CFM 仓库的 CI 里放一把门户主机的密钥。
 13. **Mac 租赁**：运营者 2026-11-14 要求在网站上加一个像租云电脑那样的选配置页面，并加入 M6；已实现为 `/mac` 页面和预订，价格按运营者当天定的（`docs/rentals.md`）。还要运营者定：付款方式和联系渠道（页面现在写的是通过注册邮箱联系）、远程使用的方式；预订要注册账号，和 Mooring 用户共用 `--max-accounts` 的名额。
-14. **聊天接到通讯应用，并翻译**：运营者 2026-11-21 要求留言能接到微信、飞书、Telegram 和 WhatsApp，并且不管对方用哪种语言，运营者看到的都是自己界面的语言。当天查过四个应用各自能做到什么之后，运营者定了四件事：两个方向都要（先是运营者在应用里收和回，再是用户从应用里来找）；留言的内容只可以转到 Telegram，飞书和微信里只有不含内容的提醒；译文由门户主机上跑的翻译模型生成，不用浏览器自带的翻译，也不用云服务；先接 Telegram 和飞书。分四步做，每步单独上线：(1) 飞书的提醒，已写好（`docs/notices.md`），主机上还没有装；(2) 选翻译引擎并量它在 2 GB 主机上的内存，存下译文，显示在运营者的对话页：门户这一半 2026-11-22 写好（`docs/translation.md`），引擎还没有试、主机上的单元还没有写；(3) Telegram 转发：带原文和译文，运营者在 Telegram 里回复；(4) 用户从 Telegram 写来，先在网站上把 Telegram 和门户账号连起来。后两步都还没做。第 (3) 步上线之前，要先把“留言会转到 Telegram”写进《使用约定》和页面上的说明：内容到了 Telegram 就留在它的服务器上，删除账号时删不掉；在 Telegram 里回复，也没有运营页面那道“30 分钟内输过密码”。微信和 WhatsApp 这次不做：个人微信的官方机器人接口要大陆注册的账号，运营者每发一条消息后的 24 小时内只能收到约 10 条，条款也只许接用户自己的 AI 服务；WhatsApp 要 Meta 商业账号和第二个手机号，用户写来时门户会拿到他们的手机号，而运营者说过不收集手机号。飞书做不了用户那一侧：租户外的人给机器人发消息，要大陆主体认证或大陆实名。这些平台的规则和价格都是 2026-11-21 查的，用之前要再核对。
+14. **聊天接到通讯应用，并翻译**：运营者 2026-11-21 要求留言能接到微信、飞书、Telegram 和 WhatsApp，并且不管对方用哪种语言，运营者看到的都是自己界面的语言。当天查过四个应用各自能做到什么之后，运营者定了四件事：两个方向都要（先是运营者在应用里收和回，再是用户从应用里来找）；留言的内容只可以转到 Telegram，飞书和微信里只有不含内容的提醒；译文由门户主机上跑的翻译模型生成，不用浏览器自带的翻译，也不用云服务；先接 Telegram 和飞书。分四步做，每步单独上线：(1) 飞书的提醒，已写好（`docs/notices.md`），主机上还没有装；(2) 选翻译引擎并量它在 2 GB 主机上的内存，存下译文，显示在运营者的对话页：2026-11-22 写好（`docs/translation.md`），门户这一半之外，还有主机上的翻译服务（Firefox 的翻译引擎和五个方向的模型，fastText 认语言）和它的单元；翻译服务在运营者的 Mac 上试过，还没有装到主机上；(3) Telegram 转发：带原文和译文，运营者在 Telegram 里回复；(4) 用户从 Telegram 写来，先在网站上把 Telegram 和门户账号连起来。后两步都还没做。第 (3) 步上线之前，要先把“留言会转到 Telegram”写进《使用约定》和页面上的说明：内容到了 Telegram 就留在它的服务器上，删除账号时删不掉；在 Telegram 里回复，也没有运营页面那道“30 分钟内输过密码”。微信和 WhatsApp 这次不做：个人微信的官方机器人接口要大陆注册的账号，运营者每发一条消息后的 24 小时内只能收到约 10 条，条款也只许接用户自己的 AI 服务；WhatsApp 要 Meta 商业账号和第二个手机号，用户写来时门户会拿到他们的手机号，而运营者说过不收集手机号。飞书做不了用户那一侧：租户外的人给机器人发消息，要大陆主体认证或大陆实名。这些平台的规则和价格都是 2026-11-21 查的，用之前要再核对。

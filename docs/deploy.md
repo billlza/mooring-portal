@@ -175,7 +175,7 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 
 数据库第 9 版（留言的译文，`docs/translation.md`；分支 `feature/host-translation`，接在第 8 版之后，还没有部署）：
 - 迁移只新建两张表（`feedback_examined`、`feedback_translations`），不改已有的行，线上的数据不会让它失败。
-- 部署这一版本身不会让页面上出现译文：主机上还没有翻译服务，也没有运行 `translate` 的单元（`docs/translation.md` 第 4 节）。
+- 部署这一版本身不会让页面上出现译文：要等翻译服务和运行 `translate` 的单元装好（`docs/translation.md` 第 5 节）。那是另一步，可以晚于这一版，也要先问运营者。
 - 要撤销第 9 版，先停掉门户和运行 `translate` 的单元，用门户的账号在数据库上执行 `DROP TABLE feedback_translations; DROP TABLE feedback_examined; PRAGMA user_version = 8;`。译文和"问过了"的记录随之删除，留言保留。执行后的结构和第 8 版完全相同（`crates/store/src/tests/translations_schema.rs` 里有测试）；要接着撤到第 7 版，先做这一步，再做上面第 8 版那一步（也有测试）。删表之后，译文还可能留在数据库文件的空闲页或预写日志里：和第 8 版一样，换回旧的程序后、启动门户之前，用它运行一次 `erase-deleted`。
 
 ## 3. DNS

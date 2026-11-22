@@ -1,0 +1,27 @@
+# The files the host's translator reads, as tried on 2026-11-22: Mozilla's
+# translation engine for Firefox (bergamot-translator 0.6.0, the wasm record
+# 3.0, MPL-2.0), Firefox's models for five directions (MPL-2.0), and
+# fastText's language identification model (CC BY-SA 3.0). Each line is
+# the file's SHA-256, its place under /usr/local/lib/mooring-portal/translator/,
+# its size in bytes and where it is fetched from. docs/translation.md says
+# how they are installed; tests check this list against the translator.
+1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5  engine/LICENSE  16725  https://raw.githubusercontent.com/mozilla-firefox/firefox/4833c2b177a8a69433176236228c87168f776945/toolkit/components/translations/bergamot-translator/LICENSE
+faff1ef6285b0d26f01787776fd49299dfb756ecb9688aa990c250e66797b47d  engine/bergamot-translator.js  100187  https://raw.githubusercontent.com/mozilla-firefox/firefox/48d55cf7ec80093903e2ef7f58b61a84a22ef716/toolkit/components/translations/bergamot-translator/bergamot-translator.js
+a3a89d9ad0a4ed8f27bf3e403701b23f5709816f6376438503f2fa5b0182c2dc  engine/bergamot-translator.wasm  4960506  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-wasm/05082c31-aee8-4249-9e01-c1865afd7520.wasm
+8f3472cfe8738a7b6099e8e999c3cbfae0dcd15696aac7d7738a8039db603e83  lid.176.ftz  938013  https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.ftz
+cdcad3592dc2bc4676c34c4d37203f7649ee989195cf083cbb60f1ea011f976b  models/zh-en/lex.50.50.zhen.s2t.bin  9220016  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/645c720c-6920-470d-9bb7-3f9a6b0a9cae.bin
+3535442962ec8f4a553cc19b206befcac689ee9cddaea44fa91e21527fc30ac2  models/zh-en/model.zhen.intgemm.alphas.bin  59504955  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/052699bf-6f88-4c74-bb14-e49a943b4f59.bin
+dff594318ab7d8b7b60b844ab98ebe6b932ae8045fab15235404c787715965b3  models/zh-en/vocab.zhen.spm  1359697  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/88a4925d-ff4a-4c76-8813-95e2ac600b14.spm
+4a5e5827788060f1d718a8132b69440929387514a045796e9b77f935db68c055  models/en-zh/lex.50.50.enzh.s2t.bin  6506248  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/da8fccc0-31df-4665-9703-96d36606e019.bin
+4e5accc141373565ddc8fa1565bceaa8d0c3482a82cab8131c719ebcc6c2157c  models/en-zh/model.enzh.intgemm.alphas.bin  43849787  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/a7ff7d5e-e67e-406c-a34b-a7edea35b10e.bin
+bd9b65504acc6d9726dd281f7defc2adb7c2c22d0688fe2f84697de25197c8c5  models/en-zh/srcvocab.enzh.spm  806952  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/ea98c52c-58dc-45d5-af23-38f2b029d020.spm
+aded6993c36e440284d11cec3f6b8aef9c0e43188a772d80be342a713adf223d  models/en-zh/trgvocab.enzh.spm  772004  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/bddbda68-d4d2-4317-a0a1-119caa47525e.spm
+8f858a72fcbaa476c582577b04d6f5f89d645d2335b0b4a794c2706d4b1f75ff  models/ja-en/lex.50.50.jaen.s2t.bin  9346816  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/3531750e-147d-444f-b75f-dd077904aaa8.bin
+a9bf800679bba570520e1161d7b4fbfcb957add32ca35812134add85689752ad  models/ja-en/model.jaen.intgemm.alphas.bin  59504955  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/48d2ba29-c156-44b6-be26-d7ae1192a01b.bin
+5cb217758bae05877bb3f0c2f612e4e7c1e4cb03c10db11f4a47098d7ae62919  models/ja-en/vocab.jaen.spm  1443222  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/ca178452-791a-489e-ba83-b90b9bfe6665.spm
+c944e753f298bbdf6506388de7257fb48cbd12c83e2807e2c284fc323771895b  models/ru-en/lex.50.50.ruen.s2t.bin  4397908  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/20260901210100--fd808a7b-0081-427d-83a5-7043bdd97a87--215ca362-0436-495d-b89d-542187b696cb.bin
+aa0efa194b3dbd2da129ba0b8db8ef139126cb0914e57072f62061294746f1e2  models/ru-en/model.ruen.intgemm.alphas.bin  31561787  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/20260901210056--9781ee2a-d15e-4fe8-893d-687193373fff--37b65106-c6cd-4ed2-a28e-3acd72725429.bin
+de8af5f87e231ee4016cec4bb482e6b584cb1ca34dcb624fc7b8398f25bb35df  models/ru-en/vocab.ruen.spm  952371  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/20260901210058--222363ca-4a98-48a9-9162-65acdffc2572--ba370dc8-709d-42cd-b68c-83b912bd3e38.spm
+e2610211d3b9577d012638fe7e7e74ed7b4b708ce96b9e792e67c282a6492daa  models/es-en/lex.50.50.esen.s2t.bin  4636248  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/a55a9cf2-8a8c-4942-a528-91e93d081746.bin
+4aed7734152ae0045d1a69ae49c86cfda18f53c61f90e95e1d1de1c7c7c3b033  models/es-en/model.esen.intgemm.alphas.bin  31561787  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/d7256ea9-7731-4f15-866c-62998eef93b9.bin
+5ae254fa9b15aa182e70fd2a6186b1333c63a29a48043a9224c6aa4fcac058ad  models/es-en/vocab.esen.spm  816054  https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models/8695cc3d-7897-4c29-808b-bc983a93d1cd.spm

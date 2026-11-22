@@ -6,37 +6,12 @@
 
 use clap::Parser;
 
+use super::{block_after, setting};
 use crate::cli::{Cli, Command};
 
 /// How the portal itself is run; the notices watch its file.
 const DEPLOYMENT: &str = include_str!("../../../../docs/deploy.md");
 const NOTES: &str = include_str!("../../../../docs/notices.md");
-
-/// The block fenced as `fence` that comes first after `title` in `notes`.
-fn block_after(notes: &str, title: &str, fence: &str) -> String {
-    let start = notes
-        .find(title)
-        .unwrap_or_else(|| panic!("the notes have {title}"));
-    let mut lines = notes[start..].lines().skip_while(|line| *line != fence);
-    lines.next();
-    let mut block: Vec<&str> = lines.take_while(|line| !line.starts_with("```")).collect();
-    block.push("");
-    block.join("\n")
-}
-
-/// The value of the first `key` line in the `[section]` of the unit file
-/// `block`: a setting in the wrong section means something else to
-/// systemd, or nothing.
-fn setting<'a>(block: &'a str, section: &str, key: &str) -> &'a str {
-    let header = format!("[{section}]");
-    block
-        .lines()
-        .skip_while(|line| *line != header)
-        .skip(1)
-        .take_while(|line| !line.starts_with('['))
-        .find_map(|line| line.strip_prefix(key))
-        .unwrap_or_else(|| panic!("no {key} in {header} of {block}"))
-}
 
 /// The signal file the notes have the portal write.
 fn signal_in_the_notes() -> &'static str {
