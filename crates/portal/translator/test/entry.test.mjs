@@ -162,23 +162,22 @@ test("the notes start the translator with a command line it takes, where the lis
 
 test("each listed file has its hash, size and address, and each listed model is one the translator takes", () => {
   const files = listed();
-  assert.equal(files.length, 20);
+  assert.equal(files.length, 24);
   const models = place();
-  const directions = new Set();
+  const directions = new Map();
   for (const { sha256, path, size, url } of files) {
     assert.match(sha256, /^[0-9a-f]{64}$/, path);
     assert.match(size, /^[1-9][0-9]*$/, path);
     assert.match(url, /^https:\/\/(firefox-settings-attachments\.cdn\.mozilla\.net|raw\.githubusercontent\.com\/mozilla-firefox\/firefox\/[0-9a-f]{40}|dl\.fbaipublicfiles\.com)\//, path);
-    assert.match(path, /^(engine\/[A-Za-z.-]+|lid\.176\.ftz|models\/[a-z]{2,3}-[a-z]{2,3}\/[0-9A-Za-z.-]+)$/, path);
-    const direction = /^models\/([a-z]{2,3})-([a-z]{2,3})\/(.*)$/.exec(path);
+    assert.match(path, /^(engine\/[A-Za-z.-]+|lid\.176\.ftz|models\/(zh-Hant|[a-z]{2,3})-[a-z]{2,3}\/[0-9A-Za-z.-]+)$/, path);
+    const direction = /^models\/(zh-Hant|[a-z]{2,3})-([a-z]{2,3})\/(.*)$/.exec(path);
     if (direction !== null) {
       model(models, direction[1], direction[2], [direction[3]]);
-      directions.add(`${direction[1]}-${direction[2]}`);
+      directions.set(`${direction[1]}-${direction[2]}`, [direction[1], direction[2]]);
     }
   }
-  assert.deepEqual([...directions].sort(), ["en-zh", "es-en", "ja-en", "ru-en", "zh-en"]);
-  for (const direction of directions) {
-    const [from, into] = direction.split("-");
+  assert.deepEqual([...directions.keys()].sort(), ["en-zh", "es-en", "ja-en", "ru-en", "zh-Hant-en", "zh-en"]);
+  for (const [direction, [from, into]] of directions) {
     assert.ok(modelFiles(models, from, into).model, direction);
   }
 });

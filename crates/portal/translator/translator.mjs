@@ -22,6 +22,8 @@
 // it. Mozilla's engine for Firefox's translations (bergamot-translator,
 // built to WebAssembly) translates, with Firefox's models: each goes into
 // English or out of it, and the portal asks for one direction at a time.
+// Chinese in traditional characters has a model of its own, and fastText
+// calls it Chinese all the same, so its characters tell it apart.
 //
 // The host runs Debian's Node 20, so nothing newer is used.
 
@@ -227,6 +229,57 @@ export function identifier(fasttext, model) {
   };
 }
 
+/** A Chinese character, as the decoders give one. */
+const HAN = /^\p{Script=Han}$/u;
+
+/** The numbers of the bytes in the ranges `ranges`, each of a first and a last. */
+function* bytesIn(ranges) {
+  for (const [first, last] of ranges) {
+    for (let byte = first; byte <= last; byte += 1) {
+      yield byte;
+    }
+  }
+}
+
+/**
+ * The Chinese characters of a two-byte character set: what Node's decoder
+ * for `label` reads in each pair of a byte of `leads` and one of `trails`.
+ */
+function hanzi(label, leads, trails) {
+  const decoder = new TextDecoder(label);
+  const characters = new Set();
+  for (const lead of bytesIn(leads)) {
+    for (const trail of bytesIn(trails)) {
+      const character = decoder.decode(Uint8Array.of(lead, trail));
+      if (HAN.test(character)) {
+        characters.add(character);
+      }
+    }
+  }
+  return characters;
+}
+
+/**
+ * Whether Chinese `text` is written in traditional characters (`Hant`) or
+ * in simplified ones (`Hans`). fastText calls both `zh`, and Firefox has a
+ * model for each. A character of GB 2312, the mainland's set, that Big5,
+ * Taiwan's, lacks is simplified; one of Big5 that GB 2312 lacks is
+ * traditional; one both have says nothing. The text is in the script more
+ * of its characters are in, and in simplified ones when neither has more:
+ * the characters of such a text are the simplified model's as well.
+ */
+export function chineseScript(text) {
+  const gb2312 = hanzi("gbk", [[0xb0, 0xf7]], [[0xa1, 0xfe]]);
+  const big5 = hanzi("big5", [[0xa4, 0xc6], [0xc9, 0xf9]], [[0x40, 0x7e], [0xa1, 0xfe]]);
+  let balance = 0;
+  for (const character of text) {
+    if (big5.has(character) !== gb2312.has(character)) {
+      balance += big5.has(character) ? 1 : -1;
+    }
+  }
+  return balance > 0 ? "Hant" : "Hans";
+}
+
 /**
  * The files, by kind, of the model in `models` that goes from `from` into
  * `into`, or null when none is installed. A model has one file of each
@@ -372,14 +425,19 @@ export function translateWith(bergamot, files, from, into, text) {
   return responses.get(0).getTranslatedText();
 }
 
-/** Translates with the engine in `engine` and the models in `models`. */
+/**
+ * Translates with the engine in `engine` and the models in `models`.
+ * Chinese in traditional characters goes to Firefox's model for them,
+ * `zh-Hant-en`, and to none when it is not installed.
+ */
 export function translator(engine, models) {
   return async (from, into, text) => {
-    const files = modelFiles(models, from, into);
+    const source = from === "zh" && chineseScript(text) === "Hant" ? "zh-Hant" : from;
+    const files = modelFiles(models, source, into);
     if (files === null) {
       return null;
     }
-    return translateWith(await startEngine(engine), files, from, into, text);
+    return translateWith(await startEngine(engine), files, source, into, text);
   };
 }
 

@@ -12,6 +12,7 @@ import { test } from "node:test";
 import {
   Failure,
   MIN_CONFIDENCE,
+  chineseScript,
   identifier,
   modelFiles,
   settingsFor,
@@ -177,6 +178,45 @@ test("the translator says nothing of a direction it has no model for, and starts
   assert.deepEqual(stand.started, []);
   assert.equal(await translate("ja", "en", "こんにちは"), "[こんにちは]");
   assert.equal(stand.started.length, 1);
+});
+
+test("Chinese is in traditional characters when more of them are Big5's alone than GB 2312's alone", () => {
+  assert.equal(chineseScript("我的帳號無法登入"), "Hant");
+  assert.equal(chineseScript("我的账号无法登录"), "Hans");
+  // Characters both sets have say nothing, and neither does anything else.
+  assert.equal(chineseScript("我的天"), "Hans");
+  assert.equal(chineseScript("OK, 123!"), "Hans");
+  assert.equal(chineseScript(""), "Hans");
+  // The script more of the characters are in, and simplified when neither has more.
+  assert.equal(chineseScript("帳號 账"), "Hant");
+  assert.equal(chineseScript("帳 账号"), "Hans");
+  assert.equal(chineseScript("帳账"), "Hans");
+  // The seven characters Big5 gained after its two levels are its own too.
+  assert.equal(chineseScript("裏面"), "Hant");
+});
+
+test("Chinese in traditional characters goes to Firefox's model for them, and to none when that is not installed", async () => {
+  const directory = place();
+  const { directory: engineDirectory, stand } = engine(directory);
+  const models = join(directory, "models");
+  model(models, "zh", "en", ONE_VOCABULARY);
+  const translate = translator(engineDirectory, models);
+  assert.equal(await translate("zh", "en", "我的帳號無法登入"), null);
+  assert.deepEqual(stand.started, []);
+  assert.equal(await translate("zh", "en", "我的账号无法登录"), "[我的账号无法登录]");
+  model(models, "zh-Hant", "en", ["model.zhen.intgemm.alphas.bin", "lex.50.50.zhen.s2t.bin", "srcvocab.zhen.spm", "trgvocab.zhen.spm"]);
+  assert.equal(await translate("zh", "en", "我的帳號無法登入"), "[我的帳號無法登入]");
+  assert.equal(await translate("zh", "en", "我的天"), "[我的天]");
+  // Japanese has characters only Big5 has as well (東), and stays Japanese.
+  model(models, "ja", "en", ["model.jaen.intgemm.alphas.bin", "vocab.jaen.spm"]);
+  assert.equal(await translate("ja", "en", "東京駅はどこですか"), "[東京駅はどこですか]");
+  const vocabularies = (made) => made.vocabularies.map((kind) => Buffer.from(kind.bytes).toString());
+  assert.deepEqual(stand.models.map((made) => [made.from, made.into, vocabularies(made)]), [
+    ["zh", "en", ["the bytes of vocab.zhen.spm"]],
+    ["zh-Hant", "en", ["the bytes of srcvocab.zhen.spm", "the bytes of trgvocab.zhen.spm"]],
+    ["zh", "en", ["the bytes of vocab.zhen.spm"]],
+    ["ja", "en", ["the bytes of vocab.jaen.spm"]],
+  ]);
 });
 
 test("an engine that stops, or cannot be read, leaves the question unanswered, and says why in printable words", async () => {

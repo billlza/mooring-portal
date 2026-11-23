@@ -73,10 +73,10 @@ none\n
 翻译服务是 `crates/portal/translator/translator.mjs`，一个 Node 脚本，不编进门户的二进制。systemd 每收到一个连接就启动它一次，把连接交给它（socket 激活，`Accept=yes`，连接是第 3 号描述符）；它读一个问题，答完就退出，不常驻。
 
 - **认语言**：用 fastText 的命令行（主机上是 Debian 的 `fasttext` 0.9.2）和 fastText 的语言识别模型 `lid.176.ftz`（176 种语言）。fastText 一次读一行，所以留言里的换行和空白先换成一个空格。它最拿得准的那种语言，把握在 50% 以上才答出来，否则答 `none`：2026-11-22 试的时候，`hi` 只有 12%，`ok` 有 63%（英文），一句完整的话一般在 95% 以上。
-- **翻译**：用 Mozilla 给 Firefox 的网页翻译做的引擎 bergamot-translator 0.6.0，编成 WebAssembly 的那一份（Firefox 发布记录里的 3.0），在 Node 里运行；模型用 Firefox 的，设置也照 Firefox（`translations-engine.worker.js`）。现在装五个方向：中译英、英译中、日译英、俄译英、西译英，都是 2026-11-22 时 Firefox 桌面正式版用的版本。没有模型的方向答 `none`，留言照原样显示。模型放在以门户的语言代码命名的目录里（`zh-en`、`en-zh`……）；Firefox 把中文叫 `zh-Hans`，试过把 `zh` 和 `zh-Hans` 交给引擎，译文一样。
+- **翻译**：用 Mozilla 给 Firefox 的网页翻译做的引擎 bergamot-translator 0.6.0，编成 WebAssembly 的那一份（Firefox 发布记录里的 3.0），在 Node 里运行；模型用 Firefox 的，设置也照 Firefox（`translations-engine.worker.js`）。现在装六个方向：中译英、英译中、日译英、俄译英、西译英，都是 2026-11-22 时 Firefox 桌面正式版用的版本；还有繁体中文译英，2026-11-23 加上（Firefox 记录里的 2.0，正式版也用它）。没有模型的方向答 `none`，留言照原样显示。模型放在以门户的语言代码命名的目录里（`zh-en`、`en-zh`……），繁体中文的照 Firefox 叫 `zh-Hant-en`；Firefox 把中文叫 `zh-Hans`，试过把 `zh` 和 `zh-Hans` 交给引擎，译文一样。
 - **一个问题一个进程**：每次都重新载入引擎（约 5 MB）和一个方向的模型（30 到 70 MB），答完内存全部还给系统，空闲时不占内存。模型文件直接读进引擎的内存，脚本里不另留一份。
 - **日志里有什么**：只有失败的原因（比如 `the question asks neither detect nor translate`、`the engine stopped: …`），都是脚本自己写的字，不带问题里的文字。引擎自己打印的东西一概不留，因为说不定带着文字（有测试）。fastText 的错误输出进日志，它不复述读到的文字。
-- **文件**：引擎的脚本和 WebAssembly、引擎的许可证、`lid.176.ftz` 和五个方向的模型，共 20 个文件、272 MB，列在 `crates/portal/translator/files.txt`：每个文件的 SHA-256、装在哪里、大小、从哪里取。引擎的 WebAssembly 和模型取自 Firefox 发布记录里的地址（Mozilla 的 CDN），SHA-256 也是记录里的；引擎的脚本和许可证取自 Firefox 源码里固定的提交；`lid.176.ftz` 取自 fastText 的网站，SHA-256 是 2026-11-22 下载后算的。许可证：引擎和模型是 MPL-2.0，`lid.176.ftz` 是 CC BY-SA 3.0。这些文件不进仓库。
+- **文件**：引擎的脚本和 WebAssembly、引擎的许可证、`lid.176.ftz` 和六个方向的模型，共 24 个文件、324 MB，列在 `crates/portal/translator/files.txt`：每个文件的 SHA-256、装在哪里、大小、从哪里取。引擎的 WebAssembly 和模型取自 Firefox 发布记录里的地址（Mozilla 的 CDN），SHA-256 也是记录里的；引擎的脚本和许可证取自 Firefox 源码里固定的提交；`lid.176.ftz` 取自 fastText 的网站，SHA-256 是 2026-11-22 下载后算的。许可证：引擎和模型是 MPL-2.0，`lid.176.ftz` 是 CC BY-SA 3.0。这些文件不进仓库。
 
 **2026-11-22 在运营者的 Mac 上试过**（M1 Max，Node 26.3，fastText 0.9.2 从源码编译；不是主机的 Node 20 和 x86_64）：
 
@@ -90,7 +90,13 @@ none\n
 
 - **端到端**：本机的演示库，门户的 `serve` 和 `translate` 照常运行，翻译服务由一个替身按 systemd 的方式启动（一个连接一个进程，第 3 号描述符），`translate` 在门户写新消息文件时运行。用户发了日、俄、西、英、中、韩六条留言，每条写来后 0.3 到 1.2 秒译文就存进了数据库；运营者的对话页在中文界面下显示日、俄、西、英四条的中文译文，在英文界面下显示日、俄、西、中四条的英文译文；韩文没有模型，记为问过，没有译文。替身交出连接后自己就放掉了它，也不数连接，所以没碰上第 2 节最后一条说的问题，到了主机上才看到。
 - **译文的质量**：日常的话大多通顺，但会错，比如"按流量计费的套餐"译成了 "a meal by flow"，"连不上"经英文转一道成了"无法联系"。页面上标着"机器翻译，可能有误"，原文在上面。
-- **繁体中文译不好**：fastText 不分简繁，繁体的留言也认作 `zh`，交给简体的中译英模型，译出来的英文是乱的（试过"我的帳號無法登入"）。运营者在中文界面下看的是原文，所以只影响英文界面。要改，得加上 Firefox 的繁体模型，并在翻译服务里先分出简繁，还没有做。
+- **繁体中文**：fastText 不分简繁，繁体的留言也认作 `zh`；交给简体的中译英模型，译出来的英文是乱的（2026-11-22 试过"我的帳號無法登入"）。2026-11-23 起翻译服务按字来分：GB 2312（大陆的字符集）有、Big5（台湾的）没有的字算简体，Big5 有、GB 2312 没有的算繁体，两边都有的不算。繁体的字多，就交给 Firefox 的繁体中译英模型；否则交给简体的，只用两边都有的字写的话，简体模型也认得。
+  - 两个字符集取自 Node 自带的解码器。Mac 上的 Node 26.3 和主机上 Debian 的 Node 20.19.2 解出的字一样（GB 2312 的 6763 个汉字，Big5 的 13060 个），主机上算一遍要 38 毫秒。
+  - 只有 fastText 认作中文的才分：日文里也有 Big5 才有的字，比如"東"。
+  - 繁体模型没装时，繁体的留言答 `none`，不再译成乱的英文。
+  - 2026-11-23 在 Mac 上用这个模型试过（运营者当天同意下载，4 个文件 52 MB，SHA-256 与记录相符）。编的五句繁体留言，fastText 都认作中文，把握在 0.98 以上，也都分到了繁体。"我的帳號無法登入"现在译成 "My account cannot be logged in"，原先是 "My 踳號無 law is logged in."；其余四句原先夹着没译的字和乱码，现在都通顺。也会有小错，"謝謝！"译成了 "Thanks for the thanks!"。
+  - 同在 Mac 上：一句 0.45 秒、386 MiB，1000 个字 2.0 秒、416 MiB。繁体模型比简体的小，内存也少一些。按 systemd 的方式从入口问也一样答。主机上还没有装。
+  - 运营者在中文界面下看的仍是原文。这些都有测试。
 - **主机的 Node 20**：按 Mozilla 的构建文件，引擎只用到 WebAssembly 的 SIMD128（`-msimd128`），Node 20 支持；脚本也只用 Node 20 有的东西。2026-11-23 在主机上跑过，见下面。
 
 **2026-11-23 在主机上**（Linode 2 GB 的 1 个 vCPU，Debian 13 的 Node 20.19.2 和 fastText 0.9.2，x86_64）。照 `translate` 的问法一个接一个地问编的句子，内存是 systemd 记下的每个进程的峰值：
@@ -124,11 +130,11 @@ apt install nodejs fasttext
 install -d -m 0755 /usr/local/lib/mooring-portal/translator
 install -o root -g root -m 0644 /home/builder/portal/crates/portal/translator/translator.mjs /usr/local/lib/mooring-portal/translator.mjs
 cd /usr/local/lib/mooring-portal/translator
-grep -v '^#' /home/builder/portal/crates/portal/translator/files.txt | while read -r sum path size url; do install -d -m 0755 "$(dirname "$path")" && curl --fail --silent --show-error --location --proto =https --output "$path" "$url"; done
+grep -v '^#' /home/builder/portal/crates/portal/translator/files.txt | while read -r sum place size url; do install -d -m 0755 "$(dirname "$place")" && curl --fail --silent --show-error --location --proto =https --output "$place" "$url"; done
 grep -v '^#' /home/builder/portal/crates/portal/translator/files.txt | awk '{ print $1 "  " $2 }' | sha256sum --check --strict
 ```
 
-最后一行要对 20 个文件都说 `OK`。没取到、取坏了的文件在这里报出来，重新运行倒数第二行，再查一遍。
+最后一行要对 24 个文件都说 `OK`。没取到、取坏了的文件在这里报出来，重新运行倒数第二行，再查一遍。
 
 **3. 五个单元**
 
@@ -265,6 +271,5 @@ journalctl -u mooring-portal-translate.service -n 5 -o cat
 ## 6. 还没做的
 
 - **在页面上看译文**：2026-11-23 装好后，还没有人在运营者的对话页上看过真留言的译文（没有运营者的密码）。运营者登录后打开那条对话就能看到。
-- **繁体中文**：见第 4 节。
 - **更多语言**：Firefox 有 59 种语言译成英文的模型。要加一种，就在 `files.txt` 里加它的三四个文件（地址和 SHA-256 取自 Firefox 的发布记录），装到 `models/<代码>-en/`。加哪几种，等运营者定。
 - **Telegram 转发**（README 第 14 条第 3 步）会带上译文。上线之前要先改《使用约定》和页面上的说明。
