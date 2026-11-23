@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { readFileSync, symlinkSync } from "node:fs";
+import net from "node:net";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -53,6 +54,46 @@ test("the translator answers the question on the connection systemd hands it, an
   const none = started(SCRIPT, place());
   none.connection.write("translate ko en 15\n안녕하세요");
   assert.deepEqual(await none.ended, { status: 0, answer: "none\n", journal: "" });
+});
+
+/**
+ * The translator started as systemd starts it, with the connection systemd
+ * keeps as well: systemd lets go of it only once the translator has ended,
+ * and counts it against `MaxConnections=1` until then. Here it lets go a
+ * little after the end, so an answer whose end is read earlier ended
+ * while the connection was still counted.
+ */
+async function heldBySystemd(script, directory) {
+  const { directory: engineDirectory } = engine(directory);
+  const socket = join(directory, "socket");
+  const server = net.createServer({ pauseOnConnect: true });
+  await new Promise((resolve) => server.listen(socket, resolve));
+  const handed = new Promise((resolve) => server.once("connection", resolve));
+  const portal = net.connect(socket);
+  const kept = await handed;
+  server.close();
+  const child = spawn("sh", ["-c", 'LISTEN_PID=$$ LISTEN_FDS=1 exec "$0" "$@"', process.execPath, script,
+    "--engine", engineDirectory, "--models", join(directory, "models"),
+    "--fasttext", fasttext(directory, "__label__ja 0.97\n"), "--identifier", "/lid.176.ftz"],
+  { stdio: ["ignore", "ignore", "ignore", kept] });
+  let letGo = false;
+  child.on("exit", () => setTimeout(() => {
+    letGo = true;
+    kept.destroy();
+  }, 100));
+  const said = [];
+  portal.on("data", (chunk) => said.push(chunk));
+  const read = new Promise((resolve) => portal.on("end", () => resolve({
+    letGo,
+    answer: Buffer.concat(said).toString("utf8"),
+  })));
+  return { portal, read };
+}
+
+test("the end of an answer is read only once systemd lets go of the connection, so the next question is let in", async () => {
+  const { portal, read } = await heldBySystemd(SCRIPT, place());
+  portal.write("detect 2\nhi");
+  assert.deepEqual(await read, { letGo: true, answer: "ok 2\nja" });
 });
 
 test("a question it cannot answer gets no answer, and the journal says why and nothing of the text", async () => {

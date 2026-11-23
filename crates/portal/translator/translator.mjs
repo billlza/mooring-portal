@@ -417,14 +417,27 @@ export function handedConnection(env, pid) {
   return new net.Socket({ fd: 3, readable: true, writable: true });
 }
 
-/** Reads the question on `connection`, answers it there with `tools`, and ends the connection. */
+/**
+ * Reads the question on `connection`, answers it there with `tools`, and
+ * lets go of the connection.
+ *
+ * The answer does not end by closing the writing half. systemd keeps the
+ * connection it hands over until this process has ended, and counts it
+ * against `MaxConnections=1` until then. An answer ended by a half-close
+ * reached the portal while this process was still ending, and the portal's
+ * next question found the connection still counted and was dropped
+ * (2026-11-23, on the host). Without one, the portal reads the end of the
+ * answer only when systemd lets go of the connection too, and by then the
+ * next question is let in.
+ */
 export async function answerOne(connection, tools) {
   try {
     const question = await readQuestion(connection);
     const answer = await answerTo(question, tools);
     await new Promise((resolve, reject) => {
-      connection.once("error", (error) => reject(new Failure(`the answer could not be written: ${error.code ?? error.message}`)));
-      connection.end(answer, resolve);
+      const failed = (error) => reject(new Failure(`the answer could not be written: ${error.code ?? error.message}`));
+      connection.once("error", failed);
+      connection.write(answer, (error) => (error ? failed(error) : resolve()));
     });
   } finally {
     connection.destroy();
