@@ -164,6 +164,13 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 线上只在内置浏览器里看过静态主图（浏览器面板隐藏时场景不启动）；会动的场景只在本机的 Chromium（M1 Max）里看过。Safari、Firefox、手机和集成显卡都还没看过。
 - 旧的二进制留在主机的 `/root/mooring-portal-91b72cb`。启动参数和数据库结构都没变，要换回它，换回二进制、重启就行。
 
+2026-11-23 换上了提交 `e6545ff`（运营者的对话页显示留言的译文，`docs/translation.md`；运营者当天决定部署，并装上翻译服务）：
+- 换之前线上跑的是 `8959a7d`，数据库是第 8 版。两者之间还有飞书提醒的提交（`docs/notices.md`，主机上没有装，门户的程序不用它）和注册上限的记录。
+- 在主机上构建用了 3 分 56 秒，没有警告。门户的日志里，从收到停止信号到重新开始服务 0.16 秒。新版本把数据库迁到第 9 版，加上两张表（见下面第 9 版那段）；之后 `quick_check` 是 `ok`，`foreign_key_check` 没有输出。启动参数没变。
+- 第 6 节的前三条重新查过，结果和以前一样。公开页面（包括 `/mac`）都是 `200`。没登录时打开 `/operator`、`/operator/feedback` 和 `/feedback`，转到登录页；不带页面令牌请求 `/feedback/unread` 和 `/feedback/messages`，得到 `403`。没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。首页的场景脚本目录（`js.77b3499e55b1da48`）和主图没变；八个场景脚本和聊天脚本（`text/javascript`）与提交逐字节相同。
+- 随后按 `docs/translation.md` 第 5 节装上翻译服务：`apt install nodejs fasttext`，取 20 个文件、`sha256sum` 全部 `OK`，五个单元通过 `systemd-analyze verify`。脚本取自提交 `9da67e4`：它只改了翻译服务答完的方式（那里第 2 节最后一条），门户的程序不变。第一次运行 `translate` 和主机上量的数见那里第 4 节。
+- 旧的二进制留在主机的 `/root/mooring-portal-8959a7d`。它不认识第 9 版。要换回它：先撤下翻译服务（`docs/translation.md` 第 5 节末尾），再按下面第 9 版那段撤销迁移，然后换回二进制、重启。
+
 数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，2026-11-14 随 `7ea4956` 部署）：
 - 迁移时 `cfm_profiles` 要么是空的，要么每份配置都有绑定、`profile_bundle` 也有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
 - 要撤销第 7 版，先停掉门户，用门户的账号在数据库上执行 `ALTER TABLE cfm_profiles DROP COLUMN generated_at;`，再把 `user_version` 改回 6。只改 `user_version` 不够：第 6 版的程序照样启动，但每次 `import-profiles` 都会因为 `generated_at` 不能为空而失败。这两点 2026-11-14 在按迁移建出的测试库上核对过。
@@ -173,9 +180,9 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 部署后在主机上用 `grant-operator --account <编号>` 把运营者自己的账号设为运营者，网页上才有"运营"。
 - 要撤销第 8 版，先停掉门户，用门户的账号在数据库上执行 `DROP TABLE feedback; DROP TABLE operators; ALTER TABLE sessions DROP COLUMN confirmed_at; PRAGMA user_version = 7;`。反馈和运营者名单随之删除，会话保留。执行后的结构和第 7 版完全相同（`crates/store/src/tests/operators.rs` 里有测试）。删表之后，反馈的原文还可能留在数据库文件的空闲页或预写日志里（没开 `secure_delete` 时留在空闲页；主机上的 SQLite 默认开着，但改动先写进预写日志，旧的内容要等日志并回数据库才被盖掉）：换回旧的程序后、启动门户之前，用它运行一次 `erase-deleted`，它重整数据库文件、清空预写日志，把这些内容从文件里抹掉。
 
-数据库第 9 版（留言的译文，`docs/translation.md`；分支 `feature/host-translation`，接在第 8 版之后，还没有部署）：
+数据库第 9 版（留言的译文，`docs/translation.md`；分支 `feature/host-translation`，接在第 8 版之后，2026-11-23 随 `e6545ff` 部署）：
 - 迁移只新建两张表（`feedback_examined`、`feedback_translations`），不改已有的行，线上的数据不会让它失败。
-- 部署这一版本身不会让页面上出现译文：要等翻译服务和运行 `translate` 的单元装好（`docs/translation.md` 第 5 节）。那是另一步，可以晚于这一版，也要先问运营者。
+- 部署这一版本身不会让页面上出现译文：要等翻译服务和运行 `translate` 的单元装好（`docs/translation.md` 第 5 节）。2026-11-23 部署后当天就装好了。
 - 要撤销第 9 版，先停掉门户和运行 `translate` 的单元，用门户的账号在数据库上执行 `DROP TABLE feedback_translations; DROP TABLE feedback_examined; PRAGMA user_version = 8;`。译文和"问过了"的记录随之删除，留言保留。执行后的结构和第 8 版完全相同（`crates/store/src/tests/translations_schema.rs` 里有测试）；要接着撤到第 7 版，先做这一步，再做上面第 8 版那一步（也有测试）。删表之后，译文还可能留在数据库文件的空闲页或预写日志里：和第 8 版一样，换回旧的程序后、启动门户之前，用它运行一次 `erase-deleted`。
 
 ## 3. DNS
