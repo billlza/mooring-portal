@@ -170,6 +170,7 @@ install -o root -g root -m 0755 /home/builder/portal/target/release/mooring-port
 - 第 6 节的前三条重新查过，结果和以前一样。公开页面（包括 `/mac`）都是 `200`。没登录时打开 `/operator`、`/operator/feedback` 和 `/feedback`，转到登录页；不带页面令牌请求 `/feedback/unread` 和 `/feedback/messages`，得到 `403`。没签名的 Stripe 通知得到 `400`，不带令牌的拉取得到 `401`。首页的场景脚本目录（`js.77b3499e55b1da48`）和主图没变；八个场景脚本和聊天脚本（`text/javascript`）与提交逐字节相同。
 - 随后按 `docs/translation.md` 第 5 节装上翻译服务：`apt install nodejs fasttext`，取 20 个文件、`sha256sum` 全部 `OK`，五个单元通过 `systemd-analyze verify`。脚本取自提交 `9da67e4`：它只改了翻译服务答完的方式（那里第 2 节最后一条），门户的程序不变。第一次运行 `translate` 和主机上量的数见那里第 4 节。
 - 旧的二进制留在主机的 `/root/mooring-portal-8959a7d`。它不认识第 9 版。要换回它：先撤下翻译服务（`docs/translation.md` 第 5 节末尾），再按下面第 9 版那段撤销迁移，然后换回二进制、重启。
+- 同日稍后，翻译服务的脚本换成提交 `4c935d1` 的，加上繁体中文的模型（`docs/translation.md` 第 4 节）：主机取了 4 个新文件，24 个文件的 `sha256sum` 全部 `OK`，脚本先装到同一目录下的临时名字再改名换上。门户和各单元都没有重启。之前的脚本留在 `/root/translator-9da67e4.mjs`：要换回，把它装回 `/usr/local/lib/mooring-portal/translator.mjs` 就行，繁体模型的目录留着不碍事，那个脚本不读它。
 
 数据库第 7 版（每份 CFM 配置记着自己配置包的生成时间，`import-profile` 要用；分支 `feature/one-account-profile`，2026-11-14 随 `7ea4956` 部署）：
 - 迁移时 `cfm_profiles` 要么是空的，要么每份配置都有绑定、`profile_bundle` 也有时间。否则迁移失败、门户不启动，数据库仍是第 6 版，不受影响。
